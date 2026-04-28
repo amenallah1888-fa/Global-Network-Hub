@@ -1,4 +1,12 @@
 import { Feather } from "@expo/vector-icons";
+import {
+  getListPostsQueryKey,
+  useTipPost,
+  useToggleLike,
+  useToggleRetweet,
+} from "@workspace/api-client-react";
+import type { Post } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { useState } from "react";
 import {
@@ -12,9 +20,9 @@ import {
 
 import { Avatar } from "@/components/Avatar";
 import { TipSheet } from "@/components/TipSheet";
-import { useApp } from "@/context/AppContext";
-import { Post, getUser } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
+import { getImage } from "@/lib/imageMap";
+import { useUserById } from "@/lib/userCache";
 
 function formatNumber(n: number) {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
@@ -22,29 +30,54 @@ function formatNumber(n: number) {
   return n.toString();
 }
 
+function formatRelative(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "now";
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  const days = Math.floor(h / 24);
+  return `${days}d`;
+}
+
 export function PostCard({ post }: { post: Post }) {
   const colors = useColors();
-  const { toggleLike, toggleRetweet, tip } = useApp();
-  const author = getUser(post.authorId);
+  const queryClient = useQueryClient();
+  const author = useUserById(post.authorId);
   const [tipOpen, setTipOpen] = useState(false);
+  const image = getImage(post.imageKey);
+
+  const invalidate = () =>
+    queryClient.invalidateQueries({
+      queryKey: getListPostsQueryKey(),
+      exact: false,
+    });
+
+  const likeMut = useToggleLike();
+  const rtMut = useToggleRetweet();
+  const tipMut = useTipPost();
 
   const onLike = () => {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    toggleLike(post.id);
+    likeMut.mutate({ id: post.id }, { onSuccess: invalidate });
   };
   const onRetweet = () => {
     if (Platform.OS !== "web") {
       Haptics.selectionAsync();
     }
-    toggleRetweet(post.id);
+    rtMut.mutate({ id: post.id }, { onSuccess: invalidate });
   };
   const onTip = (amount: number) => {
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
-    tip(post.id, amount);
+    tipMut.mutate(
+      { id: post.id, data: { amount } },
+      { onSuccess: invalidate },
+    );
     setTipOpen(false);
   };
 
@@ -63,15 +96,20 @@ export function PostCard({ post }: { post: Post }) {
           style={[styles.sponsorPill, { backgroundColor: colors.sponsor }]}
         >
           <Feather name="zap" size={10} color="#fff" />
-          <Text style={styles.sponsorText}>{post.sponsorLabel ?? "Sponsored"}</Text>
+          <Text style={styles.sponsorText}>
+            {post.sponsorLabel ?? "Sponsored"}
+          </Text>
         </View>
       ) : null}
 
       <View style={styles.headerRow}>
-        <Avatar source={author.avatar} size={44} />
+        <Avatar avatarKey={author.avatarKey} size={44} />
         <View style={{ flex: 1, marginLeft: 12 }}>
           <View style={styles.nameRow}>
-            <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
+            <Text
+              style={[styles.name, { color: colors.foreground }]}
+              numberOfLines={1}
+            >
               {author.name}
             </Text>
             {author.verified ? (
@@ -82,17 +120,29 @@ export function PostCard({ post }: { post: Post }) {
                 style={{ marginLeft: 4 }}
               />
             ) : null}
-            <Text style={[styles.dot, { color: colors.mutedForeground }]}>·</Text>
-            <Text style={[styles.meta, { color: colors.mutedForeground }]} numberOfLines={1}>
-              {post.createdAt}
+            <Text style={[styles.dot, { color: colors.mutedForeground }]}>
+              ·
+            </Text>
+            <Text
+              style={[styles.meta, { color: colors.mutedForeground }]}
+              numberOfLines={1}
+            >
+              {post.sponsored ? "Sponsored" : formatRelative(post.createdAt)}
             </Text>
           </View>
-          <Text style={[styles.title, { color: colors.mutedForeground }]} numberOfLines={1}>
+          <Text
+            style={[styles.title, { color: colors.mutedForeground }]}
+            numberOfLines={1}
+          >
             {author.title} · {author.company}
           </Text>
         </View>
         <Pressable hitSlop={10} style={styles.more}>
-          <Feather name="more-horizontal" size={18} color={colors.mutedForeground} />
+          <Feather
+            name="more-horizontal"
+            size={18}
+            color={colors.mutedForeground}
+          />
         </Pressable>
       </View>
 
@@ -100,9 +150,9 @@ export function PostCard({ post }: { post: Post }) {
         {post.text}
       </Text>
 
-      {post.image ? (
+      {image ? (
         <Image
-          source={post.image}
+          source={image}
           style={[
             styles.image,
             { backgroundColor: colors.cardElevated, borderColor: colors.border },
@@ -114,28 +164,26 @@ export function PostCard({ post }: { post: Post }) {
       <View style={styles.actions}>
         <Action
           icon="message-circle"
-          value={formatNumber(post.comments)}
+          value={formatNumber(post.commentsCount)}
           color={colors.mutedForeground}
           onPress={() => {}}
         />
         <Action
           icon="repeat"
-          value={formatNumber(post.retweets)}
+          value={formatNumber(post.retweetsCount)}
           color={post.retweeted ? colors.success : colors.mutedForeground}
           onPress={onRetweet}
         />
         <Action
           icon="heart"
-          value={formatNumber(post.likes)}
+          value={formatNumber(post.likesCount)}
           color={post.liked ? colors.destructive : colors.mutedForeground}
-          filled={post.liked}
           onPress={onLike}
         />
         <Action
           icon="dollar-sign"
-          value={post.tips > 0 ? formatNumber(post.tips) : "Tip"}
-          color={post.tips > 0 ? colors.tip : colors.mutedForeground}
-          accent={colors.tip}
+          value={post.tipsTotal > 0 ? "$" + formatNumber(post.tipsTotal) : "Tip"}
+          color={post.tipsTotal > 0 ? colors.tip : colors.mutedForeground}
           onPress={() => setTipOpen(true)}
         />
       </View>
@@ -154,15 +202,11 @@ function Action({
   icon,
   value,
   color,
-  filled,
-  accent,
   onPress,
 }: {
   icon: keyof typeof Feather.glyphMap;
   value: string;
   color: string;
-  filled?: boolean;
-  accent?: string;
   onPress: () => void;
 }) {
   return (
@@ -171,12 +215,7 @@ function Action({
       hitSlop={8}
       style={({ pressed }) => [styles.action, pressed && { opacity: 0.6 }]}
     >
-      <Feather
-        name={icon}
-        size={16}
-        color={color}
-        style={filled && accent ? { opacity: 1 } : undefined}
-      />
+      <Feather name={icon} size={16} color={color} />
       <Text style={[styles.actionText, { color }]} numberOfLines={1}>
         {value}
       </Text>

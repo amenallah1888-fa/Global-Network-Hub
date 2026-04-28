@@ -1,10 +1,17 @@
 import { Feather } from "@expo/vector-icons";
+import {
+  getListNotificationsQueryKey,
+  useListNotifications,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
-import { currentUser } from "@/data/mockData";
+import { NotificationsSheet } from "@/components/NotificationsSheet";
 import { useColors } from "@/hooks/useColors";
+import { useCurrentUser } from "@/lib/userCache";
 
 type Props = {
   title: string;
@@ -13,49 +20,111 @@ type Props = {
   onRightPress?: () => void;
 };
 
-export function Header({ title, subtitle, rightIcon = "bell", onRightPress }: Props) {
+export function Header({
+  title,
+  subtitle,
+  rightIcon,
+  onRightPress,
+}: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
+  const me = useCurrentUser();
+  const topPad =
+    Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
+  const [notifOpen, setNotifOpen] = useState(false);
+  const queryClient = useQueryClient();
+
+  const { data: notifs } = useListNotifications({
+    query: { refetchInterval: 8000, staleTime: 4000 } as any,
+  });
+  const unread = (notifs ?? []).filter((n) => !n.read).length;
+
+  const showCustomRight = Boolean(rightIcon);
+  const handleBellPress = () => {
+    setNotifOpen(true);
+    queryClient.invalidateQueries({ queryKey: getListNotificationsQueryKey() });
+  };
 
   return (
-    <View
-      style={[
-        styles.wrap,
-        {
-          backgroundColor: colors.background,
-          borderColor: colors.border,
-          paddingTop: topPad + 8,
-        },
-      ]}
-    >
-      <Avatar source={currentUser.avatar} size={36} />
-      <View style={styles.titleWrap}>
-        <Text style={[styles.title, { color: colors.foreground }]} numberOfLines={1}>
-          {title}
-        </Text>
-        {subtitle ? (
-          <Text
-            style={[styles.subtitle, { color: colors.mutedForeground }]}
-            numberOfLines={1}
-          >
-            {subtitle}
-          </Text>
-        ) : null}
-      </View>
-      <Pressable
-        onPress={onRightPress}
-        hitSlop={8}
-        style={({ pressed }) => [
-          styles.iconBtn,
-          { borderColor: colors.border, backgroundColor: colors.card },
-          pressed && { opacity: 0.6 },
+    <>
+      <View
+        style={[
+          styles.wrap,
+          {
+            backgroundColor: colors.background,
+            borderColor: colors.border,
+            paddingTop: topPad + 8,
+          },
         ]}
       >
-        <Feather name={rightIcon} size={18} color={colors.foreground} />
-        <View style={[styles.dot, { backgroundColor: colors.primary }]} />
-      </Pressable>
-    </View>
+        <Avatar avatarKey={me.avatarKey} size={36} />
+        <View style={styles.titleWrap}>
+          <Text
+            style={[styles.title, { color: colors.foreground }]}
+            numberOfLines={1}
+          >
+            {title}
+          </Text>
+          {subtitle ? (
+            <Text
+              style={[styles.subtitle, { color: colors.mutedForeground }]}
+              numberOfLines={1}
+            >
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
+
+        {showCustomRight ? (
+          <Pressable
+            onPress={onRightPress}
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.iconBtn,
+              {
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+                marginRight: 8,
+              },
+              pressed && { opacity: 0.6 },
+            ]}
+          >
+            <Feather name={rightIcon} size={18} color={colors.foreground} />
+          </Pressable>
+        ) : null}
+
+        <Pressable
+          onPress={handleBellPress}
+          hitSlop={8}
+          style={({ pressed }) => [
+            styles.iconBtn,
+            { borderColor: colors.border, backgroundColor: colors.card },
+            pressed && { opacity: 0.6 },
+          ]}
+        >
+          <Feather name="bell" size={18} color={colors.foreground} />
+          {unread > 0 ? (
+            <View
+              style={[
+                styles.badge,
+                {
+                  backgroundColor: colors.primary,
+                  borderColor: colors.background,
+                },
+              ]}
+            >
+              <Text style={styles.badgeText}>
+                {unread > 9 ? "9+" : unread}
+              </Text>
+            </View>
+          ) : null}
+        </Pressable>
+      </View>
+      <NotificationsSheet
+        visible={notifOpen}
+        onClose={() => setNotifOpen(false)}
+      />
+    </>
   );
 }
 
@@ -89,12 +158,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  dot: {
+  badge: {
     position: "absolute",
-    top: 8,
-    right: 9,
-    width: 7,
-    height: 7,
-    borderRadius: 4,
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+  },
+  badgeText: {
+    color: "#0A0B0F",
+    fontSize: 10,
+    fontFamily: "Inter_700Bold",
   },
 });

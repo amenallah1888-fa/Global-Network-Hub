@@ -1,4 +1,9 @@
 import { Feather } from "@expo/vector-icons";
+import {
+  getListPostsQueryKey,
+  useCreatePost,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import {
   Platform,
@@ -10,20 +15,35 @@ import {
 
 import { Avatar } from "@/components/Avatar";
 import { useApp } from "@/context/AppContext";
-import { currentUser } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
+import { useCurrentUser } from "@/lib/userCache";
 
 export function Composer() {
   const colors = useColors();
-  const { composeText, setComposeText, composePost } = useApp();
-  const canPost = composeText.trim().length > 0;
+  const me = useCurrentUser();
+  const { composeText, setComposeText } = useApp();
+  const queryClient = useQueryClient();
+  const create = useCreatePost();
+
+  const canPost = composeText.trim().length > 0 && !create.isPending;
 
   const handlePost = () => {
     if (!canPost) return;
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
-    composePost(composeText);
+    create.mutate(
+      { data: { text: composeText.trim() } },
+      {
+        onSuccess: () => {
+          setComposeText("");
+          queryClient.invalidateQueries({
+            queryKey: getListPostsQueryKey(),
+            exact: false,
+          });
+        },
+      },
+    );
   };
 
   return (
@@ -33,19 +53,14 @@ export function Composer() {
         { backgroundColor: colors.card, borderColor: colors.border },
       ]}
     >
-      <Avatar source={currentUser.avatar} size={40} />
+      <Avatar avatarKey={me.avatarKey} size={40} />
       <TextInput
         value={composeText}
         onChangeText={setComposeText}
         placeholder="Share an insight, opportunity, or question…"
         placeholderTextColor={colors.mutedForeground}
         multiline
-        style={[
-          styles.input,
-          {
-            color: colors.foreground,
-          },
-        ]}
+        style={[styles.input, { color: colors.foreground }]}
       />
       <View style={styles.actions}>
         <View style={styles.iconRow}>

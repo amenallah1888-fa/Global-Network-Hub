@@ -1,11 +1,18 @@
 import { Feather } from "@expo/vector-icons";
+import { useListPitches } from "@workspace/api-client-react";
 import { useMemo, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import { Header } from "@/components/Header";
 import { PitchCard } from "@/components/PitchCard";
 import { SegmentControl } from "@/components/SegmentControl";
-import { pitches } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
 
 const STAGES = ["All", "Pre-seed", "Seed", "Series A", "Series B"];
@@ -13,13 +20,15 @@ const STAGES = ["All", "Pre-seed", "Seed", "Series A", "Series B"];
 export default function PitchesScreen() {
   const colors = useColors();
   const [stage, setStage] = useState("All");
+  const { data: pitches, isLoading } = useListPitches();
+  const list = pitches ?? [];
 
   const visible = useMemo(() => {
-    if (stage === "All") return pitches;
-    return pitches.filter((p) => p.stage === stage);
-  }, [stage]);
+    if (stage === "All") return list;
+    return list.filter((p) => p.stage === stage);
+  }, [list, stage]);
 
-  const totalRaising = pitches.reduce((s, p) => s + p.raising - p.raised, 0);
+  const totalRaising = list.reduce((s, p) => s + (p.raising - p.raised), 0);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -48,7 +57,7 @@ export default function PitchesScreen() {
                   ${(totalRaising / 1_000_000).toFixed(1)}M
                 </Text>
                 <Text style={[styles.heroSub, { color: colors.mutedForeground }]}>
-                  across {pitches.length} live rounds
+                  across {list.length} live rounds
                 </Text>
               </View>
               <Pressable
@@ -58,9 +67,7 @@ export default function PitchesScreen() {
                 ]}
               >
                 <Feather name="plus" size={14} color={colors.primaryForeground} />
-                <Text
-                  style={[styles.heroBtnText, { color: colors.primaryForeground }]}
-                >
+                <Text style={[styles.heroBtnText, { color: colors.primaryForeground }]}>
                   Pitch
                 </Text>
               </Pressable>
@@ -77,15 +84,21 @@ export default function PitchesScreen() {
           </View>
         }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Feather name="briefcase" size={28} color={colors.mutedForeground} />
-            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-              No live rounds at this stage
-            </Text>
-            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              Adjust the filter or check back tomorrow.
-            </Text>
-          </View>
+          isLoading ? (
+            <View style={styles.empty}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : (
+            <View style={styles.empty}>
+              <Feather name="briefcase" size={28} color={colors.mutedForeground} />
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
+                No live rounds at this stage
+              </Text>
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                Adjust the filter or check back tomorrow.
+              </Text>
+            </View>
+          )
         }
         contentContainerStyle={{ paddingBottom: 140 }}
         showsVerticalScrollIndicator={false}
@@ -95,9 +108,7 @@ export default function PitchesScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
+  root: { flex: 1 },
   hero: {
     marginHorizontal: 16,
     marginTop: 14,

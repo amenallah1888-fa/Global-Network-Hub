@@ -1,31 +1,50 @@
 import { Feather } from "@expo/vector-icons";
+import { useListCircles } from "@workspace/api-client-react";
 import { useMemo, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import { CircleCard } from "@/components/CircleCard";
 import { Header } from "@/components/Header";
 import { SegmentControl } from "@/components/SegmentControl";
-import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
 const SEGMENTS = ["Discover", "Joined", "Paid"];
 
 export default function CirclesScreen() {
   const colors = useColors();
-  const { circles } = useApp();
   const [segment, setSegment] = useState("Discover");
+  const { data: circles, isLoading } = useListCircles();
 
+  const list = circles ?? [];
   const visible = useMemo(() => {
-    if (segment === "Joined") return circles.filter((c) => c.joined);
-    if (segment === "Paid") return circles.filter((c) => c.paid);
-    return circles;
-  }, [circles, segment]);
+    if (segment === "Joined") return list.filter((c) => c.joined);
+    if (segment === "Paid") return list.filter((c) => c.paid);
+    return list;
+  }, [list, segment]);
 
-  const totalActive = circles.reduce((sum, c) => sum + (c.joined ? c.active : 0), 0);
+  const totalActive = list.reduce(
+    (sum, c) => sum + (c.joined ? c.activeNow : 0),
+    0,
+  );
+  const monthly = list
+    .filter((c) => c.joined && c.paid)
+    .reduce((s, c) => s + (c.price ?? 0), 0);
+  const memberships = list.filter((c) => c.joined).length;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <Header title="Circles" subtitle="Your private rooms & paid groups" rightIcon="plus" />
+      <Header
+        title="Circles"
+        subtitle="Your private rooms & paid groups"
+        rightIcon="plus"
+      />
       <FlatList
         data={visible}
         keyExtractor={(c) => c.id}
@@ -43,10 +62,7 @@ export default function CirclesScreen() {
               ]}
             >
               <View
-                style={[
-                  styles.ctaIcon,
-                  { backgroundColor: colors.primary + "1F" },
-                ]}
+                style={[styles.ctaIcon, { backgroundColor: colors.primary + "1F" }]}
               >
                 <Feather name="users" size={20} color={colors.primary} />
               </View>
@@ -69,7 +85,7 @@ export default function CirclesScreen() {
                 ]}
               >
                 <Text style={[styles.statValue, { color: colors.foreground }]}>
-                  {circles.filter((c) => c.joined).length}
+                  {memberships}
                 </Text>
                 <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
                   Memberships
@@ -95,7 +111,7 @@ export default function CirclesScreen() {
                 ]}
               >
                 <Text style={[styles.statValue, { color: colors.tip }]}>
-                  ${circles.filter((c) => c.joined && c.paid).reduce((s, c) => s + (c.price ?? 0), 0)}
+                  ${monthly}
                 </Text>
                 <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
                   Monthly
@@ -114,19 +130,25 @@ export default function CirclesScreen() {
           </View>
         }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Feather name="users" size={28} color={colors.mutedForeground} />
-            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-              No circles here yet
-            </Text>
-            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              {segment === "Joined"
-                ? "Join one from Discover to see it here."
-                : segment === "Paid"
-                  ? "Premium circles will appear here."
-                  : "New rooms open every week."}
-            </Text>
-          </View>
+          isLoading ? (
+            <View style={styles.empty}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : (
+            <View style={styles.empty}>
+              <Feather name="users" size={28} color={colors.mutedForeground} />
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
+                No circles here yet
+              </Text>
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                {segment === "Joined"
+                  ? "Join one from Discover to see it here."
+                  : segment === "Paid"
+                    ? "Premium circles will appear here."
+                    : "New rooms open every week."}
+              </Text>
+            </View>
+          )
         }
         contentContainerStyle={{ paddingBottom: 140 }}
         showsVerticalScrollIndicator={false}
@@ -136,9 +158,7 @@ export default function CirclesScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
+  root: { flex: 1 },
   cta: {
     marginHorizontal: 16,
     marginTop: 14,

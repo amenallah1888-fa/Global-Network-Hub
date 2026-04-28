@@ -1,15 +1,40 @@
 import { Feather } from "@expo/vector-icons";
+import {
+  getListCirclesQueryKey,
+  useToggleCircleMembership,
+} from "@workspace/api-client-react";
+import type { Circle } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Avatar } from "@/components/Avatar";
-import { useApp } from "@/context/AppContext";
-import { Circle, getUser } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
+import { getImage } from "@/lib/imageMap";
+import { useUsers } from "@/lib/userCache";
 
 export function CircleCard({ circle }: { circle: Circle }) {
   const colors = useColors();
-  const { toggleCircleJoin } = useApp();
-  const founders = circle.founderIds.map(getUser);
+  const users = useUsers();
+  const queryClient = useQueryClient();
+  const toggle = useToggleCircleMembership();
+  const founders = circle.founderIds
+    .map((id) => users.find((u) => u.id === id))
+    .filter(Boolean) as { id: string; avatarKey: string }[];
+  const cover = getImage(circle.coverKey);
+
+  const onToggle = () => {
+    toggle.mutate(
+      { id: circle.id },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({
+            queryKey: getListCirclesQueryKey(),
+          });
+          queryClient.invalidateQueries();
+        },
+      },
+    );
+  };
 
   return (
     <View
@@ -19,8 +44,8 @@ export function CircleCard({ circle }: { circle: Circle }) {
       ]}
     >
       <View style={styles.coverWrap}>
-        {circle.cover ? (
-          <Image source={circle.cover} style={styles.cover} resizeMode="cover" />
+        {cover ? (
+          <Image source={cover} style={styles.cover} resizeMode="cover" />
         ) : (
           <View
             style={[
@@ -30,10 +55,7 @@ export function CircleCard({ circle }: { circle: Circle }) {
           />
         )}
         <View
-          style={[
-            styles.coverFade,
-            { backgroundColor: colors.card },
-          ]}
+          style={[styles.coverFade, { backgroundColor: colors.card }]}
         />
         <View
           style={[
@@ -59,7 +81,10 @@ export function CircleCard({ circle }: { circle: Circle }) {
       </View>
 
       <View style={styles.body}>
-        <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
+        <Text
+          style={[styles.name, { color: colors.foreground }]}
+          numberOfLines={1}
+        >
           {circle.name}
         </Text>
         <Text
@@ -76,30 +101,38 @@ export function CircleCard({ circle }: { circle: Circle }) {
                 key={f.id}
                 style={[
                   styles.avatarStack,
-                  { marginLeft: i === 0 ? 0 : -10, borderColor: colors.card },
+                  {
+                    marginLeft: i === 0 ? 0 : -10,
+                    borderColor: colors.card,
+                  },
                 ]}
               >
-                <Avatar source={f.avatar} size={22} />
+                <Avatar avatarKey={f.avatarKey} size={22} />
               </View>
             ))}
             <View style={{ marginLeft: 8 }}>
               <Text style={[styles.metaTop, { color: colors.foreground }]}>
-                {circle.members.toLocaleString()}
+                {circle.membersCount.toLocaleString()}
               </Text>
-              <Text style={[styles.metaBottom, { color: colors.mutedForeground }]}>
-                {circle.active} active now
+              <Text
+                style={[styles.metaBottom, { color: colors.mutedForeground }]}
+              >
+                {circle.activeNow} active now
               </Text>
             </View>
           </View>
 
           <Pressable
-            onPress={() => toggleCircleJoin(circle.id)}
+            disabled={toggle.isPending}
+            onPress={onToggle}
             style={({ pressed }) => [
               styles.joinBtn,
               {
-                backgroundColor: circle.joined ? colors.cardElevated : colors.primary,
+                backgroundColor: circle.joined
+                  ? colors.cardElevated
+                  : colors.primary,
                 borderColor: circle.joined ? colors.border : colors.primary,
-                opacity: pressed ? 0.8 : 1,
+                opacity: pressed || toggle.isPending ? 0.8 : 1,
               },
             ]}
           >
@@ -113,7 +146,7 @@ export function CircleCard({ circle }: { circle: Circle }) {
                 },
               ]}
             >
-              {circle.joined ? "Joined" : circle.paid ? "Apply" : "Join"}
+              {circle.joined ? "Joined" : circle.paid ? `Apply · $${circle.price}` : "Join"}
             </Text>
           </Pressable>
         </View>

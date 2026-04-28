@@ -1,22 +1,25 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: HumanVerse API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: users
+  - name: posts
+  - name: circles
+  - name: pitches
+  - name: markers
+  - name: notifications
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +27,445 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /me:
+    get:
+      operationId: getMe
+      tags: [users]
+      summary: Get current user
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List all users
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+  /users/{id}/follow:
+    post:
+      operationId: toggleFollow
+      tags: [users]
+      summary: Toggle follow on a user
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FollowState"
+
+  /posts:
+    get:
+      operationId: listPosts
+      tags: [posts]
+      summary: List feed posts
+      parameters:
+        - in: query
+          name: feed
+          required: false
+          schema:
+            type: string
+            enum: [foryou, following, investors, hiring]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Post"
+    post:
+      operationId: createPost
+      tags: [posts]
+      summary: Create a post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePostBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+
+  /posts/{id}/like:
+    post:
+      operationId: toggleLike
+      tags: [posts]
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+
+  /posts/{id}/retweet:
+    post:
+      operationId: toggleRetweet
+      tags: [posts]
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+
+  /posts/{id}/tip:
+    post:
+      operationId: tipPost
+      tags: [posts]
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TipBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+
+  /circles:
+    get:
+      operationId: listCircles
+      tags: [circles]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Circle"
+
+  /circles/{id}/membership:
+    post:
+      operationId: toggleCircleMembership
+      tags: [circles]
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Circle"
+
+  /pitches:
+    get:
+      operationId: listPitches
+      tags: [pitches]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Pitch"
+
+  /pitches/{id}/back:
+    post:
+      operationId: backPitch
+      tags: [pitches]
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BackPitchBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pitch"
+
+  /markers:
+    get:
+      operationId: listMarkers
+      tags: [markers]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Marker"
+
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
 components:
+  parameters:
+    IdParam:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
   schemas:
     HealthStatus:
       type: object
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    OkResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+      required: [ok]
+
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        handle: { type: string }
+        name: { type: string }
+        title: { type: string }
+        company: { type: string }
+        city: { type: string }
+        country: { type: string }
+        avatarKey: { type: string }
+        verified: { type: boolean }
+        followersCount: { type: integer }
+        bio: { type: string }
+        following: { type: boolean }
+      required:
+        - id
+        - handle
+        - name
+        - title
+        - company
+        - city
+        - country
+        - avatarKey
+        - verified
+        - followersCount
+        - bio
+        - following
+
+    FollowState:
+      type: object
+      properties:
+        userId: { type: string }
+        following: { type: boolean }
+        followersCount: { type: integer }
+      required: [userId, following, followersCount]
+
+    Post:
+      type: object
+      properties:
+        id: { type: string }
+        authorId: { type: string }
+        text: { type: string }
+        imageKey:
+          type: ["string", "null"]
+        sponsored: { type: boolean }
+        sponsorLabel:
+          type: ["string", "null"]
+        category: { type: string }
+        likesCount: { type: integer }
+        retweetsCount: { type: integer }
+        commentsCount: { type: integer }
+        tipsTotal: { type: integer }
+        createdAt: { type: string, format: date-time }
+        liked: { type: boolean }
+        retweeted: { type: boolean }
+      required:
+        - id
+        - authorId
+        - text
+        - sponsored
+        - category
+        - likesCount
+        - retweetsCount
+        - commentsCount
+        - tipsTotal
+        - createdAt
+        - liked
+        - retweeted
+
+    CreatePostBody:
+      type: object
+      properties:
+        text: { type: string }
+        imageKey:
+          type: ["string", "null"]
+      required: [text]
+
+    TipBody:
+      type: object
+      properties:
+        amount: { type: integer }
+      required: [amount]
+
+    Circle:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        about: { type: string }
+        category: { type: string }
+        color: { type: string }
+        coverKey:
+          type: ["string", "null"]
+        paid: { type: boolean }
+        price: { type: integer }
+        membersCount: { type: integer }
+        activeNow: { type: integer }
+        founderIds:
+          type: array
+          items: { type: string }
+        joined: { type: boolean }
+      required:
+        - id
+        - name
+        - about
+        - category
+        - color
+        - paid
+        - price
+        - membersCount
+        - activeNow
+        - founderIds
+        - joined
+
+    Pitch:
+      type: object
+      properties:
+        id: { type: string }
+        founderId: { type: string }
+        title: { type: string }
+        stage: { type: string }
+        industry: { type: string }
+        raising: { type: integer }
+        raised: { type: integer }
+        city: { type: string }
+        summary: { type: string }
+        coverKey:
+          type: ["string", "null"]
+        backersCount: { type: integer }
+        trending: { type: boolean }
+        backed: { type: boolean }
+      required:
+        - id
+        - founderId
+        - title
+        - stage
+        - industry
+        - raising
+        - raised
+        - city
+        - summary
+        - backersCount
+        - trending
+        - backed
+
+    BackPitchBody:
+      type: object
+      properties:
+        amount: { type: integer }
+      required: [amount]
+
+    Marker:
+      type: object
+      properties:
+        id: { type: string }
+        type: { type: string }
+        label: { type: string }
+        city: { type: string }
+        x: { type: number }
+        y: { type: number }
+        meta: { type: string }
+        refId:
+          type: ["string", "null"]
+      required: [id, type, label, city, x, y, meta]
+
+    Notification:
+      type: object
+      properties:
+        id: { type: integer }
+        userId: { type: string }
+        type: { type: string }
+        actorId:
+          type: ["string", "null"]
+        postId:
+          type: ["string", "null"]
+        circleId:
+          type: ["string", "null"]
+        pitchId:
+          type: ["string", "null"]
+        amount:
+          type: ["integer", "null"]
+        message: { type: string }
+        read: { type: boolean }
+        createdAt: { type: string, format: date-time }
+      required: [id, userId, type, message, read, createdAt]

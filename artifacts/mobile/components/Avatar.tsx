@@ -1,15 +1,18 @@
 import { Image, StyleSheet, View } from "react-native";
 
+import { getAvatar } from "@/lib/imageMap";
 import { useColors } from "@/hooks/useColors";
 
 type Props = {
-  source: any;
+  source?: any;
+  avatarKey?: string | null;
   size?: number;
   ring?: boolean;
 };
 
-export function Avatar({ source, size = 40, ring = false }: Props) {
+export function Avatar({ source, avatarKey, size = 40, ring = false }: Props) {
   const colors = useColors();
+  const finalSource = source ?? getAvatar(avatarKey);
   return (
     <View
       style={[
@@ -24,7 +27,7 @@ export function Avatar({ source, size = 40, ring = false }: Props) {
       ]}
     >
       <Image
-        source={source}
+        source={finalSource}
         style={{
           width: size,
           height: size,

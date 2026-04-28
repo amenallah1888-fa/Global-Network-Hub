@@ -1,9 +1,16 @@
 import { Feather } from "@expo/vector-icons";
+import {
+  getListPitchesQueryKey,
+  useBackPitch,
+} from "@workspace/api-client-react";
+import type { Pitch } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Avatar } from "@/components/Avatar";
-import { Pitch, getUser } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
+import { getImage } from "@/lib/imageMap";
+import { useUserById } from "@/lib/userCache";
 
 function formatMoney(n: number) {
   if (n >= 1_000_000) return "$" + (n / 1_000_000).toFixed(1) + "M";
@@ -13,8 +20,25 @@ function formatMoney(n: number) {
 
 export function PitchCard({ pitch }: { pitch: Pitch }) {
   const colors = useColors();
-  const founder = getUser(pitch.founderId);
+  const founder = useUserById(pitch.founderId);
+  const queryClient = useQueryClient();
+  const back = useBackPitch();
   const pct = Math.min(100, Math.round((pitch.raised / pitch.raising) * 100));
+  const cover = getImage(pitch.coverKey);
+
+  const onBack = () => {
+    if (pitch.backed) return;
+    back.mutate(
+      { id: pitch.id, data: { amount: 0 } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({
+            queryKey: getListPitchesQueryKey(),
+          });
+        },
+      },
+    );
+  };
 
   return (
     <View
@@ -25,12 +49,18 @@ export function PitchCard({ pitch }: { pitch: Pitch }) {
     >
       <View style={styles.topRow}>
         <View style={styles.headerLeft}>
-          <Avatar source={founder.avatar} size={36} />
+          <Avatar avatarKey={founder.avatarKey} size={36} />
           <View style={{ marginLeft: 10, flex: 1 }}>
-            <Text style={[styles.founder, { color: colors.foreground }]} numberOfLines={1}>
+            <Text
+              style={[styles.founder, { color: colors.foreground }]}
+              numberOfLines={1}
+            >
               {founder.name}
             </Text>
-            <Text style={[styles.location, { color: colors.mutedForeground }]} numberOfLines={1}>
+            <Text
+              style={[styles.location, { color: colors.mutedForeground }]}
+              numberOfLines={1}
+            >
               {founder.title} · {pitch.city}
             </Text>
           </View>
@@ -39,7 +69,10 @@ export function PitchCard({ pitch }: { pitch: Pitch }) {
           <View
             style={[
               styles.trending,
-              { backgroundColor: colors.primary + "1F", borderColor: colors.primary },
+              {
+                backgroundColor: colors.primary + "1F",
+                borderColor: colors.primary,
+              },
             ]}
           >
             <Feather name="trending-up" size={11} color={colors.primary} />
@@ -50,19 +83,24 @@ export function PitchCard({ pitch }: { pitch: Pitch }) {
         ) : null}
       </View>
 
-      <Text style={[styles.title, { color: colors.foreground }]}>{pitch.title}</Text>
-      <Text style={[styles.summary, { color: colors.mutedForeground }]} numberOfLines={3}>
+      <Text style={[styles.title, { color: colors.foreground }]}>
+        {pitch.title}
+      </Text>
+      <Text
+        style={[styles.summary, { color: colors.mutedForeground }]}
+        numberOfLines={3}
+      >
         {pitch.summary}
       </Text>
 
-      {pitch.cover ? (
-        <Image source={pitch.cover} style={styles.cover} resizeMode="cover" />
+      {cover ? (
+        <Image source={cover} style={styles.cover} resizeMode="cover" />
       ) : null}
 
       <View style={styles.tagsRow}>
         <Tag label={pitch.stage} colors={colors} accent={colors.accent} />
         <Tag label={pitch.industry} colors={colors} />
-        <Tag label={`${pitch.backers} backers`} colors={colors} />
+        <Tag label={`${pitch.backersCount} backers`} colors={colors} />
       </View>
 
       <View style={styles.progressRow}>
@@ -80,7 +118,8 @@ export function PitchCard({ pitch }: { pitch: Pitch }) {
               style={[
                 styles.barFill,
                 {
-                  backgroundColor: pct >= 100 ? colors.success : colors.primary,
+                  backgroundColor:
+                    pct >= 100 ? colors.success : colors.primary,
                   width: `${pct}%`,
                 },
               ]}
@@ -109,14 +148,23 @@ export function PitchCard({ pitch }: { pitch: Pitch }) {
           </Text>
         </Pressable>
         <Pressable
+          disabled={back.isPending || pitch.backed}
+          onPress={onBack}
           style={({ pressed }) => [
             styles.primaryBtn,
-            { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
+            {
+              backgroundColor: pitch.backed ? colors.success : colors.primary,
+              opacity: pressed || back.isPending ? 0.85 : 1,
+            },
           ]}
         >
-          <Feather name="briefcase" size={14} color={colors.primaryForeground} />
+          <Feather
+            name={pitch.backed ? "check" : "briefcase"}
+            size={14}
+            color={colors.primaryForeground}
+          />
           <Text style={[styles.primaryText, { color: colors.primaryForeground }]}>
-            Express interest
+            {pitch.backed ? "Interested" : "Express interest"}
           </Text>
         </Pressable>
       </View>
@@ -144,10 +192,7 @@ function Tag({
       ]}
     >
       <Text
-        style={[
-          styles.tagText,
-          { color: accent ?? colors.mutedForeground },
-        ]}
+        style={[styles.tagText, { color: accent ?? colors.mutedForeground }]}
       >
         {label}
       </Text>

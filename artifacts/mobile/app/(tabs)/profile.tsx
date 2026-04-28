@@ -1,22 +1,53 @@
 import { Feather } from "@expo/vector-icons";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  getListUsersQueryKey,
+  useListCircles,
+  useListPosts,
+  useListUsers,
+  useToggleFollow,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
-import { useApp } from "@/context/AppContext";
-import { currentUser, users } from "@/data/mockData";
+import { CURRENT_USER_ID } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
+import { useCurrentUser } from "@/lib/userCache";
 
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
-  const { posts, followingIds, circles } = useApp();
+  const me = useCurrentUser();
+  const { data: users } = useListUsers();
+  const { data: posts } = useListPosts();
+  const { data: circles } = useListCircles();
 
-  const myPosts = posts.filter((p) => p.authorId === currentUser.id).length;
-  const totalTips = posts.reduce((s, p) => s + (p.authorId === currentUser.id ? p.tips : 0), 0);
-  const suggestedFollow = users.filter(
-    (u) => u.id !== currentUser.id && !followingIds.includes(u.id),
+  const allPosts = posts ?? [];
+  const allCircles = circles ?? [];
+  const allUsers = users ?? [];
+
+  const myPosts = allPosts.filter((p) => p.authorId === CURRENT_USER_ID).length;
+  const totalTips = allPosts.reduce(
+    (s, p) => s + (p.authorId === CURRENT_USER_ID ? p.tipsTotal : 0),
+    0,
+  );
+  const followingCount = allUsers.filter((u) => u.following).length;
+  const joinedCircles = allCircles.filter((c) => c.joined).length;
+  const monthlySpend = allCircles
+    .filter((c) => c.joined && c.paid)
+    .reduce((s, c) => s + c.price, 0);
+
+  const suggested = allUsers.filter(
+    (u) => u.id !== CURRENT_USER_ID && !u.following,
   );
 
   return (
@@ -36,7 +67,7 @@ export default function ProfileScreen() {
         ]}
       >
         <View style={styles.coverTop}>
-          <Avatar source={currentUser.avatar} size={84} ring />
+          <Avatar avatarKey={me.avatarKey} size={84} ring />
           <View style={styles.coverActions}>
             <Pressable
               style={({ pressed }) => [
@@ -68,9 +99,9 @@ export default function ProfileScreen() {
         <View style={styles.nameBlock}>
           <View style={styles.nameRow}>
             <Text style={[styles.name, { color: colors.foreground }]}>
-              {currentUser.name}
+              {me.name}
             </Text>
-            {currentUser.verified ? (
+            {me.verified ? (
               <Feather
                 name="check-circle"
                 size={16}
@@ -80,26 +111,26 @@ export default function ProfileScreen() {
             ) : null}
           </View>
           <Text style={[styles.handle, { color: colors.mutedForeground }]}>
-            @{currentUser.handle}
+            @{me.handle}
           </Text>
           <Text style={[styles.bio, { color: colors.foreground }]}>
-            {currentUser.title} at {currentUser.company}. Building autonomous wet labs.
+            {me.bio}
             {"\n"}
             <Text style={{ color: colors.mutedForeground }}>
-              {currentUser.city}, {currentUser.country}
+              {me.city}, {me.country}
             </Text>
           </Text>
         </View>
 
         <View style={styles.statsRow}>
-          <Stat label="Followers" value={currentUser.followers.toLocaleString()} />
+          <Stat label="Followers" value={me.followersCount.toLocaleString()} />
           <Divider />
-          <Stat label="Following" value={followingIds.length.toString()} />
+          <Stat label="Following" value={followingCount.toString()} />
           <Divider />
-          <Stat label="Circles" value={circles.filter((c) => c.joined).length.toString()} />
+          <Stat label="Circles" value={joinedCircles.toString()} />
           <Divider />
           <Stat
-            label="Tips"
+            label="Tips earned"
             value={"$" + totalTips.toLocaleString()}
             accent={colors.tip}
           />
@@ -112,7 +143,12 @@ export default function ProfileScreen() {
         </Text>
         <View style={styles.actionGrid}>
           <ActionTile icon="edit-3" label="Compose" color={colors.primary} />
-          <ActionTile icon="dollar-sign" label="Earnings" color={colors.tip} />
+          <ActionTile
+            icon="dollar-sign"
+            label={`$${monthlySpend}/mo`}
+            color={colors.tip}
+            sub="Spend"
+          />
           <ActionTile icon="briefcase" label="My pitch" color={colors.accent} />
           <ActionTile icon="users" label="Invites" color={colors.sponsor} />
         </View>
@@ -127,37 +163,8 @@ export default function ProfileScreen() {
             See all
           </Text>
         </View>
-        {suggestedFollow.map((u) => (
-          <View
-            key={u.id}
-            style={[
-              styles.userRow,
-              { backgroundColor: colors.card, borderColor: colors.border },
-            ]}
-          >
-            <Avatar source={u.avatar} size={42} />
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={[styles.userName, { color: colors.foreground }]}>
-                {u.name}
-              </Text>
-              <Text style={[styles.userMeta, { color: colors.mutedForeground }]}>
-                {u.title} · {u.city}
-              </Text>
-            </View>
-            <Pressable
-              style={({ pressed }) => [
-                styles.followBtn,
-                {
-                  backgroundColor: colors.foreground,
-                  opacity: pressed ? 0.8 : 1,
-                },
-              ]}
-            >
-              <Text style={[styles.followText, { color: colors.background }]}>
-                Follow
-              </Text>
-            </Pressable>
-          </View>
+        {suggested.map((u) => (
+          <SuggestedRow key={u.id} userId={u.id} />
         ))}
       </View>
 
@@ -187,7 +194,7 @@ export default function ProfileScreen() {
             icon="map-pin"
             color={colors.primary}
             label="11 connections within 20km"
-            meta="San Francisco"
+            meta={me.city}
             last
           />
         </View>
@@ -196,7 +203,75 @@ export default function ProfileScreen() {
   );
 }
 
-function Stat({ label, value, accent }: { label: string; value: string; accent?: string }) {
+function SuggestedRow({ userId }: { userId: string }) {
+  const colors = useColors();
+  const { data: users } = useListUsers();
+  const u = (users ?? []).find((x) => x.id === userId);
+  const queryClient = useQueryClient();
+  const follow = useToggleFollow();
+  if (!u) return null;
+  return (
+    <View
+      style={[
+        styles.userRow,
+        { backgroundColor: colors.card, borderColor: colors.border },
+      ]}
+    >
+      <Avatar avatarKey={u.avatarKey} size={42} />
+      <View style={{ flex: 1, marginLeft: 12 }}>
+        <Text style={[styles.userName, { color: colors.foreground }]}>
+          {u.name}
+        </Text>
+        <Text style={[styles.userMeta, { color: colors.mutedForeground }]}>
+          {u.title} · {u.city}
+        </Text>
+      </View>
+      <Pressable
+        onPress={() =>
+          follow.mutate(
+            { id: u.id },
+            {
+              onSuccess: () =>
+                queryClient.invalidateQueries({
+                  queryKey: getListUsersQueryKey(),
+                }),
+            },
+          )
+        }
+        style={({ pressed }) => [
+          styles.followBtn,
+          {
+            backgroundColor: u.following
+              ? colors.cardElevated
+              : colors.foreground,
+            borderColor: u.following ? colors.border : colors.foreground,
+            borderWidth: 1,
+            opacity: pressed ? 0.8 : 1,
+          },
+        ]}
+      >
+        <Text
+          style={[
+            styles.followText,
+            { color: u.following ? colors.foreground : colors.background },
+          ]}
+        >
+          {u.following ? "Following" : "Follow"}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: string;
+}) {
   const colors = useColors();
   return (
     <View style={styles.statCol}>
@@ -219,10 +294,12 @@ function ActionTile({
   icon,
   label,
   color,
+  sub,
 }: {
   icon: keyof typeof Feather.glyphMap;
   label: string;
   color: string;
+  sub?: string;
 }) {
   const colors = useColors();
   return (
@@ -242,6 +319,11 @@ function ActionTile({
       <Text style={[styles.actionLabel, { color: colors.foreground }]}>
         {label}
       </Text>
+      {sub ? (
+        <Text style={[styles.actionSub, { color: colors.mutedForeground }]}>
+          {sub}
+        </Text>
+      ) : null}
     </Pressable>
   );
 }
@@ -286,9 +368,7 @@ function ActivityRow({
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
+  root: { flex: 1 },
   cover: {
     paddingHorizontal: 20,
     paddingBottom: 24,
@@ -311,13 +391,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  nameBlock: {
-    marginTop: 16,
-  },
-  nameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+  nameBlock: { marginTop: 16 },
+  nameRow: { flexDirection: "row", alignItems: "center" },
   name: {
     fontSize: 24,
     fontFamily: "Inter_700Bold",
@@ -340,27 +415,15 @@ const styles = StyleSheet.create({
     marginTop: 18,
     paddingTop: 14,
   },
-  statCol: {
-    flex: 1,
-    alignItems: "center",
-  },
-  statValue: {
-    fontSize: 16,
-    fontFamily: "Inter_700Bold",
-  },
+  statCol: { flex: 1, alignItems: "center" },
+  statValue: { fontSize: 16, fontFamily: "Inter_700Bold" },
   statLabel: {
     fontSize: 11,
     fontFamily: "Inter_500Medium",
     marginTop: 2,
   },
-  divider: {
-    width: 1,
-    height: 28,
-  },
-  section: {
-    paddingHorizontal: 16,
-    marginTop: 22,
-  },
+  divider: { width: 1, height: 28 },
+  section: { paddingHorizontal: 16, marginTop: 22 },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -377,18 +440,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Inter_600SemiBold",
   },
-  actionGrid: {
-    flexDirection: "row",
-    gap: 10,
-  },
+  actionGrid: { flexDirection: "row", gap: 10 },
   actionTile: {
     flex: 1,
     paddingVertical: 14,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     borderRadius: 16,
     borderWidth: 1,
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
   actionIcon: {
     width: 32,
@@ -400,6 +460,11 @@ const styles = StyleSheet.create({
   actionLabel: {
     fontSize: 12,
     fontFamily: "Inter_600SemiBold",
+    textAlign: "center",
+  },
+  actionSub: {
+    fontSize: 10,
+    fontFamily: "Inter_500Medium",
   },
   userRow: {
     flexDirection: "row",

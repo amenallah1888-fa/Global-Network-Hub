@@ -1,13 +1,18 @@
 import { Feather } from "@expo/vector-icons";
+import { useListMarkers, type Marker } from "@workspace/api-client-react";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { Header } from "@/components/Header";
-import { NexusMap } from "@/components/MapView";
-import { mapMarkers, MapMarker } from "@/data/mockData";
+import { MarkerDetailSheet } from "@/components/MarkerDetailSheet";
+import { AtlasMap } from "@/components/MapView";
 import { useColors } from "@/hooks/useColors";
 
-const FILTERS: { key: MapMarker["type"] | "all"; label: string; icon: keyof typeof Feather.glyphMap }[] = [
+const FILTERS: {
+  key: Marker["type"] | "all";
+  label: string;
+  icon: keyof typeof Feather.glyphMap;
+}[] = [
   { key: "all", label: "All", icon: "globe" },
   { key: "person", label: "People", icon: "user" },
   { key: "business", label: "Businesses", icon: "briefcase" },
@@ -24,19 +29,28 @@ const TRENDING_REGIONS = [
 
 export default function MapScreen() {
   const colors = useColors();
-  const [filter, setFilter] = useState<MapMarker["type"] | "all">("all");
+  const [filter, setFilter] = useState<Marker["type"] | "all">("all");
+  const [selected, setSelected] = useState<Marker | null>(null);
+
+  const { data: markers } = useListMarkers();
 
   const stats = useMemo(() => {
-    const visible = mapMarkers.filter((m) => filter === "all" || m.type === filter);
+    const visible = (markers ?? []).filter(
+      (m) => filter === "all" || m.type === filter,
+    );
     return {
       visible: visible.length,
       cities: new Set(visible.map((v) => v.city)).size,
     };
-  }, [filter]);
+  }, [markers, filter]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <Header title="Atlas" subtitle="Discover the active world" rightIcon="search" />
+      <Header
+        title="Atlas"
+        subtitle="Discover the active world"
+        rightIcon="search"
+      />
       <ScrollView
         contentContainerStyle={{ paddingBottom: 140 }}
         showsVerticalScrollIndicator={false}
@@ -91,7 +105,9 @@ export default function MapScreen() {
                   style={[
                     styles.filterText,
                     {
-                      color: active ? colors.primaryForeground : colors.foreground,
+                      color: active
+                        ? colors.primaryForeground
+                        : colors.foreground,
                     },
                   ]}
                 >
@@ -102,7 +118,11 @@ export default function MapScreen() {
           })}
         </ScrollView>
 
-        <NexusMap filter={filter} />
+        <AtlasMap filter={filter} selected={selected} onSelect={setSelected} />
+
+        <Text style={[styles.hint, { color: colors.mutedForeground }]}>
+          Tap any marker to view full profile
+        </Text>
 
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
@@ -119,10 +139,7 @@ export default function MapScreen() {
               key={r.city}
               style={[
                 styles.region,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
-                },
+                { backgroundColor: colors.card, borderColor: colors.border },
               ]}
             >
               <Text style={[styles.rank, { color: colors.mutedForeground }]}>
@@ -156,6 +173,12 @@ export default function MapScreen() {
           ))}
         </View>
       </ScrollView>
+
+      <MarkerDetailSheet
+        visible={selected != null}
+        marker={selected}
+        onClose={() => setSelected(null)}
+      />
     </View>
   );
 }
@@ -179,12 +202,7 @@ function Stat({
         { backgroundColor: colors.card, borderColor: colors.border },
       ]}
     >
-      <View
-        style={[
-          styles.statIcon,
-          { backgroundColor: color + "1F" },
-        ]}
-      >
+      <View style={[styles.statIcon, { backgroundColor: color + "1F" }]}>
         <Feather name={icon} size={14} color={color} />
       </View>
       <Text style={[styles.statValue, { color: colors.foreground }]}>
@@ -198,9 +216,7 @@ function Stat({
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
+  root: { flex: 1 },
   statsRow: {
     flexDirection: "row",
     gap: 10,
@@ -250,6 +266,13 @@ const styles = StyleSheet.create({
   filterText: {
     fontSize: 13,
     fontFamily: "Inter_600SemiBold",
+  },
+  hint: {
+    textAlign: "center",
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    marginTop: 10,
+    marginBottom: 6,
   },
   sectionHeader: {
     flexDirection: "row",

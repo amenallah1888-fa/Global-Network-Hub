@@ -1,49 +1,55 @@
-import { useMemo, useState } from "react";
-import { FlatList, StyleSheet, View } from "react-native";
+import { useListPosts } from "@workspace/api-client-react";
+import { useState } from "react";
+import { ActivityIndicator, FlatList, StyleSheet, View } from "react-native";
 
 import { Composer } from "@/components/Composer";
 import { Header } from "@/components/Header";
 import { PostCard } from "@/components/PostCard";
 import { SegmentControl } from "@/components/SegmentControl";
-import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
 
-const TABS = ["For you", "Following", "Investors", "Hiring"];
+const TABS: { key: "foryou" | "following" | "investors" | "hiring"; label: string }[] = [
+  { key: "foryou", label: "For you" },
+  { key: "following", label: "Following" },
+  { key: "investors", label: "Investors" },
+  { key: "hiring", label: "Hiring" },
+];
 
 export default function FeedScreen() {
   const colors = useColors();
-  const { posts, followingIds } = useApp();
-  const [tab, setTab] = useState("For you");
+  const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("foryou");
 
-  const filtered = useMemo(() => {
-    if (tab === "Following") {
-      return posts.filter((p) => followingIds.includes(p.authorId));
-    }
-    if (tab === "Investors") {
-      return posts.filter((p) =>
-        /invest|series|fund|venture|capital|backed|raise|raising/i.test(p.text),
-      );
-    }
-    if (tab === "Hiring") {
-      return posts.filter((p) => /hir|recruit|join|role|engineer|PM|design/i.test(p.text));
-    }
-    return posts;
-  }, [posts, followingIds, tab]);
+  const { data, isLoading, refetch, isRefetching } = useListPosts({ feed: tab });
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <Header title="Nexus" subtitle="Where operators meet capital" />
+      <Header title="HumanVerse" subtitle="Where operators meet capital" />
       <FlatList
-        data={filtered}
+        data={data ?? []}
         keyExtractor={(p) => p.id}
         renderItem={({ item }) => <PostCard post={item} />}
+        refreshing={isRefetching}
+        onRefresh={() => refetch()}
         ListHeaderComponent={
           <View>
             <View style={{ paddingTop: 12 }}>
-              <SegmentControl options={TABS} value={tab} onChange={setTab} />
+              <SegmentControl
+                options={TABS.map((t) => t.label)}
+                value={TABS.find((t) => t.key === tab)?.label ?? "For you"}
+                onChange={(label) =>
+                  setTab(TABS.find((t) => t.label === label)?.key ?? "foryou")
+                }
+              />
             </View>
             <Composer />
           </View>
+        }
+        ListEmptyComponent={
+          isLoading ? (
+            <View style={styles.loading}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : null
         }
         contentContainerStyle={{ paddingBottom: 140 }}
         showsVerticalScrollIndicator={false}
@@ -55,5 +61,9 @@ export default function FeedScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+  },
+  loading: {
+    paddingVertical: 60,
+    alignItems: "center",
   },
 });
