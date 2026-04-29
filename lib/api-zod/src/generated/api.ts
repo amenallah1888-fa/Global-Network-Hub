@@ -216,6 +216,21 @@ export const ListPitchesResponseItem = zod.object({
 });
 export const ListPitchesResponse = zod.array(ListPitchesResponseItem);
 
+/**
+ * @summary Create a new pitch
+ */
+export const CreatePitchBody = zod.object({
+  title: zod.string(),
+  summary: zod.string(),
+  raising: zod.number(),
+  stage: zod.string(),
+  industry: zod.string(),
+  city: zod.string(),
+  coverKey: zod.string().nullish(),
+  x: zod.number().nullish(),
+  y: zod.number().nullish(),
+});
+
 export const BackPitchParams = zod.object({
   id: zod.coerce.string(),
 });

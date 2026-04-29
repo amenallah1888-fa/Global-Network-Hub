@@ -19,6 +19,7 @@ import type {
 import type {
   BackPitchBody,
   Circle,
+  CreatePitchBody,
   CreatePostBody,
   FollowState,
   HealthStatus,
@@ -954,6 +955,92 @@ export function useListPitches<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Create a new pitch
+ */
+export const getCreatePitchUrl = () => {
+  return `/api/pitches`;
+};
+
+export const createPitch = async (
+  createPitchBody: CreatePitchBody,
+  options?: RequestInit,
+): Promise<Pitch> => {
+  return customFetch<Pitch>(getCreatePitchUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createPitchBody),
+  });
+};
+
+export const getCreatePitchMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPitch>>,
+    TError,
+    { data: BodyType<CreatePitchBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createPitch>>,
+  TError,
+  { data: BodyType<CreatePitchBody> },
+  TContext
+> => {
+  const mutationKey = ["createPitch"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createPitch>>,
+    { data: BodyType<CreatePitchBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createPitch(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreatePitchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createPitch>>
+>;
+export type CreatePitchMutationBody = BodyType<CreatePitchBody>;
+export type CreatePitchMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a new pitch
+ */
+export const useCreatePitch = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPitch>>,
+    TError,
+    { data: BodyType<CreatePitchBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createPitch>>,
+  TError,
+  { data: BodyType<CreatePitchBody> },
+  TContext
+> => {
+  return useMutation(getCreatePitchMutationOptions(options));
+};
 
 export const getBackPitchUrl = (id: string) => {
   return `/api/pitches/${id}/back`;

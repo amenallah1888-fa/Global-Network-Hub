@@ -38,7 +38,7 @@ an interactive world atlas, and monetization (tips and paid circles).
 - `GET /posts?feed=foryou|following|investors|hiring`, `POST /posts`,
   `POST /posts/:id/like|retweet|tip`
 - `GET /circles`, `POST /circles/:id/membership`
-- `GET /pitches`, `POST /pitches/:id/back`
+- `GET /pitches`, `POST /pitches`, `POST /pitches/:id/back`
 - `GET /markers`
 - `GET /notifications`, `POST /notifications/read-all`
 
@@ -53,7 +53,9 @@ that target other users are written via `lib/notify.ts`.
   block, so the base URL must be the host root (no `/api`).
 - `artifacts/mobile/lib/imageMap.ts` maps stable string keys
   (`avatar1..3`, `post1`, `post2`, `map_bg`) to bundled local images so the API
-  doesn't serve binary assets.
+  doesn't serve binary assets. Keys that start with `data:`, `http(s):`,
+  `file:`, or `blob:` are returned as `{ uri }` instead, which lets users upload
+  custom pitch covers (stored as base64 data URLs in the `coverKey` column).
 - `artifacts/mobile/lib/userCache.ts` provides `useUsers`, `useUserById`, and
   `useCurrentUser` on top of the generated `useListUsers` hook.
 - `Header` polls `useListNotifications` every 8s and shows an unread badge.
@@ -67,6 +69,14 @@ that target other users are written via `lib/notify.ts`.
   mutation hooks (`useCreatePost`, `useToggleLike`, `useToggleRetweet`,
   `useTipPost`, `useToggleCircleMembership`, `useBackPitch`) and invalidate
   the relevant query keys on success.
+- `PitchComposerSheet` is a modal sheet on the Investment Hub screen for
+  creating new pitches. Uses `expo-image-picker` for cover upload (with three
+  preset thumbnails as fallback), chip pickers for Stage / Industry / City,
+  and `useCreatePitch`. On success it invalidates both the pitches query and
+  the markers query so the new pitch shows up instantly in the Hub list and
+  on the AtlasMap. The server endpoint also creates a `markers` row whose
+  `refId` points to the new pitch, so tapping the marker opens the same
+  detail sheet used for seeded pitches.
 
 ## TypeScript notes
 

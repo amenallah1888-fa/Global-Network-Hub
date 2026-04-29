@@ -63,6 +63,21 @@ export interface TipBody {
   amount: number;
 }
 
+export interface CreatePitchBody {
+  title: string;
+  summary: string;
+  raising: number;
+  stage: string;
+  industry: string;
+  city: string;
+  /** @nullable */
+  coverKey?: string | null;
+  /** @nullable */
+  x?: number | null;
+  /** @nullable */
+  y?: number | null;
+}
+
 export interface Circle {
   id: string;
   name: string;

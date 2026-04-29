@@ -199,6 +199,23 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Pitch"
+    post:
+      operationId: createPitch
+      tags: [pitches]
+      summary: Create a new pitch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePitchBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pitch"
 
   /pitches/{id}/back:
     post:
@@ -366,6 +383,23 @@ components:
       properties:
         amount: { type: integer }
       required: [amount]
+
+    CreatePitchBody:
+      type: object
+      properties:
+        title: { type: string }
+        summary: { type: string }
+        raising: { type: integer }
+        stage: { type: string }
+        industry: { type: string }
+        city: { type: string }
+        coverKey:
+          type: ["string", "null"]
+        x:
+          type: ["number", "null"]
+        y:
+          type: ["number", "null"]
+      required: [title, summary, raising, stage, industry, city]
 
     Circle:
       type: object

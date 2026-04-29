@@ -1,6 +1,11 @@
 import { Router, type IRouter } from "express";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { db, pitchesTable, pitchBackersTable } from "@workspace/db";
+import {
+  db,
+  pitchesTable,
+  pitchBackersTable,
+  markersTable,
+} from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
 import { createNotification } from "../lib/notify";
 
@@ -24,6 +29,89 @@ router.get("/pitches", async (req, res): Promise<void> => {
       backed: set.has(p.id),
     })),
   );
+});
+
+router.post("/pitches", async (req, res): Promise<void> => {
+  const meId = currentUserId(req);
+  const body = req.body ?? {};
+  const title = String(body.title ?? "").trim();
+  const summary = String(body.summary ?? "").trim();
+  const raising = parseInt(String(body.raising ?? "0"), 10);
+  const stage = String(body.stage ?? "").trim();
+  const industry = String(body.industry ?? "").trim();
+  const city = String(body.city ?? "").trim();
+  const coverKey =
+    typeof body.coverKey === "string" && body.coverKey.length > 0
+      ? body.coverKey
+      : null;
+  const x =
+    typeof body.x === "number" && Number.isFinite(body.x) ? body.x : null;
+  const y =
+    typeof body.y === "number" && Number.isFinite(body.y) ? body.y : null;
+
+  if (
+    !title ||
+    !summary ||
+    !stage ||
+    !industry ||
+    !city ||
+    !Number.isFinite(raising) ||
+    raising <= 0
+  ) {
+    res.status(400).json({ error: "Missing or invalid fields" });
+    return;
+  }
+
+  const id = `pi_${Date.now().toString(36)}${Math.random()
+    .toString(36)
+    .slice(2, 6)}`;
+
+  await db.insert(pitchesTable).values({
+    id,
+    founderId: meId,
+    title,
+    stage,
+    industry,
+    raising,
+    raised: 0,
+    city,
+    summary,
+    coverKey,
+    backersCount: 0,
+    trending: false,
+  });
+
+  const markerType =
+    industry.toLowerCase() === "biotech" ||
+    industry.toLowerCase() === "climate" ||
+    industry.toLowerCase() === "robotics" ||
+    industry.toLowerCase() === "ai" ||
+    industry.toLowerCase() === "deeptech"
+      ? "project"
+      : "business";
+
+  const mx = x !== null ? x : 0.5;
+  const my = y !== null ? y : 0.5;
+
+  await db.insert(markersTable).values({
+    id: `m_${id}`,
+    type: markerType,
+    label: title,
+    city,
+    x: mx,
+    y: my,
+    meta: `${stage} · ${industry}`,
+    refId: id,
+  });
+
+  const [created] = await db
+    .select()
+    .from(pitchesTable)
+    .where(eq(pitchesTable.id, id));
+
+  res
+    .status(201)
+    .json({ ...created, coverKey: created.coverKey ?? null, backed: false });
 });
 
 router.post("/pitches/:id/back", async (req, res): Promise<void> => {

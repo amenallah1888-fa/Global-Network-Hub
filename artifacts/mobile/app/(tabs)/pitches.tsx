@@ -12,6 +12,7 @@ import {
 
 import { Header } from "@/components/Header";
 import { PitchCard } from "@/components/PitchCard";
+import { PitchComposerSheet } from "@/components/PitchComposerSheet";
 import { SegmentControl } from "@/components/SegmentControl";
 import { useColors } from "@/hooks/useColors";
 
@@ -20,6 +21,7 @@ const STAGES = ["All", "Pre-seed", "Seed", "Series A", "Series B"];
 export default function PitchesScreen() {
   const colors = useColors();
   const [stage, setStage] = useState("All");
+  const [composerOpen, setComposerOpen] = useState(false);
   const { data: pitches, isLoading } = useListPitches();
   const list = pitches ?? [];
 
@@ -61,6 +63,7 @@ export default function PitchesScreen() {
                 </Text>
               </View>
               <Pressable
+                onPress={() => setComposerOpen(true)}
                 style={({ pressed }) => [
                   styles.heroBtn,
                   { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
@@ -102,6 +105,10 @@ export default function PitchesScreen() {
         }
         contentContainerStyle={{ paddingBottom: 140 }}
         showsVerticalScrollIndicator={false}
+      />
+      <PitchComposerSheet
+        visible={composerOpen}
+        onClose={() => setComposerOpen(false)}
       />
     </View>
   );
