@@ -11,6 +11,13 @@ import {
 } from "react-native";
 
 import { Header } from "@/components/Header";
+import {
+  EMPTY_FILTERS,
+  HubFiltersSheet,
+  activeFilterCount,
+  fundingBandMatches,
+  type HubFilters,
+} from "@/components/HubFiltersSheet";
 import { PitchCard } from "@/components/PitchCard";
 import { PitchComposerSheet } from "@/components/PitchComposerSheet";
 import { SegmentControl } from "@/components/SegmentControl";
@@ -22,15 +29,30 @@ export default function PitchesScreen() {
   const colors = useColors();
   const [stage, setStage] = useState("All");
   const [composerOpen, setComposerOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filters, setFilters] = useState<HubFilters>(EMPTY_FILTERS);
   const { data: pitches, isLoading } = useListPitches();
   const list = pitches ?? [];
 
   const visible = useMemo(() => {
-    if (stage === "All") return list;
-    return list.filter((p) => p.stage === stage);
-  }, [list, stage]);
+    return list.filter((p) => {
+      if (stage !== "All" && p.stage !== stage) return false;
+      if (
+        filters.industries.length > 0 &&
+        !filters.industries.includes(p.industry)
+      ) {
+        return false;
+      }
+      if (filters.cities.length > 0 && !filters.cities.includes(p.city)) {
+        return false;
+      }
+      if (!fundingBandMatches(p.raising, filters.funding)) return false;
+      return true;
+    });
+  }, [list, stage, filters]);
 
-  const totalRaising = list.reduce((s, p) => s + (p.raising - p.raised), 0);
+  const totalRaising = visible.reduce((s, p) => s + (p.raising - p.raised), 0);
+  const filterCount = activeFilterCount(filters);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -38,6 +60,7 @@ export default function PitchesScreen() {
         title="Investment Hub"
         subtitle="Curated deal flow"
         rightIcon="filter"
+        onRightPress={() => setFiltersOpen(true)}
       />
       <FlatList
         data={visible}
@@ -52,25 +75,40 @@ export default function PitchesScreen() {
               ]}
             >
               <View>
-                <Text style={[styles.heroLabel, { color: colors.mutedForeground }]}>
+                <Text
+                  style={[styles.heroLabel, { color: colors.mutedForeground }]}
+                >
                   OPEN ALLOCATION
                 </Text>
                 <Text style={[styles.heroValue, { color: colors.foreground }]}>
                   ${(totalRaising / 1_000_000).toFixed(1)}M
                 </Text>
                 <Text style={[styles.heroSub, { color: colors.mutedForeground }]}>
-                  across {list.length} live rounds
+                  across {visible.length} live{" "}
+                  {visible.length === 1 ? "round" : "rounds"}
                 </Text>
               </View>
               <Pressable
                 onPress={() => setComposerOpen(true)}
                 style={({ pressed }) => [
                   styles.heroBtn,
-                  { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
+                  {
+                    backgroundColor: colors.primary,
+                    opacity: pressed ? 0.85 : 1,
+                  },
                 ]}
               >
-                <Feather name="plus" size={14} color={colors.primaryForeground} />
-                <Text style={[styles.heroBtnText, { color: colors.primaryForeground }]}>
+                <Feather
+                  name="plus"
+                  size={14}
+                  color={colors.primaryForeground}
+                />
+                <Text
+                  style={[
+                    styles.heroBtnText,
+                    { color: colors.primaryForeground },
+                  ]}
+                >
                   Pitch
                 </Text>
               </Pressable>
@@ -84,6 +122,44 @@ export default function PitchesScreen() {
                 scrollable
               />
             </View>
+
+            {filterCount > 0 && (
+              <View style={styles.activeFilterRow}>
+                <Pressable
+                  onPress={() => setFiltersOpen(true)}
+                  style={[
+                    styles.activeFilterChip,
+                    {
+                      backgroundColor: colors.primary + "15",
+                      borderColor: colors.primary,
+                    },
+                  ]}
+                >
+                  <Feather name="sliders" size={12} color={colors.primary} />
+                  <Text
+                    style={[
+                      styles.activeFilterText,
+                      { color: colors.primary },
+                    ]}
+                  >
+                    {filterCount} filter{filterCount === 1 ? "" : "s"} active
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setFilters(EMPTY_FILTERS)}
+                  hitSlop={6}
+                >
+                  <Text
+                    style={[
+                      styles.clearText,
+                      { color: colors.mutedForeground },
+                    ]}
+                  >
+                    Clear
+                  </Text>
+                </Pressable>
+              </View>
+            )}
           </View>
         }
         ListEmptyComponent={
@@ -93,12 +169,22 @@ export default function PitchesScreen() {
             </View>
           ) : (
             <View style={styles.empty}>
-              <Feather name="briefcase" size={28} color={colors.mutedForeground} />
+              <Feather
+                name="briefcase"
+                size={28}
+                color={colors.mutedForeground}
+              />
               <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-                No live rounds at this stage
+                {filterCount > 0 || stage !== "All"
+                  ? "No rounds match your filters"
+                  : "No live rounds yet"}
               </Text>
-              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-                Adjust the filter or check back tomorrow.
+              <Text
+                style={[styles.emptyText, { color: colors.mutedForeground }]}
+              >
+                {filterCount > 0 || stage !== "All"
+                  ? "Try clearing a filter or widening the stage."
+                  : "Be the first to publish a pitch to the Hub."}
               </Text>
             </View>
           )
@@ -109,6 +195,12 @@ export default function PitchesScreen() {
       <PitchComposerSheet
         visible={composerOpen}
         onClose={() => setComposerOpen(false)}
+      />
+      <HubFiltersSheet
+        visible={filtersOpen}
+        initial={filters}
+        onApply={setFilters}
+        onClose={() => setFiltersOpen(false)}
       />
     </View>
   );
@@ -153,6 +245,30 @@ const styles = StyleSheet.create({
   heroBtnText: {
     fontSize: 14,
     fontFamily: "Inter_700Bold",
+  },
+  activeFilterRow: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  activeFilterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  activeFilterText: {
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
+  },
+  clearText: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
   },
   empty: {
     alignItems: "center",

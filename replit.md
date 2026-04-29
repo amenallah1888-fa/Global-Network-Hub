@@ -69,6 +69,19 @@ that target other users are written via `lib/notify.ts`.
   mutation hooks (`useCreatePost`, `useToggleLike`, `useToggleRetweet`,
   `useTipPost`, `useToggleCircleMembership`, `useBackPitch`) and invalidate
   the relevant query keys on success.
+- `FeedSearch` (sticky search bar at the top of the Feed) and `FeedSearchResults`
+  (renders below it when the query is non-empty) provide a single-pane search
+  over both posts and people. Posts are matched on substring of `text`, with
+  hashtag awareness (`#climate`, `climate`, etc.). People are matched on
+  `name`, `handle`, `title`, `company`, and `city`. A "Trending Tags" pill row
+  shows top hashtags computed from all loaded posts.
+- `HubFiltersSheet` is a multi-select filter sheet on the Investment Hub.
+  Filters are tracked in screen state (`HubFilters`) and applied client-side:
+  multi-select Industry, single-select Funding band (`<$500K`, `$500K–$2M`,
+  `$2M–$10M`, `>$10M`, `any`), and multi-select Location. The Hub header's
+  filter icon opens it, an active-filter chip appears below the segment
+  control showing the count and a "Clear" action, and the empty state copy
+  changes to reflect filter-vs-no-data.
 - `PitchComposerSheet` is a modal sheet on the Investment Hub screen for
   creating new pitches. Uses `expo-image-picker` for cover upload (with three
   preset thumbnails as fallback), chip pickers for Stage / Industry / City,
