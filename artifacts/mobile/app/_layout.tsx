@@ -35,6 +35,8 @@ function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerBackTitle: "Back", headerShown: false }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="inbox" options={{ headerShown: false }} />
+      <Stack.Screen name="chat/[userId]" options={{ headerShown: false }} />
     </Stack>
   );
 }

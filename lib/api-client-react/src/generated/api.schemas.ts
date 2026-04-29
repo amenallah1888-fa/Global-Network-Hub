@@ -146,6 +146,26 @@ export interface Notification {
   createdAt: string;
 }
 
+export interface Message {
+  id: number;
+  fromUserId: string;
+  toUserId: string;
+  text: string;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface Conversation {
+  peerId: string;
+  peer: User;
+  lastMessage: Message;
+  unread: number;
+}
+
+export interface SendMessageBody {
+  text: string;
+}
+
 export type ListPostsParams = {
   feed?: ListPostsFeed;
 };

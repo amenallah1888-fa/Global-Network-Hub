@@ -287,3 +287,64 @@ export const ListNotificationsResponse = zod.array(
 export const MarkAllNotificationsReadResponse = zod.object({
   ok: zod.boolean(),
 });
+
+/**
+ * @summary List the current user's conversations
+ */
+export const ListConversationsResponseItem = zod.object({
+  peerId: zod.string(),
+  peer: zod.object({
+    id: zod.string(),
+    handle: zod.string(),
+    name: zod.string(),
+    title: zod.string(),
+    company: zod.string(),
+    city: zod.string(),
+    country: zod.string(),
+    avatarKey: zod.string(),
+    verified: zod.boolean(),
+    followersCount: zod.number(),
+    bio: zod.string(),
+    following: zod.boolean(),
+  }),
+  lastMessage: zod.object({
+    id: zod.number(),
+    fromUserId: zod.string(),
+    toUserId: zod.string(),
+    text: zod.string(),
+    read: zod.boolean(),
+    createdAt: zod.coerce.date(),
+  }),
+  unread: zod.number(),
+});
+export const ListConversationsResponse = zod.array(
+  ListConversationsResponseItem,
+);
+
+/**
+ * @summary Get the message thread with a user
+ */
+export const ListMessagesParams = zod.object({
+  userId: zod.coerce.string(),
+});
+
+export const ListMessagesResponseItem = zod.object({
+  id: zod.number(),
+  fromUserId: zod.string(),
+  toUserId: zod.string(),
+  text: zod.string(),
+  read: zod.boolean(),
+  createdAt: zod.coerce.date(),
+});
+export const ListMessagesResponse = zod.array(ListMessagesResponseItem);
+
+/**
+ * @summary Send a direct message to a user
+ */
+export const SendMessageParams = zod.object({
+  userId: zod.coerce.string(),
+});
+
+export const SendMessageBody = zod.object({
+  text: zod.string(),
+});

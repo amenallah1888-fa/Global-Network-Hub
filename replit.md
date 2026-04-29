@@ -82,6 +82,27 @@ that target other users are written via `lib/notify.ts`.
   filter icon opens it, an active-filter chip appears below the segment
   control showing the count and a "Clear" action, and the empty state copy
   changes to reflect filter-vs-no-data.
+- **Direct messaging.** A `messages` table (Postgres, `lib/db/src/schema/messages.ts`)
+  stores `fromUserId`, `toUserId`, `text`, `read`, `createdAt`, with indexes on
+  the from/to ids and on the (from, to) pair for fast thread lookups.
+  - API endpoints (`artifacts/api-server/src/routes/messages.ts`):
+    - `GET /conversations` returns one entry per peer with the latest message
+      and an `unread` count, with the peer's full `User` payload inlined.
+    - `GET /conversations/:userId/messages` returns the full thread between
+      the current user and `:userId`, and marks inbound messages as read.
+    - `POST /conversations/:userId/messages` inserts a new message and creates
+      a `message`-type notification for the recipient.
+  - Mobile screens:
+    - `app/inbox.tsx` — Messages inbox (per-thread row with avatar, name,
+      preview, timestamp, and a primary-colored unread badge). Polls every 8s.
+    - `app/chat/[userId].tsx` — chat thread with day separators, asymmetric
+      message bubbles (mine = primary background, theirs = card with border),
+      a multiline composer, and `KeyboardAvoidingView`. Polls every 6s and
+      auto-scrolls to the latest message.
+    - "Contact" buttons appear on every `PitchCard` (when the founder is not
+      the current user) and on each Profile suggested-row (small icon-only
+      button next to Follow). The Profile "Quick actions" grid replaces the
+      old Invites tile with a Messages tile that routes to `/inbox`.
 - `PitchComposerSheet` is a modal sheet on the Investment Hub screen for
   creating new pitches. Uses `expo-image-picker` for cover upload (with three
   preset thumbnails as fallback), chip pickers for Stage / Industry / City,

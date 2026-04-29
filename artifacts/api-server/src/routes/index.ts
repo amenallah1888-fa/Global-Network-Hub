@@ -6,6 +6,7 @@ import circlesRouter from "./circles";
 import pitchesRouter from "./pitches";
 import markersRouter from "./markers";
 import notificationsRouter from "./notifications";
+import messagesRouter from "./messages";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(circlesRouter);
 router.use(pitchesRouter);
 router.use(markersRouter);
 router.use(notificationsRouter);
+router.use(messagesRouter);
 
 export default router;

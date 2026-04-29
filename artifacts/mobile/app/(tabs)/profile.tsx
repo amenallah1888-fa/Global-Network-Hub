@@ -7,6 +7,7 @@ import {
   useToggleFollow,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { router } from "expo-router";
 import {
   Platform,
   Pressable,
@@ -150,7 +151,12 @@ export default function ProfileScreen() {
             sub="Spend"
           />
           <ActionTile icon="briefcase" label="My pitch" color={colors.accent} />
-          <ActionTile icon="users" label="Invites" color={colors.sponsor} />
+          <ActionTile
+            icon="mail"
+            label="Messages"
+            color={colors.sponsor}
+            onPress={() => router.push("/inbox")}
+          />
         </View>
       </View>
 
@@ -227,6 +233,24 @@ function SuggestedRow({ userId }: { userId: string }) {
         </Text>
       </View>
       <Pressable
+        onPress={() => router.push(`/chat/${u.id}`)}
+        hitSlop={6}
+        style={({ pressed }) => [
+          styles.contactIcon,
+          {
+            backgroundColor: colors.cardElevated,
+            borderColor: colors.border,
+            opacity: pressed ? 0.7 : 1,
+          },
+        ]}
+      >
+        <Feather
+          name="message-circle"
+          size={14}
+          color={colors.foreground}
+        />
+      </Pressable>
+      <Pressable
         onPress={() =>
           follow.mutate(
             { id: u.id },
@@ -295,15 +319,18 @@ function ActionTile({
   label,
   color,
   sub,
+  onPress,
 }: {
   icon: keyof typeof Feather.glyphMap;
   label: string;
   color: string;
   sub?: string;
+  onPress?: () => void;
 }) {
   const colors = useColors();
   return (
     <Pressable
+      onPress={onPress}
       style={({ pressed }) => [
         styles.actionTile,
         {
@@ -482,6 +509,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Inter_500Medium",
     marginTop: 2,
+  },
+  contactIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8,
   },
   followBtn: {
     paddingHorizontal: 16,

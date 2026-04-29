@@ -5,9 +5,11 @@ import {
 } from "@workspace/api-client-react";
 import type { Pitch } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { router } from "expo-router";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Avatar } from "@/components/Avatar";
+import { CURRENT_USER_ID } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
 import { getImage } from "@/lib/imageMap";
 import { useUserById } from "@/lib/userCache";
@@ -132,21 +134,44 @@ export function PitchCard({ pitch }: { pitch: Pitch }) {
       </View>
 
       <View style={styles.actions}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.secondaryBtn,
-            {
-              backgroundColor: colors.cardElevated,
-              borderColor: colors.border,
-              opacity: pressed ? 0.7 : 1,
-            },
-          ]}
-        >
-          <Feather name="eye" size={14} color={colors.foreground} />
-          <Text style={[styles.secondaryText, { color: colors.foreground }]}>
-            Memo
-          </Text>
-        </Pressable>
+        {pitch.founderId !== CURRENT_USER_ID ? (
+          <Pressable
+            onPress={() => router.push(`/chat/${pitch.founderId}`)}
+            style={({ pressed }) => [
+              styles.secondaryBtn,
+              {
+                backgroundColor: colors.cardElevated,
+                borderColor: colors.border,
+                opacity: pressed ? 0.7 : 1,
+              },
+            ]}
+          >
+            <Feather
+              name="message-circle"
+              size={14}
+              color={colors.foreground}
+            />
+            <Text style={[styles.secondaryText, { color: colors.foreground }]}>
+              Contact
+            </Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            style={({ pressed }) => [
+              styles.secondaryBtn,
+              {
+                backgroundColor: colors.cardElevated,
+                borderColor: colors.border,
+                opacity: pressed ? 0.7 : 1,
+              },
+            ]}
+          >
+            <Feather name="eye" size={14} color={colors.foreground} />
+            <Text style={[styles.secondaryText, { color: colors.foreground }]}>
+              Memo
+            </Text>
+          </Pressable>
+        )}
         <Pressable
           disabled={back.isPending || pitch.backed}
           onPress={onBack}

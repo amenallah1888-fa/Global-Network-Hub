@@ -5,3 +5,4 @@ export * from "./circles";
 export * from "./pitches";
 export * from "./markers";
 export * from "./notifications";
+export * from "./messages";

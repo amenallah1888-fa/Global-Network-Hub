@@ -14,6 +14,7 @@ tags:
   - name: pitches
   - name: markers
   - name: notifications
+  - name: messages
 paths:
   /healthz:
     get:
@@ -277,6 +278,65 @@ paths:
               schema:
                 $ref: "#/components/schemas/OkResponse"
 
+  /conversations:
+    get:
+      operationId: listConversations
+      tags: [messages]
+      summary: List the current user's conversations
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Conversation"
+
+  /conversations/{userId}/messages:
+    get:
+      operationId: listMessages
+      tags: [messages]
+      summary: Get the message thread with a user
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+    post:
+      operationId: sendMessage
+      tags: [messages]
+      summary: Send a direct message to a user
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
 components:
   parameters:
     IdParam:
@@ -503,3 +563,31 @@ components:
         read: { type: boolean }
         createdAt: { type: string, format: date-time }
       required: [id, userId, type, message, read, createdAt]
+
+    Message:
+      type: object
+      properties:
+        id: { type: integer }
+        fromUserId: { type: string }
+        toUserId: { type: string }
+        text: { type: string }
+        read: { type: boolean }
+        createdAt: { type: string, format: date-time }
+      required: [id, fromUserId, toUserId, text, read, createdAt]
+
+    Conversation:
+      type: object
+      properties:
+        peerId: { type: string }
+        peer:
+          $ref: "#/components/schemas/User"
+        lastMessage:
+          $ref: "#/components/schemas/Message"
+        unread: { type: integer }
+      required: [peerId, peer, lastMessage, unread]
+
+    SendMessageBody:
+      type: object
+      properties:
+        text: { type: string }
+      required: [text]
