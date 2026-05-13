@@ -9,10 +9,9 @@ import { router } from "expo-router";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Avatar } from "@/components/Avatar";
-import { CURRENT_USER_ID } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
 import { getImage } from "@/lib/imageMap";
-import { useUserById } from "@/lib/userCache";
+import { useCurrentUserId, useUserById } from "@/lib/userCache";
 
 function formatMoney(n: number) {
   if (n >= 1_000_000) return "$" + (n / 1_000_000).toFixed(1) + "M";
@@ -22,6 +21,7 @@ function formatMoney(n: number) {
 
 export function PitchCard({ pitch }: { pitch: Pitch }) {
   const colors = useColors();
+  const currentUserId = useCurrentUserId();
   const founder = useUserById(pitch.founderId);
   const queryClient = useQueryClient();
   const back = useBackPitch();
@@ -134,7 +134,7 @@ export function PitchCard({ pitch }: { pitch: Pitch }) {
       </View>
 
       <View style={styles.actions}>
-        {pitch.founderId !== CURRENT_USER_ID ? (
+        {pitch.founderId !== currentUserId ? (
           <Pressable
             onPress={() => router.push(`/chat/${pitch.founderId}`)}
             style={({ pressed }) => [

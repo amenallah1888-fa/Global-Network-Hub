@@ -22,9 +22,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
-import { CURRENT_USER_ID } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
-import { useUserById } from "@/lib/userCache";
+import { useCurrentUserId, useUserById } from "@/lib/userCache";
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString(undefined, {
@@ -51,6 +50,7 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const { userId } = useLocalSearchParams<{ userId: string }>();
+  const currentUserId = useCurrentUserId();
   const peer = useUserById(userId);
   const queryClient = useQueryClient();
   const listRef = useRef<FlatList>(null);
@@ -220,7 +220,7 @@ export default function ChatScreen() {
                   </View>
                 );
               }
-              const mine = item.msg.fromUserId === CURRENT_USER_ID;
+              const mine = item.msg.fromUserId === currentUserId;
               return (
                 <View
                   style={[

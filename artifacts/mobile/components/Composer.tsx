@@ -5,7 +5,9 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import {
+  Alert,
   Platform,
   Pressable,
   StyleSheet,
@@ -46,6 +48,34 @@ export function Composer() {
     );
   };
 
+  const handleImage = async () => {
+    if (Platform.OS === "web") {
+      Alert.alert("Image upload", "Image picking is available on the mobile app.");
+      return;
+    }
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission needed", "Allow photo access to attach images to posts.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      Alert.alert("Image selected", "Image attachment will be linked to posts in the next update.");
+    }
+  };
+
+  const handlePoll = () => {
+    Alert.alert("Create a Poll", "Polls are coming soon — stay tuned!", [{ text: "OK" }]);
+  };
+
+  const handleLocation = () => {
+    Alert.alert("Share Location", "Location tagging is coming soon!", [{ text: "OK" }]);
+  };
+
   return (
     <View
       style={[
@@ -64,9 +94,9 @@ export function Composer() {
       />
       <View style={styles.actions}>
         <View style={styles.iconRow}>
-          <IconBtn name="image" color={colors.mutedForeground} />
-          <IconBtn name="bar-chart-2" color={colors.mutedForeground} />
-          <IconBtn name="map-pin" color={colors.mutedForeground} />
+          <IconBtn name="image" color={colors.mutedForeground} onPress={handleImage} />
+          <IconBtn name="bar-chart-2" color={colors.mutedForeground} onPress={handlePoll} />
+          <IconBtn name="map-pin" color={colors.mutedForeground} onPress={handleLocation} />
         </View>
         <Pressable
           disabled={!canPost}
@@ -93,13 +123,16 @@ export function Composer() {
 function IconBtn({
   name,
   color,
+  onPress,
 }: {
   name: keyof typeof Feather.glyphMap;
   color: string;
+  onPress: () => void;
 }) {
   return (
     <Pressable
       hitSlop={6}
+      onPress={onPress}
       style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.5 }]}
     >
       <Feather name={name} size={18} color={color} />

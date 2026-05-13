@@ -9,9 +9,11 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import {
+  Alert,
   Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -19,15 +21,17 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
-import { CURRENT_USER_ID } from "@/data/mockData";
+import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { useCurrentUser } from "@/lib/userCache";
+import { useCurrentUser, useCurrentUserId } from "@/lib/userCache";
 
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const me = useCurrentUser();
+  const currentUserId = useCurrentUserId();
+  const { clearSession } = useAuth();
   const { data: users } = useListUsers();
   const { data: posts } = useListPosts();
   const { data: circles } = useListCircles();
@@ -36,9 +40,9 @@ export default function ProfileScreen() {
   const allCircles = circles ?? [];
   const allUsers = users ?? [];
 
-  const myPosts = allPosts.filter((p) => p.authorId === CURRENT_USER_ID).length;
+  const myPosts = allPosts.filter((p) => p.authorId === currentUserId).length;
   const totalTips = allPosts.reduce(
-    (s, p) => s + (p.authorId === CURRENT_USER_ID ? p.tipsTotal : 0),
+    (s, p) => s + (p.authorId === currentUserId ? p.tipsTotal : 0),
     0,
   );
   const followingCount = allUsers.filter((u) => u.following).length;
@@ -48,8 +52,41 @@ export default function ProfileScreen() {
     .reduce((s, c) => s + c.price, 0);
 
   const suggested = allUsers.filter(
-    (u) => u.id !== CURRENT_USER_ID && !u.following,
+    (u) => u.id !== currentUserId && !u.following,
   );
+
+  const onShare = async () => {
+    try {
+      await Share.share({
+        message: `Check out @${me.handle} on Oasis — ${me.bio || "the social business super app"}`,
+        title: me.name,
+      });
+    } catch {
+      // dismissed
+    }
+  };
+
+  const onSettings = () => {
+    Alert.alert("Settings", undefined, [
+      {
+        text: "Sign Out",
+        style: "destructive",
+        onPress: async () => {
+          await clearSession();
+          router.replace("/login");
+        },
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
+  const onCompose = () => {
+    router.push("/(tabs)");
+  };
+
+  const onMyPitch = () => {
+    router.push("/(tabs)/pitches");
+  };
 
   return (
     <ScrollView
@@ -71,6 +108,7 @@ export default function ProfileScreen() {
           <Avatar avatarKey={me.avatarKey} size={84} ring />
           <View style={styles.coverActions}>
             <Pressable
+              onPress={onShare}
               style={({ pressed }) => [
                 styles.iconBtn,
                 {
@@ -83,6 +121,7 @@ export default function ProfileScreen() {
               <Feather name="share-2" size={16} color={colors.foreground} />
             </Pressable>
             <Pressable
+              onPress={onSettings}
               style={({ pressed }) => [
                 styles.iconBtn,
                 {
@@ -143,14 +182,27 @@ export default function ProfileScreen() {
           Quick actions
         </Text>
         <View style={styles.actionGrid}>
-          <ActionTile icon="edit-3" label="Compose" color={colors.primary} />
+          <ActionTile
+            icon="edit-3"
+            label="Compose"
+            color={colors.primary}
+            onPress={onCompose}
+          />
           <ActionTile
             icon="dollar-sign"
             label={`$${monthlySpend}/mo`}
             color={colors.tip}
             sub="Spend"
+            onPress={() =>
+              Alert.alert("Monthly spend", `You spend $${monthlySpend}/mo on paid circles.`)
+            }
           />
-          <ActionTile icon="briefcase" label="My pitch" color={colors.accent} />
+          <ActionTile
+            icon="briefcase"
+            label="My pitch"
+            color={colors.accent}
+            onPress={onMyPitch}
+          />
           <ActionTile
             icon="mail"
             label="Messages"
@@ -165,11 +217,17 @@ export default function ProfileScreen() {
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
             Suggested to follow
           </Text>
-          <Text style={[styles.sectionAction, { color: colors.primary }]}>
-            See all
-          </Text>
+          <Pressable
+            onPress={() =>
+              Alert.alert("All suggestions", "A full discover-people page is coming soon.")
+            }
+          >
+            <Text style={[styles.sectionAction, { color: colors.primary }]}>
+              See all
+            </Text>
+          </Pressable>
         </View>
-        {suggested.map((u) => (
+        {suggested.slice(0, 5).map((u) => (
           <SuggestedRow key={u.id} userId={u.id} />
         ))}
       </View>

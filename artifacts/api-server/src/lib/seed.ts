@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import {
   db,
   usersTable,
@@ -16,6 +17,8 @@ export async function seedIfEmpty(): Promise<void> {
   }
   logger.info("Seed: inserting initial dataset");
 
+  const demoHash = await bcrypt.hash("oasis123", 10);
+
   await db.insert(usersTable).values([
     {
       id: "u_me",
@@ -29,6 +32,7 @@ export async function seedIfEmpty(): Promise<void> {
       verified: true,
       followersCount: 12480,
       bio: "Building autonomous wet labs. Synthetic biology operator. SF.",
+      passwordHash: demoHash,
     },
     {
       id: "u_amelia",

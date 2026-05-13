@@ -13,6 +13,8 @@ export const usersTable = pgTable("users", {
   followersCount: integer("followers_count").notNull().default(0),
   bio: text("bio").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  passwordHash: text("password_hash"),
+  piUid: text("pi_uid").unique(),
 });
 
 export type User = typeof usersTable.$inferSelect;

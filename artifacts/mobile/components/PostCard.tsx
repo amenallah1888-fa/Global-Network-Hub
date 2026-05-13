@@ -10,6 +10,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { useState } from "react";
 import {
+  Alert,
   Image,
   Platform,
   Pressable,
@@ -81,6 +82,25 @@ export function PostCard({ post }: { post: Post }) {
     setTipOpen(false);
   };
 
+  const onComment = () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    Alert.alert(
+      `${post.commentsCount} comment${post.commentsCount === 1 ? "" : "s"}`,
+      "Full comment threads are coming soon. Stay tuned!",
+      [{ text: "OK" }],
+    );
+  };
+
+  const onMore = () => {
+    Alert.alert("Post options", undefined, [
+      { text: "Copy text", onPress: () => {} },
+      { text: "Report post", style: "destructive", onPress: () => {} },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
   return (
     <View
       style={[
@@ -137,7 +157,7 @@ export function PostCard({ post }: { post: Post }) {
             {author.title} · {author.company}
           </Text>
         </View>
-        <Pressable hitSlop={10} style={styles.more}>
+        <Pressable hitSlop={10} onPress={onMore} style={styles.more}>
           <Feather
             name="more-horizontal"
             size={18}
@@ -166,7 +186,7 @@ export function PostCard({ post }: { post: Post }) {
           icon="message-circle"
           value={formatNumber(post.commentsCount)}
           color={colors.mutedForeground}
-          onPress={() => {}}
+          onPress={onComment}
         />
         <Action
           icon="repeat"

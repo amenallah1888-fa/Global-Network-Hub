@@ -3,10 +3,13 @@ import { useListCircles } from "@workspace/api-client-react";
 import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 
@@ -17,9 +20,166 @@ import { useColors } from "@/hooks/useColors";
 
 const SEGMENTS = ["Discover", "Joined", "Paid"];
 
+function CreateCircleSheet({
+  visible,
+  onClose,
+  colors,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  colors: any;
+}) {
+  const [name, setName] = useState("");
+  const [desc, setDesc] = useState("");
+  const [isPaid, setIsPaid] = useState(false);
+
+  if (!visible) return null;
+
+  const handleCreate = () => {
+    if (!name.trim()) {
+      Alert.alert("Name required", "Give your circle a name.");
+      return;
+    }
+    Alert.alert(
+      "Circle created!",
+      `"${name.trim()}" has been created. Full circle creation will be connected to the backend in the next update.`,
+      [{ text: "OK", onPress: onClose }],
+    );
+    setName("");
+    setDesc("");
+    setIsPaid(false);
+  };
+
+  return (
+    <View style={[sheet.backdrop]}>
+      <Pressable style={sheet.overlay} onPress={onClose} />
+      <View
+        style={[
+          sheet.card,
+          { backgroundColor: colors.card, borderColor: colors.border },
+        ]}
+      >
+        <View style={sheet.handle} />
+        <Text style={[sheet.title, { color: colors.foreground }]}>
+          Start a Circle
+        </Text>
+        <Text style={[sheet.subtitle, { color: colors.mutedForeground }]}>
+          Create an invite-only or paid community
+        </Text>
+
+        <View style={sheet.fieldWrap}>
+          <Text style={[sheet.label, { color: colors.mutedForeground }]}>
+            Circle Name
+          </Text>
+          <TextInput
+            value={name}
+            onChangeText={setName}
+            placeholder="e.g. Founders in Stealth"
+            placeholderTextColor={colors.mutedForeground}
+            style={[
+              sheet.input,
+              {
+                color: colors.foreground,
+                backgroundColor: colors.background,
+                borderColor: colors.border,
+              },
+            ]}
+          />
+        </View>
+
+        <View style={sheet.fieldWrap}>
+          <Text style={[sheet.label, { color: colors.mutedForeground }]}>
+            Description (optional)
+          </Text>
+          <TextInput
+            value={desc}
+            onChangeText={setDesc}
+            placeholder="What's this circle about?"
+            placeholderTextColor={colors.mutedForeground}
+            multiline
+            style={[
+              sheet.input,
+              sheet.textarea,
+              {
+                color: colors.foreground,
+                backgroundColor: colors.background,
+                borderColor: colors.border,
+              },
+            ]}
+          />
+        </View>
+
+        <View style={sheet.typeRow}>
+          <Pressable
+            onPress={() => setIsPaid(false)}
+            style={[
+              sheet.typeChip,
+              {
+                backgroundColor: !isPaid ? colors.primary : colors.background,
+                borderColor: !isPaid ? colors.primary : colors.border,
+              },
+            ]}
+          >
+            <Feather
+              name="lock"
+              size={13}
+              color={!isPaid ? colors.primaryForeground : colors.foreground}
+            />
+            <Text
+              style={[
+                sheet.typeText,
+                { color: !isPaid ? colors.primaryForeground : colors.foreground },
+              ]}
+            >
+              Invite-only
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setIsPaid(true)}
+            style={[
+              sheet.typeChip,
+              {
+                backgroundColor: isPaid ? colors.primary : colors.background,
+                borderColor: isPaid ? colors.primary : colors.border,
+              },
+            ]}
+          >
+            <Feather
+              name="dollar-sign"
+              size={13}
+              color={isPaid ? colors.primaryForeground : colors.foreground}
+            />
+            <Text
+              style={[
+                sheet.typeText,
+                { color: isPaid ? colors.primaryForeground : colors.foreground },
+              ]}
+            >
+              Paid
+            </Text>
+          </Pressable>
+        </View>
+
+        <Pressable
+          onPress={handleCreate}
+          style={({ pressed }) => [
+            sheet.createBtn,
+            { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
+          ]}
+        >
+          <Text style={[sheet.createText, { color: colors.primaryForeground }]}>
+            Create Circle
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 export default function CirclesScreen() {
   const colors = useColors();
   const [segment, setSegment] = useState("Discover");
+  const [createOpen, setCreateOpen] = useState(false);
   const { data: circles, isLoading } = useListCircles();
 
   const list = circles ?? [];
@@ -44,6 +204,7 @@ export default function CirclesScreen() {
         title="Circles"
         subtitle="Your private rooms & paid groups"
         rightIcon="plus"
+        onRightPress={() => setCreateOpen(true)}
       />
       <FlatList
         data={visible}
@@ -52,6 +213,7 @@ export default function CirclesScreen() {
         ListHeaderComponent={
           <View>
             <Pressable
+              onPress={() => setCreateOpen(true)}
               style={({ pressed }) => [
                 styles.cta,
                 {
@@ -153,6 +315,12 @@ export default function CirclesScreen() {
         contentContainerStyle={{ paddingBottom: 140 }}
         showsVerticalScrollIndicator={false}
       />
+
+      <CreateCircleSheet
+        visible={createOpen}
+        onClose={() => setCreateOpen(false)}
+        colors={colors}
+      />
     </View>
   );
 }
@@ -224,4 +392,74 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     textAlign: "center",
   },
+});
+
+const sheet = StyleSheet.create({
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "flex-end",
+    zIndex: 100,
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  card: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    padding: 24,
+    paddingTop: 16,
+    gap: 14,
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#ccc",
+    alignSelf: "center",
+    marginBottom: 8,
+  },
+  title: {
+    fontSize: 20,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: -0.4,
+  },
+  subtitle: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    marginTop: -8,
+  },
+  fieldWrap: { gap: 6 },
+  label: { fontSize: 12, fontFamily: "Inter_600SemiBold", letterSpacing: 0.3 },
+  input: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    fontFamily: "Inter_400Regular",
+    ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : {}),
+  },
+  textarea: { minHeight: 72, textAlignVertical: "top" },
+  typeRow: { flexDirection: "row", gap: 10 },
+  typeChip: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 11,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  typeText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  createBtn: {
+    borderRadius: 14,
+    paddingVertical: 15,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  createText: { fontSize: 15, fontFamily: "Inter_700Bold" },
 });

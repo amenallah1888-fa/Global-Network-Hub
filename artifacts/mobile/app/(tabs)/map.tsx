@@ -1,7 +1,15 @@
 import { Feather } from "@expo/vector-icons";
 import { useListMarkers, type Marker } from "@workspace/api-client-react";
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
 import { Header } from "@/components/Header";
 import { MarkerDetailSheet } from "@/components/MarkerDetailSheet";
@@ -31,26 +39,76 @@ export default function MapScreen() {
   const colors = useColors();
   const [filter, setFilter] = useState<Marker["type"] | "all">("all");
   const [selected, setSelected] = useState<Marker | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [showAllRegions, setShowAllRegions] = useState(false);
 
   const { data: markers } = useListMarkers();
 
+  const filteredMarkers = useMemo(() => {
+    let list = markers ?? [];
+    if (filter !== "all") {
+      list = list.filter((m) => m.type === filter);
+    }
+    if (searchText.trim()) {
+      const q = searchText.toLowerCase();
+      list = list.filter(
+        (m) =>
+          m.city?.toLowerCase().includes(q) ||
+          m.label?.toLowerCase().includes(q) ||
+          m.type?.toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [markers, filter, searchText]);
+
   const stats = useMemo(() => {
-    const visible = (markers ?? []).filter(
-      (m) => filter === "all" || m.type === filter,
-    );
+    const all = markers ?? [];
     return {
-      visible: visible.length,
-      cities: new Set(visible.map((v) => v.city)).size,
+      visible: filteredMarkers.length,
+      cities: new Set(filteredMarkers.map((v) => v.city)).size,
+      total: all.length,
     };
-  }, [markers, filter]);
+  }, [markers, filteredMarkers]);
+
+  const visibleRegions = showAllRegions ? TRENDING_REGIONS : TRENDING_REGIONS.slice(0, 3);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Header
         title="Atlas"
         subtitle="Discover the active world"
-        rightIcon="search"
+        rightIcon={searchOpen ? "x" : "search"}
+        onRightPress={() => {
+          setSearchOpen((v) => !v);
+          if (searchOpen) setSearchText("");
+        }}
       />
+
+      {searchOpen && (
+        <View
+          style={[
+            styles.searchBar,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+        >
+          <Feather name="search" size={15} color={colors.mutedForeground} />
+          <TextInput
+            value={searchText}
+            onChangeText={setSearchText}
+            placeholder="Search by city, type, or label…"
+            placeholderTextColor={colors.mutedForeground}
+            autoFocus
+            style={[styles.searchInput, { color: colors.foreground }]}
+          />
+          {searchText.length > 0 && (
+            <Pressable onPress={() => setSearchText("")} hitSlop={6}>
+              <Feather name="x-circle" size={15} color={colors.mutedForeground} />
+            </Pressable>
+          )}
+        </View>
+      )}
+
       <ScrollView
         contentContainerStyle={{ paddingBottom: 140 }}
         showsVerticalScrollIndicator={false}
@@ -70,7 +128,7 @@ export default function MapScreen() {
           />
           <Stat
             label="Live signals"
-            value="184"
+            value={stats.total.toString()}
             color={colors.success}
             icon="radio"
           />
@@ -120,21 +178,34 @@ export default function MapScreen() {
 
         <AtlasMap filter={filter} selected={selected} onSelect={setSelected} />
 
-        <Text style={[styles.hint, { color: colors.mutedForeground }]}>
-          Tap any marker to view full profile
-        </Text>
+        {searchText.trim() && filteredMarkers.length === 0 && (
+          <View style={styles.noResults}>
+            <Feather name="search" size={22} color={colors.mutedForeground} />
+            <Text style={[styles.noResultsText, { color: colors.mutedForeground }]}>
+              No markers found for "{searchText}"
+            </Text>
+          </View>
+        )}
+
+        {!searchText && (
+          <Text style={[styles.hint, { color: colors.mutedForeground }]}>
+            Tap any marker to view full profile
+          </Text>
+        )}
 
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
             Trending regions
           </Text>
-          <Text style={[styles.sectionAction, { color: colors.primary }]}>
-            See all
-          </Text>
+          <Pressable onPress={() => setShowAllRegions((v) => !v)}>
+            <Text style={[styles.sectionAction, { color: colors.primary }]}>
+              {showAllRegions ? "Show less" : "See all"}
+            </Text>
+          </Pressable>
         </View>
 
         <View style={styles.regionList}>
-          {TRENDING_REGIONS.map((r, i) => (
+          {visibleRegions.map((r, i) => (
             <View
               key={r.city}
               style={[
@@ -217,6 +288,24 @@ function Stat({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 2,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : {}),
+  },
   statsRow: {
     flexDirection: "row",
     gap: 10,
@@ -266,6 +355,15 @@ const styles = StyleSheet.create({
   filterText: {
     fontSize: 13,
     fontFamily: "Inter_600SemiBold",
+  },
+  noResults: {
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 24,
+  },
+  noResultsText: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
   },
   hint: {
     textAlign: "center",
