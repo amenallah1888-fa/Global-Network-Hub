@@ -1,6 +1,5 @@
 import { Feather } from "@expo/vector-icons";
 import {
-  getListPostsQueryKey,
   useTipPost,
   useToggleLike,
   useToggleRetweet,
@@ -49,11 +48,12 @@ export function PostCard({ post }: { post: Post }) {
   const [tipOpen, setTipOpen] = useState(false);
   const image = getImage(post.imageKey);
 
-  const invalidate = () =>
-    queryClient.invalidateQueries({
-      queryKey: getListPostsQueryKey(),
-      exact: false,
-    });
+  const patchPost = (updated: Post) => {
+    queryClient.setQueriesData<Post[]>(
+      { queryKey: ["/api/posts"], exact: false },
+      (old) => old?.map((p) => (p.id === updated.id ? updated : p)),
+    );
+  };
 
   const likeMut = useToggleLike();
   const rtMut = useToggleRetweet();
@@ -63,13 +63,13 @@ export function PostCard({ post }: { post: Post }) {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    likeMut.mutate({ id: post.id }, { onSuccess: invalidate });
+    likeMut.mutate({ id: post.id }, { onSuccess: patchPost });
   };
   const onRetweet = () => {
     if (Platform.OS !== "web") {
       Haptics.selectionAsync();
     }
-    rtMut.mutate({ id: post.id }, { onSuccess: invalidate });
+    rtMut.mutate({ id: post.id }, { onSuccess: patchPost });
   };
   const onTip = (amount: number) => {
     if (Platform.OS !== "web") {
@@ -77,7 +77,7 @@ export function PostCard({ post }: { post: Post }) {
     }
     tipMut.mutate(
       { id: post.id, data: { amount } },
-      { onSuccess: invalidate },
+      { onSuccess: patchPost },
     );
     setTipOpen(false);
   };
