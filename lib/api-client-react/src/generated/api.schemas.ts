@@ -122,6 +122,10 @@ export interface Marker {
   city: string;
   x: number;
   y: number;
+  /** @nullable */
+  lat?: number | null;
+  /** @nullable */
+  lng?: number | null;
   meta: string;
   /** @nullable */
   refId?: string | null;

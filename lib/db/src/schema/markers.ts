@@ -7,6 +7,8 @@ export const markersTable = pgTable("markers", {
   city: text("city").notNull(),
   x: doublePrecision("x").notNull(),
   y: doublePrecision("y").notNull(),
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
   meta: text("meta").notNull().default(""),
   refId: text("ref_id"),
 });

@@ -272,18 +272,18 @@ export async function seedIfEmpty(): Promise<void> {
   ]);
 
   await db.insert(markersTable).values([
-    { id: "m1", type: "person", label: "Amelia Chen", city: "New York", x: 0.27, y: 0.34, meta: "Partner · NBV", refId: "u_amelia" },
-    { id: "m2", type: "business", label: "Helix Labs", city: "San Francisco", x: 0.16, y: 0.36, meta: "BioTech · Hiring", refId: "pi1" },
-    { id: "m3", type: "project", label: "Polaris", city: "Stockholm", x: 0.52, y: 0.22, meta: "Series A · Trending", refId: "pi2" },
-    { id: "m4", type: "person", label: "Marcus Vale", city: "Berlin", x: 0.51, y: 0.28, meta: "Designer in Residence", refId: "u_marcus" },
-    { id: "m5", type: "business", label: "Atelier Nord", city: "Berlin", x: 0.515, y: 0.295, meta: "Commerce · 2.2k waitlist", refId: "pi3" },
-    { id: "m6", type: "person", label: "Priya Anand", city: "Bengaluru", x: 0.69, y: 0.49, meta: "Head of Growth", refId: "u_priya" },
-    { id: "m7", type: "project", label: "Ledger Cloud", city: "Bengaluru", x: 0.695, y: 0.5, meta: "Series B · Live", refId: "pi4" },
-    { id: "m8", type: "business", label: "Sightglass Roasters", city: "São Paulo", x: 0.34, y: 0.66, meta: "F&B · Sponsor", refId: null },
-    { id: "m9", type: "person", label: "Yuki Tanaka", city: "Tokyo", x: 0.84, y: 0.4, meta: "Robotics PM", refId: null },
-    { id: "m10", type: "project", label: "Reef OS", city: "Sydney", x: 0.88, y: 0.74, meta: "Climate · Pre-seed", refId: null },
-    { id: "m11", type: "business", label: "Lagos Studio", city: "Lagos", x: 0.5, y: 0.55, meta: "Creative · Hiring", refId: null },
-    { id: "m12", type: "person", label: "Sara Bennani", city: "Casablanca", x: 0.46, y: 0.42, meta: "Investor", refId: null },
+    { id: "m1",  type: "person",   label: "Amelia Chen",         city: "New York",      x: 0.27,  y: 0.34,  lat: 40.7128,  lng: -74.0060,  meta: "Partner · NBV",              refId: "u_amelia" },
+    { id: "m2",  type: "business", label: "Helix Labs",           city: "San Francisco", x: 0.16,  y: 0.36,  lat: 37.7749,  lng: -122.4194, meta: "BioTech · Hiring",           refId: "pi1" },
+    { id: "m3",  type: "project",  label: "Polaris",              city: "Stockholm",     x: 0.52,  y: 0.22,  lat: 59.3293,  lng: 18.0686,   meta: "Series A · Trending",        refId: "pi2" },
+    { id: "m4",  type: "person",   label: "Marcus Vale",          city: "Berlin",        x: 0.51,  y: 0.28,  lat: 52.5200,  lng: 13.4050,   meta: "Designer in Residence",      refId: "u_marcus" },
+    { id: "m5",  type: "business", label: "Atelier Nord",         city: "Berlin",        x: 0.515, y: 0.295, lat: 52.5260,  lng: 13.4110,   meta: "Commerce · 2.2k waitlist",   refId: "pi3" },
+    { id: "m6",  type: "person",   label: "Priya Anand",          city: "Bengaluru",     x: 0.69,  y: 0.49,  lat: 12.9716,  lng: 77.5946,   meta: "Head of Growth",             refId: "u_priya" },
+    { id: "m7",  type: "project",  label: "Ledger Cloud",         city: "Bengaluru",     x: 0.695, y: 0.5,   lat: 12.9790,  lng: 77.6020,   meta: "Series B · Live",            refId: "pi4" },
+    { id: "m8",  type: "business", label: "Sightglass Roasters",  city: "São Paulo",     x: 0.34,  y: 0.66,  lat: -23.5505, lng: -46.6333,  meta: "F&B · Sponsor",              refId: null },
+    { id: "m9",  type: "person",   label: "Yuki Tanaka",          city: "Tokyo",         x: 0.84,  y: 0.4,   lat: 35.6762,  lng: 139.6503,  meta: "Robotics PM",                refId: null },
+    { id: "m10", type: "project",  label: "Reef OS",              city: "Sydney",        x: 0.88,  y: 0.74,  lat: -33.8688, lng: 151.2093,  meta: "Climate · Pre-seed",         refId: null },
+    { id: "m11", type: "business", label: "Lagos Studio",         city: "Lagos",         x: 0.5,   y: 0.55,  lat: 6.5244,   lng: 3.3792,    meta: "Creative · Hiring",          refId: null },
+    { id: "m12", type: "person",   label: "Sara Bennani",         city: "Casablanca",    x: 0.46,  y: 0.42,  lat: 33.5731,  lng: -7.5898,   meta: "Investor",                   refId: null },
   ]);
 
   logger.info("Seed: complete");
