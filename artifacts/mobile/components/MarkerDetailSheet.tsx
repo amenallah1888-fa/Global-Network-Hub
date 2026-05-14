@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
+import { router } from "expo-router";
 import {
   useListPitches,
   useToggleFollow,
@@ -147,12 +148,17 @@ export function MarkerDetailSheet({
                 </Text>
 
                 {marker.type === "person" && refUser.id !== "unknown" ? (
-                  <View
-                    style={[
+                  <Pressable
+                    onPress={() => {
+                      onClose();
+                      router.push(`/profile/${refUser.id}`);
+                    }}
+                    style={({ pressed }) => [
                       styles.personCard,
                       {
                         backgroundColor: colors.cardElevated,
                         borderColor: colors.border,
+                        opacity: pressed ? 0.85 : 1,
                       },
                     ]}
                   >
@@ -185,16 +191,22 @@ export function MarkerDetailSheet({
                         {refUser.bio}
                       </Text>
                     </View>
-                  </View>
+                    <Feather name="chevron-right" size={14} color={colors.mutedForeground} />
+                  </Pressable>
                 ) : null}
 
                 {pitch ? (
-                  <View
-                    style={[
+                  <Pressable
+                    onPress={() => {
+                      onClose();
+                      router.push(`/pitch/${pitch.id}`);
+                    }}
+                    style={({ pressed }) => [
                       styles.pitchCard,
                       {
                         backgroundColor: colors.cardElevated,
                         borderColor: colors.border,
+                        opacity: pressed ? 0.85 : 1,
                       },
                     ]}
                   >
@@ -230,48 +242,92 @@ export function MarkerDetailSheet({
                         colors={colors}
                       />
                     </View>
-                  </View>
+                    <View style={[styles.viewProjectRow]}>
+                      <Feather name="arrow-right" size={13} color={accent} />
+                      <Text style={[styles.viewProjectText, { color: accent }]}>
+                        View project details
+                      </Text>
+                    </View>
+                  </Pressable>
                 ) : null}
 
                 <View style={styles.actionRow}>
                   {marker.type === "person" && refUser.id !== "unknown" ? (
+                    <>
+                      <Pressable
+                        onPress={() =>
+                          followMut.mutate({ id: refUser.id }, {})
+                        }
+                        style={({ pressed }) => [
+                          styles.btnPrimary,
+                          {
+                            backgroundColor: refUser.following
+                              ? colors.cardElevated
+                              : colors.primary,
+                            borderColor: refUser.following
+                              ? colors.border
+                              : colors.primary,
+                            opacity: pressed ? 0.85 : 1,
+                          },
+                        ]}
+                      >
+                        <Feather
+                          name={refUser.following ? "user-check" : "user-plus"}
+                          size={14}
+                          color={
+                            refUser.following
+                              ? colors.foreground
+                              : colors.primaryForeground
+                          }
+                        />
+                        <Text
+                          style={[
+                            styles.btnPrimaryText,
+                            {
+                              color: refUser.following
+                                ? colors.foreground
+                                : colors.primaryForeground,
+                            },
+                          ]}
+                        >
+                          {refUser.following ? "Following" : "Follow"}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => {
+                          onClose();
+                          router.push(`/profile/${refUser.id}`);
+                        }}
+                        style={({ pressed }) => [
+                          styles.btnSecondary,
+                          {
+                            backgroundColor: colors.cardElevated,
+                            borderColor: colors.border,
+                            opacity: pressed ? 0.7 : 1,
+                          },
+                        ]}
+                      >
+                        <Feather name="user" size={14} color={colors.foreground} />
+                      </Pressable>
+                    </>
+                  ) : pitch ? (
                     <Pressable
-                      onPress={() =>
-                        followMut.mutate({ id: refUser.id }, {})
-                      }
+                      onPress={() => {
+                        onClose();
+                        router.push(`/pitch/${pitch.id}`);
+                      }}
                       style={({ pressed }) => [
                         styles.btnPrimary,
                         {
-                          backgroundColor: refUser.following
-                            ? colors.cardElevated
-                            : colors.primary,
-                          borderColor: refUser.following
-                            ? colors.border
-                            : colors.primary,
+                          backgroundColor: accent,
+                          borderColor: accent,
                           opacity: pressed ? 0.85 : 1,
                         },
                       ]}
                     >
-                      <Feather
-                        name={refUser.following ? "user-check" : "user-plus"}
-                        size={14}
-                        color={
-                          refUser.following
-                            ? colors.foreground
-                            : colors.primaryForeground
-                        }
-                      />
-                      <Text
-                        style={[
-                          styles.btnPrimaryText,
-                          {
-                            color: refUser.following
-                              ? colors.foreground
-                              : colors.primaryForeground,
-                          },
-                        ]}
-                      >
-                        {refUser.following ? "Following" : "Follow"}
+                      <Feather name="trending-up" size={14} color="#fff" />
+                      <Text style={[styles.btnPrimaryText, { color: "#fff" }]}>
+                        View &amp; Invest
                       </Text>
                     </Pressable>
                   ) : (
@@ -312,7 +368,7 @@ export function MarkerDetailSheet({
                     ]}
                   >
                     <Feather
-                      name="bookmark"
+                      name="x"
                       size={14}
                       color={colors.foreground}
                     />
@@ -487,5 +543,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 14,
     borderWidth: 1,
+  },
+  viewProjectRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 12,
+  },
+  viewProjectText: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
   },
 });

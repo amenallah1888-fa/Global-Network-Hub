@@ -49,6 +49,8 @@ function RootLayoutNav() {
       <Stack.Screen name="login" options={{ headerShown: false, animation: "fade" }} />
       <Stack.Screen name="inbox" options={{ headerShown: false }} />
       <Stack.Screen name="chat/[userId]" options={{ headerShown: false }} />
+      <Stack.Screen name="pitch/[id]" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="profile/[userId]" options={{ headerShown: false, animation: "slide_from_right" }} />
     </Stack>
   );
 }

@@ -5,6 +5,7 @@ import {
   pitchesTable,
   pitchBackersTable,
   markersTable,
+  usersTable,
 } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
 import { createNotification } from "../lib/notify";
@@ -112,6 +113,54 @@ router.post("/pitches", async (req, res): Promise<void> => {
   res
     .status(201)
     .json({ ...created, coverKey: created.coverKey ?? null, backed: false });
+});
+
+router.get("/pitches/:id", async (req, res): Promise<void> => {
+  const meId = currentUserId(req);
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+  const [pitch] = await db
+    .select()
+    .from(pitchesTable)
+    .where(eq(pitchesTable.id, id));
+  if (!pitch) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  const [backer] = await db
+    .select()
+    .from(pitchBackersTable)
+    .where(
+      and(
+        eq(pitchBackersTable.pitchId, id),
+        eq(pitchBackersTable.userId, meId),
+      ),
+    );
+
+  const [founder] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, pitch.founderId));
+
+  // fetch related pitches from same industry (exclude this one)
+  const related = await db
+    .select()
+    .from(pitchesTable)
+    .where(eq(pitchesTable.industry, pitch.industry))
+    .orderBy(desc(pitchesTable.raised))
+    .limit(4);
+
+  res.json({
+    ...pitch,
+    coverKey: pitch.coverKey ?? null,
+    backed: !!backer,
+    founder: founder ? { ...founder } : null,
+    related: related
+      .filter((p) => p.id !== id)
+      .slice(0, 3)
+      .map((p) => ({ ...p, coverKey: p.coverKey ?? null, backed: false })),
+  });
 });
 
 router.post("/pitches/:id/back", async (req, res): Promise<void> => {

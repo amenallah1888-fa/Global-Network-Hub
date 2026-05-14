@@ -1,6 +1,13 @@
 import { Router, type IRouter } from "express";
 import { and, eq, sql } from "drizzle-orm";
-import { db, usersTable, followsTable } from "@workspace/db";
+import {
+  db,
+  usersTable,
+  followsTable,
+  pitchesTable,
+  circleMembersTable,
+  circlesTable,
+} from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
 import { createNotification } from "../lib/notify";
 
@@ -25,6 +32,55 @@ router.get("/users", async (req, res): Promise<void> => {
     .where(eq(followsTable.followerId, meId));
   const set = new Set(myFollows.map((f) => f.followingId));
   res.json(all.map((u) => ({ ...u, following: set.has(u.id) })));
+});
+
+router.get("/users/:id", async (req, res): Promise<void> => {
+  const meId = currentUserId(req);
+  const targetId = Array.isArray(req.params.id)
+    ? req.params.id[0]
+    : req.params.id;
+
+  const [u] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, targetId));
+  if (!u) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  const [follow] = await db
+    .select()
+    .from(followsTable)
+    .where(
+      and(
+        eq(followsTable.followerId, meId),
+        eq(followsTable.followingId, targetId),
+      ),
+    );
+
+  const pitches = await db
+    .select()
+    .from(pitchesTable)
+    .where(eq(pitchesTable.founderId, targetId))
+    .orderBy(pitchesTable.createdAt);
+
+  const memberships = await db
+    .select({ circle: circlesTable })
+    .from(circleMembersTable)
+    .innerJoin(circlesTable, eq(circleMembersTable.circleId, circlesTable.id))
+    .where(eq(circleMembersTable.userId, targetId));
+
+  res.json({
+    ...u,
+    following: !!follow,
+    pitches: pitches.map((p) => ({ ...p, coverKey: p.coverKey ?? null, backed: false })),
+    circles: memberships.map((m) => ({
+      ...m.circle,
+      coverKey: m.circle.coverKey ?? null,
+      joined: false,
+    })),
+  });
 });
 
 router.post("/users/:id/follow", async (req, res): Promise<void> => {

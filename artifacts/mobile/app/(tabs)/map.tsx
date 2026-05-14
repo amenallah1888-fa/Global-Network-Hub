@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { useListMarkers, type Marker } from "@workspace/api-client-react";
+import { useListMarkers, useListPitches, type Marker } from "@workspace/api-client-react";
 import { useMemo, useState } from "react";
 import {
   Platform,
@@ -14,6 +14,7 @@ import {
 import { Header } from "@/components/Header";
 import { MarkerDetailSheet } from "@/components/MarkerDetailSheet";
 import { AtlasMap } from "@/components/MapView";
+import { RegionProjectsSheet } from "@/components/RegionProjectsSheet";
 import { useColors } from "@/hooks/useColors";
 
 const FILTERS: {
@@ -27,14 +28,6 @@ const FILTERS: {
   { key: "project", label: "Projects", icon: "zap" },
 ];
 
-const TRENDING_REGIONS = [
-  { city: "San Francisco", count: 2148, growth: "+12%" },
-  { city: "Berlin", count: 1402, growth: "+8%" },
-  { city: "Bengaluru", count: 1188, growth: "+24%" },
-  { city: "Tokyo", count: 920, growth: "+5%" },
-  { city: "Lagos", count: 612, growth: "+31%" },
-];
-
 export default function MapScreen() {
   const colors = useColors();
   const [filter, setFilter] = useState<Marker["type"] | "all">("all");
@@ -42,8 +35,11 @@ export default function MapScreen() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [showAllRegions, setShowAllRegions] = useState(false);
+  const [cityFilter, setCityFilter] = useState<string | null>(null);
+  const [regionSheetCity, setRegionSheetCity] = useState<string | null>(null);
 
   const { data: markers } = useListMarkers();
+  const { data: pitches } = useListPitches();
 
   const filteredMarkers = useMemo(() => {
     let list = markers ?? [];
@@ -71,7 +67,65 @@ export default function MapScreen() {
     };
   }, [markers, filteredMarkers]);
 
-  const visibleRegions = showAllRegions ? TRENDING_REGIONS : TRENDING_REGIONS.slice(0, 3);
+  // Dynamic trending regions: computed from real markers + pitches data
+  const trendingRegions = useMemo(() => {
+    const all = markers ?? [];
+    const allPitches = pitches ?? [];
+
+    // Group markers by city
+    const cityMap = new Map<
+      string,
+      { count: number; raised: number; pitchCount: number }
+    >();
+
+    for (const m of all) {
+      const c = m.city;
+      if (!c) continue;
+      const prev = cityMap.get(c) ?? { count: 0, raised: 0, pitchCount: 0 };
+      cityMap.set(c, { ...prev, count: prev.count + 1 });
+    }
+
+    // Add pitch investment data per city
+    for (const p of allPitches) {
+      const c = p.city;
+      if (!c) continue;
+      const prev = cityMap.get(c) ?? { count: 0, raised: 0, pitchCount: 0 };
+      cityMap.set(c, {
+        ...prev,
+        raised: prev.raised + p.raised,
+        pitchCount: prev.pitchCount + 1,
+      });
+    }
+
+    return Array.from(cityMap.entries())
+      .filter(([, v]) => v.count > 0)
+      .map(([city, v]) => ({
+        city,
+        count: v.count,
+        pitchCount: v.pitchCount,
+        raised: v.raised,
+        // strength = raised + marker count * 10k
+        strength: v.raised + v.count * 10_000,
+      }))
+      .sort((a, b) => b.strength - a.strength);
+  }, [markers, pitches]);
+
+  const visibleRegions = showAllRegions
+    ? trendingRegions
+    : trendingRegions.slice(0, 3);
+
+  const handleRegionPress = (city: string) => {
+    setCityFilter(city);
+    setRegionSheetCity(city);
+  };
+
+  const handleMarkerSelect = (m: Marker) => {
+    setSelected(m);
+    // Zoom map to the selected marker's city
+    if (m.lat != null && m.lng != null) {
+      setCityFilter(null); // clear city filter so fly-to on selected takes priority
+    }
+  };
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -176,7 +230,28 @@ export default function MapScreen() {
           })}
         </ScrollView>
 
-        <AtlasMap filter={filter} selected={selected} onSelect={setSelected} />
+        <AtlasMap
+          filter={filter}
+          selected={selected}
+          onSelect={handleMarkerSelect}
+          cityFilter={cityFilter}
+        />
+
+        {cityFilter && (
+          <Pressable
+            onPress={() => setCityFilter(null)}
+            style={[
+              styles.cityFilterBanner,
+              { backgroundColor: colors.primary + "18", borderColor: colors.primary },
+            ]}
+          >
+            <Feather name="map-pin" size={13} color={colors.primary} />
+            <Text style={[styles.cityFilterText, { color: colors.primary }]}>
+              Viewing: {cityFilter}
+            </Text>
+            <Feather name="x" size={13} color={colors.primary} />
+          </Pressable>
+        )}
 
         {searchText.trim() && filteredMarkers.length === 0 && (
           <View style={styles.noResults}>
@@ -187,9 +262,9 @@ export default function MapScreen() {
           </View>
         )}
 
-        {!searchText && (
+        {!searchText && !cityFilter && (
           <Text style={[styles.hint, { color: colors.mutedForeground }]}>
-            Tap any marker to view full profile
+            Tap any marker · Tap a region to see ranked projects
           </Text>
         )}
 
@@ -205,43 +280,66 @@ export default function MapScreen() {
         </View>
 
         <View style={styles.regionList}>
-          {visibleRegions.map((r, i) => (
-            <View
-              key={r.city}
-              style={[
-                styles.region,
-                { backgroundColor: colors.card, borderColor: colors.border },
-              ]}
-            >
-              <Text style={[styles.rank, { color: colors.mutedForeground }]}>
-                0{i + 1}
-              </Text>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.regionCity, { color: colors.foreground }]}>
-                  {r.city}
-                </Text>
-                <Text
-                  style={[styles.regionMeta, { color: colors.mutedForeground }]}
-                >
-                  {r.count.toLocaleString()} active members
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.growth,
+          {visibleRegions.map((r, i) => {
+            const isActive = cityFilter === r.city;
+            return (
+              <Pressable
+                key={r.city}
+                onPress={() => handleRegionPress(r.city)}
+                style={({ pressed }) => [
+                  styles.region,
                   {
-                    backgroundColor: colors.success + "1F",
-                    borderColor: colors.success,
+                    backgroundColor: isActive
+                      ? colors.primary + "18"
+                      : colors.card,
+                    borderColor: isActive ? colors.primary : colors.border,
+                    opacity: pressed ? 0.85 : 1,
                   },
                 ]}
               >
-                <Feather name="trending-up" size={11} color={colors.success} />
-                <Text style={[styles.growthText, { color: colors.success }]}>
-                  {r.growth}
+                <Text style={[styles.rank, { color: colors.mutedForeground }]}>
+                  {String(i + 1).padStart(2, "0")}
                 </Text>
-              </View>
-            </View>
-          ))}
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.regionCity, { color: colors.foreground }]}>
+                    {r.city}
+                  </Text>
+                  <Text
+                    style={[styles.regionMeta, { color: colors.mutedForeground }]}
+                  >
+                    {r.count} markers
+                    {r.pitchCount > 0 ? ` · ${r.pitchCount} projects` : ""}
+                    {r.raised > 0
+                      ? ` · $${r.raised >= 1_000_000 ? (r.raised / 1_000_000).toFixed(1) + "M" : (r.raised / 1_000).toFixed(0) + "K"} raised`
+                      : ""}
+                  </Text>
+                </View>
+                <View style={styles.regionRight}>
+                  {r.pitchCount > 0 && (
+                    <View
+                      style={[
+                        styles.growth,
+                        {
+                          backgroundColor: colors.success + "1F",
+                          borderColor: colors.success,
+                        },
+                      ]}
+                    >
+                      <Feather name="zap" size={11} color={colors.success} />
+                      <Text style={[styles.growthText, { color: colors.success }]}>
+                        {r.pitchCount} live
+                      </Text>
+                    </View>
+                  )}
+                  <Feather
+                    name="chevron-right"
+                    size={14}
+                    color={isActive ? colors.primary : colors.mutedForeground}
+                  />
+                </View>
+              </Pressable>
+            );
+          })}
         </View>
       </ScrollView>
 
@@ -249,6 +347,11 @@ export default function MapScreen() {
         visible={selected != null}
         marker={selected}
         onClose={() => setSelected(null)}
+      />
+
+      <RegionProjectsSheet
+        city={regionSheetCity}
+        onClose={() => setRegionSheetCity(null)}
       />
     </View>
   );
@@ -356,6 +459,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Inter_600SemiBold",
   },
+  cityFilterBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    justifyContent: "center",
+  },
+  cityFilterText: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    flex: 1,
+    textAlign: "center",
+  },
   noResults: {
     alignItems: "center",
     gap: 8,
@@ -415,6 +535,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Inter_500Medium",
     marginTop: 2,
+  },
+  regionRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   growth: {
     flexDirection: "row",

@@ -8,6 +8,7 @@ type Props = {
   filter: Marker["type"] | "all";
   selected: Marker | null;
   onSelect: (m: Marker) => void;
+  cityFilter?: string | null;
 };
 
 const TYPE_COLOR: Record<string, string> = {
@@ -16,7 +17,7 @@ const TYPE_COLOR: Record<string, string> = {
   project: "#F97316",
 };
 
-const TYPE_ICON: Record<string, string> = {
+const TYPE_ICON_SVG: Record<string, string> = {
   person: `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
   business: `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>`,
   project: `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
@@ -24,13 +25,13 @@ const TYPE_ICON: Record<string, string> = {
 
 function makeIconHtml(type: string, isSelected: boolean): string {
   const color = TYPE_COLOR[type] ?? "#888";
-  const icon = TYPE_ICON[type] ?? "";
+  const icon = TYPE_ICON_SVG[type] ?? "";
   const bg = isSelected ? color : "#ffffff";
   const fg = isSelected ? "#ffffff" : color;
-  const scale = isSelected ? 1.2 : 1;
+  const scale = isSelected ? 1.25 : 1;
   const shadow = isSelected
-    ? `0 0 0 4px ${color}44, 0 4px 16px rgba(0,0,0,0.35)`
-    : `0 2px 10px rgba(0,0,0,0.25)`;
+    ? `0 0 0 5px ${color}44, 0 6px 20px rgba(0,0,0,0.4)`
+    : `0 2px 10px rgba(0,0,0,0.22)`;
 
   return `<div style="
     width:34px;height:34px;border-radius:50%;
@@ -40,7 +41,7 @@ function makeIconHtml(type: string, isSelected: boolean): string {
     box-shadow:${shadow};
     cursor:pointer;
     transform:scale(${scale});
-    transition:transform 0.15s ease;
+    transition:transform 0.18s ease, box-shadow 0.18s ease;
     color:${fg};
   ">${icon}</div>`;
 }
@@ -48,6 +49,7 @@ function makeIconHtml(type: string, isSelected: boolean): string {
 function injectCSS() {
   if (typeof document === "undefined") return;
   if (document.getElementById("leaflet-css")) return;
+
   const link = document.createElement("link");
   link.id = "leaflet-css";
   link.rel = "stylesheet";
@@ -56,40 +58,37 @@ function injectCSS() {
 
   const style = document.createElement("style");
   style.textContent = `
-    .leaflet-control-attribution a { color: #888 !important; }
     .leaflet-container { font-family: Inter, sans-serif; }
+    .leaflet-control-attribution { font-size: 10px !important; }
     .leaflet-tooltip {
-      background: rgba(20,20,20,0.88) !important;
-      border: 1px solid rgba(255,255,255,0.12) !important;
-      border-radius: 10px !important;
+      background: rgba(15,15,15,0.9) !important;
+      border: 1px solid rgba(255,255,255,0.1) !important;
+      border-radius: 12px !important;
       color: #fff !important;
-      padding: 7px 12px !important;
+      padding: 8px 13px !important;
       font-size: 12px !important;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
-      backdrop-filter: blur(8px) !important;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.45) !important;
+      backdrop-filter: blur(10px) !important;
     }
-    .leaflet-tooltip-top:before { display: none; }
-    .leaflet-div-icon { background: transparent; border: none; }
+    .leaflet-tooltip-top:before { display: none !important; }
+    .leaflet-div-icon { background: transparent !important; border: none !important; }
     .leaflet-control-zoom a {
       border-radius: 8px !important;
-      font-size: 16px !important;
     }
   `;
   document.head.appendChild(style);
 }
 
-type LeafletInstance = {
-  map: any;
-  L: any;
-};
+type LeafletInstance = { map: any; L: any };
 
-export function AtlasMap({ filter, selected, onSelect }: Props) {
+export function AtlasMap({ filter, selected, onSelect, cityFilter }: Props) {
   const colors = useColors();
-  const mapEl = useRef<HTMLDivElement | null>(null);
+  const mapEl = useRef<any>(null);
   const instanceRef = useRef<LeafletInstance | null>(null);
   const leafletMarkersRef = useRef<Map<string, any>>(new Map());
   const { data: markers } = useListMarkers();
 
+  // ── Init Leaflet map ───────────────────────────────────────────────────────
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!mapEl.current) return;
@@ -132,6 +131,34 @@ export function AtlasMap({ filter, selected, onSelect }: Props) {
     };
   }, []);
 
+  // ── Fly-to selected marker ─────────────────────────────────────────────────
+  useEffect(() => {
+    const instance = instanceRef.current;
+    if (!instance || !selected) return;
+    if (selected.lat == null || selected.lng == null) return;
+    instance.map.flyTo([selected.lat, selected.lng], 8, {
+      animate: true,
+      duration: 1.2,
+    });
+  }, [selected]);
+
+  // ── Fly-to city filter ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const instance = instanceRef.current;
+    if (!instance || !cityFilter || !markers) return;
+    const target = markers.find(
+      (m) => m.city?.toLowerCase() === cityFilter.toLowerCase() &&
+        m.lat != null && m.lng != null,
+    );
+    if (target && target.lat != null && target.lng != null) {
+      instance.map.flyTo([target.lat, target.lng], 6, {
+        animate: true,
+        duration: 1.4,
+      });
+    }
+  }, [cityFilter, markers]);
+
+  // ── Render / update markers ────────────────────────────────────────────────
   useEffect(() => {
     const instance = instanceRef.current;
     if (!instance || !markers) return;
@@ -161,8 +188,11 @@ export function AtlasMap({ filter, selected, onSelect }: Props) {
         .addTo(map)
         .bindTooltip(
           `<strong style="font-size:13px">${markerData.label}</strong>
-           <div style="opacity:0.75;margin-top:3px;font-size:11px">
+           <div style="opacity:0.7;margin-top:3px;font-size:11px">
              ${markerData.city}&nbsp;·&nbsp;${markerData.meta}
+           </div>
+           <div style="opacity:0.55;margin-top:2px;font-size:10px;text-transform:uppercase;letter-spacing:0.5px">
+             ${markerData.type}
            </div>`,
           {
             permanent: false,
@@ -179,12 +209,9 @@ export function AtlasMap({ filter, selected, onSelect }: Props) {
 
   return (
     <View
-      style={[
-        styles.wrap,
-        { borderColor: colors.border },
-      ]}
+      style={[styles.wrap, { borderColor: colors.border }]}
     >
-      {/* @ts-ignore — web-only div inside .web.tsx */}
+      {/* @ts-ignore — web-only div */}
       <div ref={mapEl} style={{ width: "100%", height: "100%" }} />
     </View>
   );
