@@ -26,6 +26,7 @@ const FILTERS: {
   { key: "person", label: "People", icon: "user" },
   { key: "business", label: "Businesses", icon: "briefcase" },
   { key: "project", label: "Projects", icon: "zap" },
+  { key: "service", label: "Services", icon: "tool" },
 ];
 
 export default function MapScreen() {

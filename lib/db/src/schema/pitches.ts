@@ -23,6 +23,17 @@ export const pitchesTable = pgTable("pitches", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+
+  entityType: text("entity_type").notNull().default("startup"),
+  serviceCategory: text("service_category"),
+
+  verificationStatus: text("verification_status").notNull().default("pending"),
+  roadmapUrl: text("roadmap_url"),
+  founderLinkedin: text("founder_linkedin"),
+  proofOfRealityUrl: text("proof_of_reality_url"),
+  portfolioUrl: text("portfolio_url"),
+  experienceDescription: text("experience_description"),
+  reportsCount: integer("reports_count").notNull().default(0),
 });
 
 export const pitchBackersTable = pgTable(

@@ -8,6 +8,9 @@ import pitchesRouter from "./pitches";
 import markersRouter from "./markers";
 import notificationsRouter from "./notifications";
 import messagesRouter from "./messages";
+import pitchUpdatesRouter from "./pitch-updates";
+import transactionsRouter from "./transactions";
+import reportsRouter from "./reports";
 
 const router: IRouter = Router();
 
@@ -20,5 +23,8 @@ router.use(pitchesRouter);
 router.use(markersRouter);
 router.use(notificationsRouter);
 router.use(messagesRouter);
+router.use(pitchUpdatesRouter);
+router.use(transactionsRouter);
+router.use(reportsRouter);
 
 export default router;

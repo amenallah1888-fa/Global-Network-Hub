@@ -6,11 +6,31 @@ import {
   pitchBackersTable,
   markersTable,
   usersTable,
+  transactionsTable,
 } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
 import { createNotification } from "../lib/notify";
 
 const router: IRouter = Router();
+
+function computeTrustScore(pitch: typeof pitchesTable.$inferSelect): number {
+  let score = 0;
+  if (pitch.proofOfRealityUrl) score += 40;
+  if (pitch.founderLinkedin) score += 30;
+  if (pitch.roadmapUrl) score += 20;
+  if (pitch.portfolioUrl) score += 20;
+  if (pitch.experienceDescription) score += 10;
+  if (pitch.reportsCount > 3) score = Math.max(0, score - 30);
+  return Math.min(100, score);
+}
+
+function isAutoVerified(pitch: typeof pitchesTable.$inferSelect): boolean {
+  if (pitch.verificationStatus === "verified") return true;
+  if (pitch.entityType === "service_app") {
+    return !!(pitch.portfolioUrl && pitch.experienceDescription);
+  }
+  return !!(pitch.proofOfRealityUrl && pitch.founderLinkedin);
+}
 
 router.get("/pitches", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
@@ -28,6 +48,8 @@ router.get("/pitches", async (req, res): Promise<void> => {
       ...p,
       coverKey: p.coverKey ?? null,
       backed: set.has(p.id),
+      verified: isAutoVerified(p),
+      trustScore: computeTrustScore(p),
     })),
   );
 });
@@ -49,6 +71,34 @@ router.post("/pitches", async (req, res): Promise<void> => {
     typeof body.x === "number" && Number.isFinite(body.x) ? body.x : null;
   const y =
     typeof body.y === "number" && Number.isFinite(body.y) ? body.y : null;
+  const entityType =
+    body.entityType === "service_app" ? "service_app" : "startup";
+  const serviceCategory =
+    typeof body.serviceCategory === "string" && body.serviceCategory.length > 0
+      ? body.serviceCategory
+      : null;
+  const roadmapUrl =
+    typeof body.roadmapUrl === "string" && body.roadmapUrl.length > 0
+      ? body.roadmapUrl
+      : null;
+  const founderLinkedin =
+    typeof body.founderLinkedin === "string" && body.founderLinkedin.length > 0
+      ? body.founderLinkedin
+      : null;
+  const proofOfRealityUrl =
+    typeof body.proofOfRealityUrl === "string" &&
+    body.proofOfRealityUrl.length > 0
+      ? body.proofOfRealityUrl
+      : null;
+  const portfolioUrl =
+    typeof body.portfolioUrl === "string" && body.portfolioUrl.length > 0
+      ? body.portfolioUrl
+      : null;
+  const experienceDescription =
+    typeof body.experienceDescription === "string" &&
+    body.experienceDescription.length > 0
+      ? body.experienceDescription
+      : null;
 
   if (
     !title ||
@@ -80,16 +130,25 @@ router.post("/pitches", async (req, res): Promise<void> => {
     coverKey,
     backersCount: 0,
     trending: false,
+    entityType,
+    serviceCategory,
+    roadmapUrl,
+    founderLinkedin,
+    proofOfRealityUrl,
+    portfolioUrl,
+    experienceDescription,
   });
 
   const markerType =
-    industry.toLowerCase() === "biotech" ||
-    industry.toLowerCase() === "climate" ||
-    industry.toLowerCase() === "robotics" ||
-    industry.toLowerCase() === "ai" ||
-    industry.toLowerCase() === "deeptech"
-      ? "project"
-      : "business";
+    entityType === "service_app"
+      ? "service"
+      : industry.toLowerCase() === "biotech" ||
+          industry.toLowerCase() === "climate" ||
+          industry.toLowerCase() === "robotics" ||
+          industry.toLowerCase() === "ai" ||
+          industry.toLowerCase() === "deeptech"
+        ? "project"
+        : "business";
 
   const mx = x !== null ? x : 0.5;
   const my = y !== null ? y : 0.5;
@@ -101,7 +160,9 @@ router.post("/pitches", async (req, res): Promise<void> => {
     city,
     x: mx,
     y: my,
-    meta: `${stage} · ${industry}`,
+    meta: entityType === "service_app"
+      ? `${serviceCategory ?? "Service"} · ${city}`
+      : `${stage} · ${industry}`,
     refId: id,
   });
 
@@ -110,9 +171,13 @@ router.post("/pitches", async (req, res): Promise<void> => {
     .from(pitchesTable)
     .where(eq(pitchesTable.id, id));
 
-  res
-    .status(201)
-    .json({ ...created, coverKey: created.coverKey ?? null, backed: false });
+  res.status(201).json({
+    ...created,
+    coverKey: created.coverKey ?? null,
+    backed: false,
+    verified: isAutoVerified(created),
+    trustScore: computeTrustScore(created),
+  });
 });
 
 router.get("/pitches/:id", async (req, res): Promise<void> => {
@@ -143,7 +208,6 @@ router.get("/pitches/:id", async (req, res): Promise<void> => {
     .from(usersTable)
     .where(eq(usersTable.id, pitch.founderId));
 
-  // fetch related pitches from same industry (exclude this one)
   const related = await db
     .select()
     .from(pitchesTable)
@@ -151,15 +215,40 @@ router.get("/pitches/:id", async (req, res): Promise<void> => {
     .orderBy(desc(pitchesTable.raised))
     .limit(4);
 
+  const supporters = await db
+    .select({ userId: pitchBackersTable.userId, createdAt: pitchBackersTable.createdAt })
+    .from(pitchBackersTable)
+    .where(eq(pitchBackersTable.pitchId, id))
+    .orderBy(desc(pitchBackersTable.createdAt))
+    .limit(20);
+
+  const supporterIds = supporters.map((s) => s.userId);
+  const supporterUsers =
+    supporterIds.length > 0
+      ? await db
+          .select({ id: usersTable.id, name: usersTable.name, avatarKey: usersTable.avatarKey, handle: usersTable.handle })
+          .from(usersTable)
+          .where(sql`${usersTable.id} = ANY(ARRAY[${sql.join(supporterIds.map((uid) => sql`${uid}`), sql`, `)}])`)
+      : [];
+
   res.json({
     ...pitch,
     coverKey: pitch.coverKey ?? null,
     backed: !!backer,
+    verified: isAutoVerified(pitch),
+    trustScore: computeTrustScore(pitch),
     founder: founder ? { ...founder } : null,
     related: related
       .filter((p) => p.id !== id)
       .slice(0, 3)
-      .map((p) => ({ ...p, coverKey: p.coverKey ?? null, backed: false })),
+      .map((p) => ({
+        ...p,
+        coverKey: p.coverKey ?? null,
+        backed: false,
+        verified: isAutoVerified(p),
+        trustScore: computeTrustScore(p),
+      })),
+    supporters: supporterUsers,
   });
 });
 
@@ -201,6 +290,18 @@ router.post("/pitches/:id/back", async (req, res): Promise<void> => {
         raised: sql`${pitchesTable.raised} + ${amount}`,
       })
       .where(eq(pitchesTable.id, id));
+
+    const txId = `tx_${Date.now().toString(36)}${Math.random()
+      .toString(36)
+      .slice(2, 6)}`;
+    await db.insert(transactionsTable).values({
+      id: txId,
+      userId: meId,
+      pitchId: id,
+      amount,
+      type: pitch.entityType === "service_app" ? "hire" : "invest",
+    });
+
     await createNotification({
       userId: pitch.founderId,
       type: "pitch_backed",
@@ -218,7 +319,33 @@ router.post("/pitches/:id/back", async (req, res): Promise<void> => {
     .select()
     .from(pitchesTable)
     .where(eq(pitchesTable.id, id));
-  res.json({ ...updated, coverKey: updated.coverKey ?? null, backed: true });
+  res.json({
+    ...updated,
+    coverKey: updated.coverKey ?? null,
+    backed: true,
+    verified: isAutoVerified(updated),
+    trustScore: computeTrustScore(updated),
+  });
+});
+
+router.get("/pitches/top/ranked", async (_req, res): Promise<void> => {
+  const top = await db
+    .select()
+    .from(pitchesTable)
+    .orderBy(
+      desc(pitchesTable.verificationStatus),
+      desc(pitchesTable.raised),
+      desc(pitchesTable.backersCount),
+    )
+    .limit(5);
+  res.json(
+    top.map((p) => ({
+      ...p,
+      coverKey: p.coverKey ?? null,
+      verified: isAutoVerified(p),
+      trustScore: computeTrustScore(p),
+    })),
+  );
 });
 
 export default router;
