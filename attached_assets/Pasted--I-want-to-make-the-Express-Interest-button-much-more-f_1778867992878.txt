@@ -1,0 +1,49 @@
+​"I want to make the 'Express Interest' button much more functional. Instead of just changing the label, it should open an Investment Offer Modal. Please implement this:
+
+​1. The Offer Modal:
+
+​When a user clicks 'Express Interest', open a popup asking them to choose their Support Type: 
+
+​Option A: Donation/Support (No equity, just supporting the project with Pi).
+
+​Option B: Investment (Invest Pi in exchange for a % of Equity/Share).
+
+​Fields to add: * Amount in Pi. 
+
+​Percentage (%) requested (only for Option B).
+
+​A short message to the founder.
+
+​2. The Proposal System (Logic):
+
+​Once the user clicks 'Send Offer', save this as a 'Pending Proposal' in the database.
+
+​The Project Owner should receive a notification and see this offer in their 'Manage My Pitch' or 'Internal Circle' dashboard.
+
+​3. Accept/Reject Action:
+
+​The Founder must have two buttons: 'Accept Offer' or 'Decline'.
+
+​If Accepted: 
+
+​Automatically add the investor to the Project's Private Circle.
+
+​Update the project's Progress Bar with the committed Pi.
+
+​Record the transaction in the history of both users.
+
+​4. UI Change:
+
+​Ensure the progress bars in the Hub (e.g., $11.4M) now display in Pi (e.g., 500,000 Pi) to match our ecosystem."
+"I want to integrate a Fully Integrated AI Assistant into HumanVerse, similar to Grok on X. Please implement the following:
+1. The AI Component (Universal Assistant):
+Add a floating AI Chatbot icon (bottom right) that is accessible from any page.
+Name it 'HumanVerse Intelligence'.
+2. Context Awareness (The 'Grok' Style):
+The AI should have access to the public data in our database: Total number of projects, trending cities in the Atlas, and the latest Service Apps.
+It should be able to answer questions like: 'What are the top 3 most funded projects right now?' or 'Suggest a developer service app in Sousse'.
+3. Technical Setup:
+Create an API route /api/ai/chat using OpenAI SDK or Vercel AI SDK.
+Use a fast model (like GPT-4o-mini or Llama 3 via Groq) to keep the responses instant.
+4. Ecosystem Synergy:
+When a user is on a Project page, the AI should offer to 'Analyze this Project' based on its Roadmap and Proof of Reality."

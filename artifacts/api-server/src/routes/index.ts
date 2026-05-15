@@ -11,6 +11,8 @@ import messagesRouter from "./messages";
 import pitchUpdatesRouter from "./pitch-updates";
 import transactionsRouter from "./transactions";
 import reportsRouter from "./reports";
+import proposalsRouter from "./proposals";
+import aiRouter from "./ai";
 
 const router: IRouter = Router();
 
@@ -26,5 +28,7 @@ router.use(messagesRouter);
 router.use(pitchUpdatesRouter);
 router.use(transactionsRouter);
 router.use(reportsRouter);
+router.use(proposalsRouter);
+router.use(aiRouter);
 
 export default router;

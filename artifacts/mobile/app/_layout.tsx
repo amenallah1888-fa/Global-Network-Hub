@@ -13,11 +13,13 @@ import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { View } from "react-native";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { configureApiClient } from "@/lib/apiClient";
+import { AIAssistant } from "@/components/AIAssistant";
 
 SplashScreen.preventAutoHideAsync();
 configureApiClient();
@@ -44,15 +46,18 @@ function RootLayoutNav() {
   }, [isLoading, token]);
 
   return (
-    <Stack screenOptions={{ headerBackTitle: "Back", headerShown: false }}>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="login" options={{ headerShown: false, animation: "fade" }} />
-      <Stack.Screen name="inbox" options={{ headerShown: false }} />
-      <Stack.Screen name="chat/[userId]" options={{ headerShown: false }} />
-      <Stack.Screen name="pitch/[id]" options={{ headerShown: false, animation: "slide_from_right" }} />
-      <Stack.Screen name="profile/[userId]" options={{ headerShown: false, animation: "slide_from_right" }} />
-      <Stack.Screen name="circle/[id]" options={{ headerShown: false, animation: "slide_from_right" }} />
-    </Stack>
+    <View style={{ flex: 1 }}>
+      <Stack screenOptions={{ headerBackTitle: "Back", headerShown: false }}>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="login" options={{ headerShown: false, animation: "fade" }} />
+        <Stack.Screen name="inbox" options={{ headerShown: false }} />
+        <Stack.Screen name="chat/[userId]" options={{ headerShown: false }} />
+        <Stack.Screen name="pitch/[id]" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="profile/[userId]" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="circle/[id]" options={{ headerShown: false, animation: "slide_from_right" }} />
+      </Stack>
+      {token ? <AIAssistant /> : null}
+    </View>
   );
 }
 
