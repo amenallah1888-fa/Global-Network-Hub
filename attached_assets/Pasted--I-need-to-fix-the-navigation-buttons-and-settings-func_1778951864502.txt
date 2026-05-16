@@ -1,0 +1,66 @@
+​"I need to fix the navigation, buttons, and settings functionality across the Feed and Profile pages to make the app interactive like Twitter/Instagram. Please implement the following fixes:
+
+​1. Profile Navigation Fix:
+
+​Clicking on any user's profile picture or username (in the Feed, Comments, or Suggested to Follow) must redirect to that specific user's Profile Page. Currently, clicking them does nothing.
+
+​2. Profile Top Buttons & Settings:
+
+​Settings Button (Gear Icon): Activate it to open a comprehensive Settings page/modal. It should allow users to: 
+
+​Edit Profile (Display Name, Bio, Profile Picture, Location, Social Links like LinkedIn/Twitter).
+
+​Account Settings (Link Pi Wallet, Toggle Notifications).
+
+​Share Button (Next to Gear Icon): Activate it to trigger the native share API or copy the user's profile link to the clipboard with a toast notification.
+
+​3. Quick Actions Toolbar:
+
+​Compose Button: Should open the modal to create a new post immediately.
+
+​$49/mo Spend / Pi Balance: Change the currency symbol from $ to Pi (e.g., 'Manage Pi Wallet'). Clicking it should show wallet details.
+
+​My Pitch: Clicking it must open the user's current project draft or live pitch in the Investment Hub.
+
+​Messages: Activate it to open the Direct Messages (DMs) chat view.
+
+​4. Feed Post Interactions:
+
+​In the post creation box, ensure the Media (Image), Poll, and Location icons are functional. Clicking them should allow uploading an image, creating a poll, or selecting a city for the Atlas map.
+
+​The Send/Post button (Paper Airplane) must successfully save the text/media to the database and prepend the post to the Feed in real-time.
+
+​Strict Rule: Keep the current high-quality UI design exactly as it is. Only bind the existing UI components to their functional frontend states, API routes, and Prisma/PostgreSQL database."
+
+I need to fix the Comments functionality for posts in the Feed. Currently, when trying to view or add a comment on a post, nothing happens. Please implement the following:
+
+​1. Comments Fetching & UI:
+
+​When clicking on a post or its comment icon, expand it to show the full list of existing comments for that post.
+
+​Display the commenter's profile picture, username, and comment text clearly below the post.
+
+​2. Add New Comment Logic:
+
+​Activate the input field and the 'Reply/Comment' button.
+
+​When a user writes a comment and submits it, save the comment to the database (link it to the current User ID and the Post ID via Prisma/PostgreSQL).
+
+​Prepend the new comment to the list in real-time without requiring a full page refresh.
+
+​Strict Rule: Keep the current UI design exactly as it is. Only bind the comments feature to the frontend state, API routes, and database relationships."
+
+​"This is the core vision of HumanVerse. The app must be a balanced, secure, and secure ecosystem for global project matching, social networking, and fair opportunities.
+
+​Please ensure that:
+
+​The Hub acts as a showcase (advertisement) for projects, highlighting what they have and what they lack (funding, skills, resources).
+
+​The Connection Logic allows small/large investors and creators to negotiate mutual help, donations, or investments with equity fairly.
+
+​The Circles & DM Chats serve as the global cross-cultural discussion hubs to solve real-world problems.
+
+​Security & Data Integrity in PostgreSQL are strictly coded to prevent any manipulation of profile identities, project data, or transaction histories.
+
+​Keep the current elite UI design but unify the database relationships (User -> Project -> Offer -> Circle -> Comments) to support this solid, professional ecosystem."
+
