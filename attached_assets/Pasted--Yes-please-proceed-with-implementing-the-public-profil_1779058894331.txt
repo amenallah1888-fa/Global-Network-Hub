@@ -1,0 +1,54 @@
+​"Yes, please proceed with implementing the public /profile/[userId] screen exactly as you described. Make sure it beautifully displays their posts, pitches, and circles, and fully functionalize the 'Follow' button. Keep the elite UI theme consistent!"
+
+​"I need to implement the ultimate core logic for HumanVerse to transition it from a social/investment tool into a complete, secure, and solidarity-driven ecosystem. Please implement the following features seamlessly into our Next.js, Prisma, and PostgreSQL architecture, maintaining our exact high-quality UI design theme.
+
+​1. The Pitch Requirements Feature (What We Need)
+
+​Database Schema Update: Update the Project (or Pitch) table in Prisma to include a requirements relation or JSON field. This should store specific non-financial/technical needs of the project.
+
+​Hub Form Enhancement: Add a dynamic field in the 'Publish to Hub' form where founders can specify their project's structural gaps and needs. 
+
+​Fields to include: Requirement Type (e.g., Tech Partner/Developer, Marketing Expert, Logistics/Shipping, Workspace, Equipment) and a short description of the need.
+
+​Hub Display: On the Project details view, render a clean checklist named 'Project Needs / What We Need'. This allows users to see exactly how they can support the project, even if they don't have capital.
+
+​2. Safe Solidarity Escrow & Milestone System (Security & Trust)
+
+​To guarantee maximum security and prevent manipulation, implement a basic Milestone-based Escrow workflow for investments:
+
+​Database Schema Update: Create an Investment or Proposal table and a Milestones table. 
+
+​Investment fields: id, projectId, investorId, amountPi, equityPercent, status (Pending, Active, Completed, Disputed).
+
+​Milestones fields: id, investmentId, title, percentageOfFunds, status (Locked, Released, Pending Proof).
+
+​Escrow Logic: When an investment proposal is 'Accepted', the committed Pi must be recorded as 'Locked in Escrow'.
+
+​Milestone Releases: Funds are not sent all at once. The founder must complete 'Milestones' (Proof of Reality). Once a milestone status updates to 'Completed', the respective percentage of Pi is released to the founder's wallet balance.
+
+​Add basic database audit logs (TransactionHistory) to record every single state change securely.
+
+​3. The Internal Service App Marketplace
+
+​To keep the economy self-sustained and circular, implement the Internal Marketplace directory:
+
+​Database Schema Update: Create a ServiceApp table: 
+
+​id, providerId (User ID), title, category (e.g., Development, Design, Logistics, Legal, Copywriting), description, pricePi, rating, trustScore.
+
+​The Marketplace Directory View: 
+
+​Create a secure marketplace tab or section where freelance developers, designers, logistics companies, or consultants can list their services and set their prices strictly in Pi.
+
+​Ecosystem Synergy & Integration: 
+
+​Hub Synergy: On a Project page, if a project lists a requirement (e.g., 'Marketing Expert'), use a simple matching query to suggest the top 3 highly-rated marketing service providers from the Internal Marketplace.
+
+​Atlas Map Synergy: Ensure ServiceApp entities with a physical location can be indexed and filtered on the Atlas Map (e.g., showing local shipping/logistics providers accepting Pi in Sousse or Tunis).
+
+​Strict Development Rules:
+
+​No UI Regression: Keep the current dark, elite UI theme, layouts, and components exactly as they are. Only add necessary form inputs, cards, or modals cleanly within the existing styling context.
+
+​End-to-End Integration: Ensure all frontend triggers correctly execute the Next.js API routes, perform correct database migrations via Prisma, and update the PostgreSQL states securely."
+

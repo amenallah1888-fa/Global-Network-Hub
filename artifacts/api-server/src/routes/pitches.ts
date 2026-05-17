@@ -7,11 +7,16 @@ import {
   markersTable,
   usersTable,
   transactionsTable,
+  serviceAppsTable,
 } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
 import { createNotification } from "../lib/notify";
 
 const router: IRouter = Router();
+
+function uid(prefix: string) {
+  return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
 
 function computeTrustScore(pitch: typeof pitchesTable.$inferSelect): number {
   let score = 0;
@@ -26,32 +31,32 @@ function computeTrustScore(pitch: typeof pitchesTable.$inferSelect): number {
 
 function isAutoVerified(pitch: typeof pitchesTable.$inferSelect): boolean {
   if (pitch.verificationStatus === "verified") return true;
-  if (pitch.entityType === "service_app") {
-    return !!(pitch.portfolioUrl && pitch.experienceDescription);
-  }
+  if (pitch.entityType === "service_app") return !!(pitch.portfolioUrl && pitch.experienceDescription);
   return !!(pitch.proofOfRealityUrl && pitch.founderLinkedin);
+}
+
+function parseRequirements(raw: string | null | undefined): { type: string; description: string }[] {
+  if (!raw) return [];
+  try { return JSON.parse(raw); } catch { return []; }
+}
+
+function decoratePitch(p: typeof pitchesTable.$inferSelect, backed: boolean) {
+  return {
+    ...p,
+    coverKey: p.coverKey ?? null,
+    backed,
+    verified: isAutoVerified(p),
+    trustScore: computeTrustScore(p),
+    requirements: parseRequirements(p.requirements),
+  };
 }
 
 router.get("/pitches", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
-  const all = await db
-    .select()
-    .from(pitchesTable)
-    .orderBy(desc(pitchesTable.trending), desc(pitchesTable.createdAt));
-  const mine = await db
-    .select()
-    .from(pitchBackersTable)
-    .where(eq(pitchBackersTable.userId, meId));
+  const all = await db.select().from(pitchesTable).orderBy(desc(pitchesTable.trending), desc(pitchesTable.createdAt));
+  const mine = await db.select().from(pitchBackersTable).where(eq(pitchBackersTable.userId, meId));
   const set = new Set(mine.map((m) => m.pitchId));
-  res.json(
-    all.map((p) => ({
-      ...p,
-      coverKey: p.coverKey ?? null,
-      backed: set.has(p.id),
-      verified: isAutoVerified(p),
-      trustScore: computeTrustScore(p),
-    })),
-  );
+  res.json(all.map((p) => decoratePitch(p, set.has(p.id))));
 });
 
 router.post("/pitches", async (req, res): Promise<void> => {
@@ -63,289 +68,128 @@ router.post("/pitches", async (req, res): Promise<void> => {
   const stage = String(body.stage ?? "").trim();
   const industry = String(body.industry ?? "").trim();
   const city = String(body.city ?? "").trim();
-  const coverKey =
-    typeof body.coverKey === "string" && body.coverKey.length > 0
-      ? body.coverKey
-      : null;
-  const x =
-    typeof body.x === "number" && Number.isFinite(body.x) ? body.x : null;
-  const y =
-    typeof body.y === "number" && Number.isFinite(body.y) ? body.y : null;
-  const entityType =
-    body.entityType === "service_app" ? "service_app" : "startup";
-  const serviceCategory =
-    typeof body.serviceCategory === "string" && body.serviceCategory.length > 0
-      ? body.serviceCategory
-      : null;
-  const roadmapUrl =
-    typeof body.roadmapUrl === "string" && body.roadmapUrl.length > 0
-      ? body.roadmapUrl
-      : null;
-  const founderLinkedin =
-    typeof body.founderLinkedin === "string" && body.founderLinkedin.length > 0
-      ? body.founderLinkedin
-      : null;
-  const proofOfRealityUrl =
-    typeof body.proofOfRealityUrl === "string" &&
-    body.proofOfRealityUrl.length > 0
-      ? body.proofOfRealityUrl
-      : null;
-  const portfolioUrl =
-    typeof body.portfolioUrl === "string" && body.portfolioUrl.length > 0
-      ? body.portfolioUrl
-      : null;
-  const experienceDescription =
-    typeof body.experienceDescription === "string" &&
-    body.experienceDescription.length > 0
-      ? body.experienceDescription
-      : null;
+  const coverKey = typeof body.coverKey === "string" && body.coverKey.length > 0 ? body.coverKey : null;
+  const x = typeof body.x === "number" && Number.isFinite(body.x) ? body.x : null;
+  const y = typeof body.y === "number" && Number.isFinite(body.y) ? body.y : null;
+  const entityType = body.entityType === "service_app" ? "service_app" : "startup";
+  const serviceCategory = typeof body.serviceCategory === "string" && body.serviceCategory.length > 0 ? body.serviceCategory : null;
+  const roadmapUrl = typeof body.roadmapUrl === "string" && body.roadmapUrl.length > 0 ? body.roadmapUrl : null;
+  const founderLinkedin = typeof body.founderLinkedin === "string" && body.founderLinkedin.length > 0 ? body.founderLinkedin : null;
+  const proofOfRealityUrl = typeof body.proofOfRealityUrl === "string" && body.proofOfRealityUrl.length > 0 ? body.proofOfRealityUrl : null;
+  const portfolioUrl = typeof body.portfolioUrl === "string" && body.portfolioUrl.length > 0 ? body.portfolioUrl : null;
+  const experienceDescription = typeof body.experienceDescription === "string" && body.experienceDescription.length > 0 ? body.experienceDescription : null;
+  const requirementsRaw = Array.isArray(body.requirements) ? JSON.stringify(body.requirements) : null;
 
-  if (
-    !title ||
-    !summary ||
-    !stage ||
-    !industry ||
-    !city ||
-    !Number.isFinite(raising) ||
-    raising <= 0
-  ) {
-    res.status(400).json({ error: "Missing or invalid fields" });
-    return;
+  if (!title || !summary || !stage || !industry || !city || !Number.isFinite(raising) || raising <= 0) {
+    res.status(400).json({ error: "Missing or invalid fields" }); return;
   }
 
-  const id = `pi_${Date.now().toString(36)}${Math.random()
-    .toString(36)
-    .slice(2, 6)}`;
-
+  const id = uid("pi");
   await db.insert(pitchesTable).values({
-    id,
-    founderId: meId,
-    title,
-    stage,
-    industry,
-    raising,
-    raised: 0,
-    city,
-    summary,
-    coverKey,
-    backersCount: 0,
-    trending: false,
-    entityType,
-    serviceCategory,
-    roadmapUrl,
-    founderLinkedin,
-    proofOfRealityUrl,
-    portfolioUrl,
-    experienceDescription,
+    id, founderId: meId, title, stage, industry, raising, raised: 0, city, summary,
+    coverKey, backersCount: 0, trending: false, entityType, serviceCategory,
+    roadmapUrl, founderLinkedin, proofOfRealityUrl, portfolioUrl, experienceDescription,
+    requirements: requirementsRaw,
   });
 
-  const markerType =
-    entityType === "service_app"
-      ? "service"
-      : industry.toLowerCase() === "biotech" ||
-          industry.toLowerCase() === "climate" ||
-          industry.toLowerCase() === "robotics" ||
-          industry.toLowerCase() === "ai" ||
-          industry.toLowerCase() === "deeptech"
-        ? "project"
-        : "business";
-
-  const mx = x !== null ? x : 0.5;
-  const my = y !== null ? y : 0.5;
+  const markerType = entityType === "service_app" ? "service"
+    : ["biotech", "climate", "robotics", "ai", "deeptech"].includes(industry.toLowerCase()) ? "project" : "business";
 
   await db.insert(markersTable).values({
-    id: `m_${id}`,
-    type: markerType,
-    label: title,
-    city,
-    x: mx,
-    y: my,
-    meta: entityType === "service_app"
-      ? `${serviceCategory ?? "Service"} · ${city}`
-      : `${stage} · ${industry}`,
+    id: `m_${id}`, type: markerType, label: title, city, x: x ?? 0.5, y: y ?? 0.5,
+    meta: entityType === "service_app" ? `${serviceCategory ?? "Service"} · ${city}` : `${stage} · ${industry}`,
     refId: id,
   });
 
-  const [created] = await db
-    .select()
-    .from(pitchesTable)
-    .where(eq(pitchesTable.id, id));
-
-  res.status(201).json({
-    ...created,
-    coverKey: created.coverKey ?? null,
-    backed: false,
-    verified: isAutoVerified(created),
-    trustScore: computeTrustScore(created),
-  });
+  const [created] = await db.select().from(pitchesTable).where(eq(pitchesTable.id, id));
+  res.status(201).json(decoratePitch(created, false));
 });
 
 router.get("/pitches/:id", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
-  const [pitch] = await db
-    .select()
-    .from(pitchesTable)
-    .where(eq(pitchesTable.id, id));
-  if (!pitch) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
+  const [pitch] = await db.select().from(pitchesTable).where(eq(pitchesTable.id, id));
+  if (!pitch) { res.status(404).json({ error: "Not found" }); return; }
 
-  const [backer] = await db
-    .select()
-    .from(pitchBackersTable)
-    .where(
-      and(
-        eq(pitchBackersTable.pitchId, id),
-        eq(pitchBackersTable.userId, meId),
-      ),
-    );
+  const [backer] = await db.select().from(pitchBackersTable).where(and(eq(pitchBackersTable.pitchId, id), eq(pitchBackersTable.userId, meId)));
+  const [founder] = await db.select().from(usersTable).where(eq(usersTable.id, pitch.founderId));
 
-  const [founder] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.id, pitch.founderId));
+  const related = await db.select().from(pitchesTable).where(eq(pitchesTable.industry, pitch.industry))
+    .orderBy(desc(pitchesTable.raised)).limit(4);
 
-  const related = await db
-    .select()
-    .from(pitchesTable)
-    .where(eq(pitchesTable.industry, pitch.industry))
-    .orderBy(desc(pitchesTable.raised))
-    .limit(4);
-
-  const supporters = await db
-    .select({ userId: pitchBackersTable.userId, createdAt: pitchBackersTable.createdAt })
-    .from(pitchBackersTable)
-    .where(eq(pitchBackersTable.pitchId, id))
-    .orderBy(desc(pitchBackersTable.createdAt))
-    .limit(20);
+  const supporters = await db.select({ userId: pitchBackersTable.userId, createdAt: pitchBackersTable.createdAt })
+    .from(pitchBackersTable).where(eq(pitchBackersTable.pitchId, id))
+    .orderBy(desc(pitchBackersTable.createdAt)).limit(20);
 
   const supporterIds = supporters.map((s) => s.userId);
-  const supporterUsers =
-    supporterIds.length > 0
-      ? await db
-          .select({ id: usersTable.id, name: usersTable.name, avatarKey: usersTable.avatarKey, handle: usersTable.handle })
-          .from(usersTable)
-          .where(sql`${usersTable.id} = ANY(ARRAY[${sql.join(supporterIds.map((uid) => sql`${uid}`), sql`, `)}])`)
-      : [];
+  const supporterUsers = supporterIds.length > 0
+    ? await db.select({ id: usersTable.id, name: usersTable.name, avatarKey: usersTable.avatarKey, handle: usersTable.handle })
+        .from(usersTable)
+        .where(sql`${usersTable.id} = ANY(ARRAY[${sql.join(supporterIds.map((uid) => sql`${uid}`), sql`, `)}])`)
+    : [];
+
+  const requirements = parseRequirements(pitch.requirements);
+  let suggestedServices: typeof serviceAppsTable.$inferSelect[] = [];
+  if (requirements.length > 0) {
+    const allServices = await db.select().from(serviceAppsTable).orderBy(desc(serviceAppsTable.trustScore)).limit(50);
+    const needTypes = requirements.map((r) => r.type.toLowerCase());
+    suggestedServices = allServices.filter((s) =>
+      needTypes.some((nt) => s.category.toLowerCase().includes(nt) || s.title.toLowerCase().includes(nt))
+    ).slice(0, 3);
+  }
 
   res.json({
-    ...pitch,
-    coverKey: pitch.coverKey ?? null,
-    backed: !!backer,
-    verified: isAutoVerified(pitch),
-    trustScore: computeTrustScore(pitch),
+    ...decoratePitch(pitch, !!backer),
     founder: founder ? { ...founder } : null,
-    related: related
-      .filter((p) => p.id !== id)
-      .slice(0, 3)
-      .map((p) => ({
-        ...p,
-        coverKey: p.coverKey ?? null,
-        backed: false,
-        verified: isAutoVerified(p),
-        trustScore: computeTrustScore(p),
-      })),
+    related: related.filter((p) => p.id !== id).slice(0, 3).map((p) => decoratePitch(p, false)),
     supporters: supporterUsers,
+    suggestedServices,
   });
+});
+
+router.patch("/pitches/:id/requirements", async (req, res): Promise<void> => {
+  const meId = currentUserId(req);
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const [pitch] = await db.select().from(pitchesTable).where(eq(pitchesTable.id, id));
+  if (!pitch) { res.status(404).json({ error: "Not found" }); return; }
+  if (pitch.founderId !== meId) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const requirements = Array.isArray(req.body?.requirements) ? req.body.requirements : [];
+  await db.update(pitchesTable).set({ requirements: JSON.stringify(requirements) }).where(eq(pitchesTable.id, id));
+  res.json({ requirements });
 });
 
 router.post("/pitches/:id/back", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const amount = parseInt(String(req.body?.amount ?? "0"), 10);
-  if (!id || !Number.isFinite(amount) || amount < 0) {
-    res.status(400).json({ error: "Invalid input" });
-    return;
-  }
+  if (!id || !Number.isFinite(amount) || amount < 0) { res.status(400).json({ error: "Invalid input" }); return; }
 
-  const [pitch] = await db
-    .select()
-    .from(pitchesTable)
-    .where(eq(pitchesTable.id, id));
-  if (!pitch) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
+  const [pitch] = await db.select().from(pitchesTable).where(eq(pitchesTable.id, id));
+  if (!pitch) { res.status(404).json({ error: "Not found" }); return; }
 
-  const existing = await db
-    .select()
-    .from(pitchBackersTable)
-    .where(
-      and(
-        eq(pitchBackersTable.pitchId, id),
-        eq(pitchBackersTable.userId, meId),
-      ),
-    );
+  const existing = await db.select().from(pitchBackersTable).where(and(eq(pitchBackersTable.pitchId, id), eq(pitchBackersTable.userId, meId)));
   if (existing.length === 0) {
-    await db
-      .insert(pitchBackersTable)
-      .values({ pitchId: id, userId: meId });
-    await db
-      .update(pitchesTable)
-      .set({
-        backersCount: sql`${pitchesTable.backersCount} + 1`,
-        raised: sql`${pitchesTable.raised} + ${amount}`,
-      })
-      .where(eq(pitchesTable.id, id));
-
-    const txId = `tx_${Date.now().toString(36)}${Math.random()
-      .toString(36)
-      .slice(2, 6)}`;
-    await db.insert(transactionsTable).values({
-      id: txId,
-      userId: meId,
-      pitchId: id,
-      amount,
-      type: pitch.entityType === "service_app" ? "hire" : "invest",
-    });
-
+    await db.insert(pitchBackersTable).values({ pitchId: id, userId: meId });
+    await db.update(pitchesTable).set({ backersCount: sql`${pitchesTable.backersCount} + 1`, raised: sql`${pitchesTable.raised} + ${amount}` }).where(eq(pitchesTable.id, id));
+    const txId = uid("tx");
+    await db.insert(transactionsTable).values({ id: txId, userId: meId, pitchId: id, amount, type: pitch.entityType === "service_app" ? "hire" : "invest" });
     await createNotification({
-      userId: pitch.founderId,
-      type: "pitch_backed",
-      actorId: meId,
-      pitchId: id,
-      amount,
-      message:
-        amount > 0
-          ? `expressed interest in ${pitch.title} ($${amount.toLocaleString()})`
-          : `expressed interest in ${pitch.title}`,
+      userId: pitch.founderId, type: "pitch_backed", actorId: meId, pitchId: id, amount,
+      message: amount > 0 ? `expressed interest in ${pitch.title} (${amount.toLocaleString()} π)` : `expressed interest in ${pitch.title}`,
     });
   }
 
-  const [updated] = await db
-    .select()
-    .from(pitchesTable)
-    .where(eq(pitchesTable.id, id));
-  res.json({
-    ...updated,
-    coverKey: updated.coverKey ?? null,
-    backed: true,
-    verified: isAutoVerified(updated),
-    trustScore: computeTrustScore(updated),
-  });
+  const [updated] = await db.select().from(pitchesTable).where(eq(pitchesTable.id, id));
+  res.json(decoratePitch(updated, true));
 });
 
 router.get("/pitches/top/ranked", async (_req, res): Promise<void> => {
-  const top = await db
-    .select()
-    .from(pitchesTable)
-    .orderBy(
-      desc(pitchesTable.verificationStatus),
-      desc(pitchesTable.raised),
-      desc(pitchesTable.backersCount),
-    )
+  const top = await db.select().from(pitchesTable)
+    .orderBy(desc(pitchesTable.verificationStatus), desc(pitchesTable.raised), desc(pitchesTable.backersCount))
     .limit(5);
-  res.json(
-    top.map((p) => ({
-      ...p,
-      coverKey: p.coverKey ?? null,
-      verified: isAutoVerified(p),
-      trustScore: computeTrustScore(p),
-    })),
-  );
+  res.json(top.map((p) => decoratePitch(p, false)));
 });
 
 export default router;

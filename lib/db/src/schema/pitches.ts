@@ -34,6 +34,7 @@ export const pitchesTable = pgTable("pitches", {
   portfolioUrl: text("portfolio_url"),
   experienceDescription: text("experience_description"),
   reportsCount: integer("reports_count").notNull().default(0),
+  requirements: text("requirements"),
 });
 
 export const pitchBackersTable = pgTable(

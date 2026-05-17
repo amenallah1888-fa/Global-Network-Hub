@@ -13,6 +13,8 @@ import transactionsRouter from "./transactions";
 import reportsRouter from "./reports";
 import proposalsRouter from "./proposals";
 import aiRouter from "./ai";
+import milestonesRouter from "./milestones";
+import servicesRouter from "./services";
 
 const router: IRouter = Router();
 
@@ -30,5 +32,7 @@ router.use(transactionsRouter);
 router.use(reportsRouter);
 router.use(proposalsRouter);
 router.use(aiRouter);
+router.use(milestonesRouter);
+router.use(servicesRouter);
 
 export default router;

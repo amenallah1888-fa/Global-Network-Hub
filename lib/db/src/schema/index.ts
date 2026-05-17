@@ -11,3 +11,5 @@ export * from "./pitch_updates";
 export * from "./reports";
 export * from "./proposals";
 export * from "./comments";
+export * from "./milestones";
+export * from "./service_apps";
