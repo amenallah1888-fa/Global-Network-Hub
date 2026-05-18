@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -35,7 +36,7 @@ const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
 const STAGES = ["All", "Pre-seed", "Seed", "Series A", "Series B"];
 const SERVICE_CATEGORIES = ["All", "Development", "Design", "Marketing", "Logistics", "Legal", "Copywriting", "Finance"];
 
-type HubTab = "pitches" | "services";
+type HubTab = "pitches" | "services" | "apps";
 
 type ServiceApp = {
   id: string;
@@ -52,20 +53,32 @@ type ServiceApp = {
   provider: { id: string; name: string; handle: string; avatarKey: string | null; verified: boolean; city: string } | null;
 };
 
+type DApp = {
+  id: string;
+  name: string;
+  tagline: string;
+  description: string;
+  logoUrl?: string;
+  platform: string;
+  verifiedLink: string;
+  securityScore: number;
+  category: string;
+  submissionStatus: string;
+};
+
+const CAT_COLORS: Record<string, string> = {
+  Development: "#6366F1", Design: "#EC4899", Marketing: "#F59E0B",
+  Logistics: "#10B981", Legal: "#8B5CF6", Copywriting: "#0EA5E9", Finance: "#14B8A6",
+};
+
 function ServiceCard({ service }: { service: ServiceApp }) {
   const colors = useColors();
   const stars = Math.round(service.rating);
-
-  const CAT_COLORS: Record<string, string> = {
-    Development: "#6366F1", Design: "#EC4899", Marketing: "#F59E0B",
-    Logistics: "#10B981", Legal: "#8B5CF6", Copywriting: "#0EA5E9",
-    Finance: "#14B8A6",
-  };
   const catColor = CAT_COLORS[service.category] ?? colors.primary;
 
   return (
     <Pressable
-      onPress={() => service.provider && router.push(`/profile/${service.provider.id}`)}
+      onPress={() => router.push(`/service/${service.id}`)}
       style={({ pressed }) => [sc.card, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.9 : 1 }]}
     >
       <View style={sc.header}>
@@ -128,6 +141,91 @@ const sc = StyleSheet.create({
   hired: { fontSize: 12, fontFamily: "Inter_500Medium" },
 });
 
+const PLATFORM_ICONS: Record<string, keyof typeof Feather.glyphMap> = {
+  Mobile: "smartphone", PC: "monitor", Both: "layers",
+};
+
+const SECURITY_COLORS = (score: number) =>
+  score >= 80 ? "#10B981" : score >= 50 ? "#F59E0B" : "#EF4444";
+
+function DAppCard({ app }: { app: DApp }) {
+  const colors = useColors();
+  const secColor = SECURITY_COLORS(app.securityScore);
+  const platformIcon = PLATFORM_ICONS[app.platform] ?? "grid";
+
+  const handleLaunch = () => {
+    if (app.verifiedLink.startsWith("pinetwork://")) {
+      Linking.openURL(app.verifiedLink).catch(() => {});
+    } else {
+      Linking.openURL(app.verifiedLink).catch(() => {});
+    }
+  };
+
+  return (
+    <View style={[da.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={da.top}>
+        <View style={[da.logo, { backgroundColor: colors.primary + "15" }]}>
+          <Feather name="zap" size={22} color={colors.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <View style={da.nameRow}>
+            <Text style={[da.name, { color: colors.foreground }]}>{app.name}</Text>
+            <View style={[da.secBadge, { backgroundColor: secColor + "18", borderColor: secColor + "40" }]}>
+              <Feather name="shield" size={9} color={secColor} />
+              <Text style={[da.secText, { color: secColor }]}>{app.securityScore}</Text>
+            </View>
+          </View>
+          <Text style={[da.tagline, { color: colors.mutedForeground }]} numberOfLines={1}>{app.tagline}</Text>
+          <View style={da.tagRow}>
+            <View style={[da.platformTag, { backgroundColor: colors.cardElevated }]}>
+              <Feather name={platformIcon} size={10} color={colors.mutedForeground} />
+              <Text style={[da.platformText, { color: colors.mutedForeground }]}>{app.platform}</Text>
+            </View>
+            <View style={[da.platformTag, { backgroundColor: colors.cardElevated }]}>
+              <Text style={[da.platformText, { color: colors.mutedForeground }]}>{app.category}</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      {app.description ? (
+        <Text style={[da.desc, { color: colors.mutedForeground }]} numberOfLines={2}>{app.description}</Text>
+      ) : null}
+
+      <View style={[da.footer, { borderTopColor: colors.border }]}>
+        <View style={da.verifiedRow}>
+          <Feather name="check-circle" size={12} color={colors.success} />
+          <Text style={[da.verifiedText, { color: colors.success }]}>Verified Pi App</Text>
+        </View>
+        <Pressable onPress={handleLaunch} style={({ pressed }) => [da.launchBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}>
+          <Feather name="external-link" size={13} color="#fff" />
+          <Text style={da.launchText}>Launch App</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const da = StyleSheet.create({
+  card: { borderRadius: 18, borderWidth: 1, padding: 16, marginHorizontal: 16, marginBottom: 12, gap: 12 },
+  top: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  logo: { width: 50, height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 },
+  name: { fontSize: 16, fontFamily: "Inter_700Bold", letterSpacing: -0.2 },
+  secBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, borderWidth: 1 },
+  secText: { fontSize: 10, fontFamily: "Inter_700Bold" },
+  tagline: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 6 },
+  tagRow: { flexDirection: "row", gap: 6 },
+  platformTag: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
+  platformText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  desc: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19 },
+  footer: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 12, borderTopWidth: 1 },
+  verifiedRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  verifiedText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  launchBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999 },
+  launchText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
+});
+
 export default function PitchesScreen() {
   const colors = useColors();
   const { token } = useAuth();
@@ -149,9 +247,20 @@ export default function PitchesScreen() {
     staleTime: 30_000,
     enabled: !!token,
   });
+  const { data: apps, isLoading: appsLoading } = useQuery<DApp[]>({
+    queryKey: ["/api/apps"],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/apps`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 60_000,
+    enabled: !!token,
+  });
 
   const list = pitches ?? [];
   const serviceList = services ?? [];
+  const appList = apps ?? [];
 
   const visiblePitches = useMemo(() => {
     return list.filter((p) => {
@@ -172,29 +281,37 @@ export default function PitchesScreen() {
   const totalRaising = visiblePitches.reduce((s, p) => s + (p.raising - p.raised), 0);
   const filterCount = activeFilterCount(filters);
 
+  const HUB_TABS: { key: HubTab; label: string; icon: keyof typeof Feather.glyphMap; count?: number }[] = [
+    { key: "pitches", label: "Pitches", icon: "zap", count: visiblePitches.length },
+    { key: "services", label: "Services", icon: "grid", count: serviceList.length },
+    { key: "apps", label: "Apps", icon: "cpu", count: appList.length },
+  ];
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Header
         title="Investment Hub"
-        subtitle="Curated deal flow"
+        subtitle="Curated deal flow & Pi ecosystem"
         rightIcon="filter"
         onRightPress={() => setFiltersOpen(true)}
       />
 
       {/* Main tab switcher */}
       <View style={[styles.mainTabRow, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <Pressable onPress={() => setHubTab("pitches")} style={[styles.mainTab, { borderBottomColor: hubTab === "pitches" ? colors.primary : "transparent" }]}>
-          <Feather name="zap" size={14} color={hubTab === "pitches" ? colors.primary : colors.mutedForeground} />
-          <Text style={[styles.mainTabText, { color: hubTab === "pitches" ? colors.primary : colors.mutedForeground }]}>Pitches</Text>
-        </Pressable>
-        <Pressable onPress={() => setHubTab("services")} style={[styles.mainTab, { borderBottomColor: hubTab === "services" ? colors.primary : "transparent" }]}>
-          <Feather name="grid" size={14} color={hubTab === "services" ? colors.primary : colors.mutedForeground} />
-          <Text style={[styles.mainTabText, { color: hubTab === "services" ? colors.primary : colors.mutedForeground }]}>
-            Services {serviceList.length > 0 ? `(${serviceList.length})` : ""}
-          </Text>
-        </Pressable>
+        {HUB_TABS.map((t) => (
+          <Pressable key={t.key} onPress={() => setHubTab(t.key)} style={[styles.mainTab, { borderBottomColor: hubTab === t.key ? colors.primary : "transparent" }]}>
+            <Feather name={t.icon} size={14} color={hubTab === t.key ? colors.primary : colors.mutedForeground} />
+            <Text style={[styles.mainTabText, { color: hubTab === t.key ? colors.primary : colors.mutedForeground }]}>{t.label}</Text>
+            {t.count !== undefined && t.count > 0 && (
+              <View style={[styles.tabCount, { backgroundColor: hubTab === t.key ? colors.primary + "20" : colors.cardElevated }]}>
+                <Text style={[styles.tabCountText, { color: hubTab === t.key ? colors.primary : colors.mutedForeground }]}>{t.count}</Text>
+              </View>
+            )}
+          </Pressable>
+        ))}
       </View>
 
+      {/* PITCHES TAB */}
       {hubTab === "pitches" && (
         <FlatList
           data={visiblePitches}
@@ -251,6 +368,7 @@ export default function PitchesScreen() {
         />
       )}
 
+      {/* SERVICES TAB */}
       {hubTab === "services" && (
         <FlatList
           data={visibleServices}
@@ -302,6 +420,49 @@ export default function PitchesScreen() {
         />
       )}
 
+      {/* APPS TAB */}
+      {hubTab === "apps" && (
+        <FlatList
+          data={appList}
+          keyExtractor={(a) => a.id}
+          renderItem={({ item }) => <DAppCard app={item} />}
+          ListHeaderComponent={
+            <View>
+              <View style={[styles.appsHero, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={[styles.appsHeroLeft, { backgroundColor: colors.primary + "15" }]}>
+                  <Feather name="cpu" size={20} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.appsHeroTitle, { color: colors.foreground }]}>Pi Ecosystem Apps</Text>
+                  <Text style={[styles.appsHeroSub, { color: colors.mutedForeground }]}>{appList.length} verified DApps on Pi Network</Text>
+                </View>
+              </View>
+              <View style={[styles.securityNote, { backgroundColor: colors.success + "10", borderColor: colors.success + "30" }]}>
+                <Feather name="shield" size={13} color={colors.success} />
+                <Text style={[styles.securityNoteText, { color: colors.success }]}>
+                  All apps verified against official Pi Network domain whitelist. No malicious redirects.
+                </Text>
+              </View>
+            </View>
+          }
+          ListEmptyComponent={
+            appsLoading ? (
+              <View style={styles.empty}><ActivityIndicator color={colors.primary} /></View>
+            ) : (
+              <View style={styles.empty}>
+                <Feather name="cpu" size={32} color={colors.mutedForeground} />
+                <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No approved apps yet</Text>
+                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                  Pi ecosystem DApps are reviewed before listing. Check back soon.
+                </Text>
+              </View>
+            )
+          }
+          contentContainerStyle={{ paddingBottom: 140 }}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
+
       <PitchComposerSheet visible={composerOpen} onClose={() => setComposerOpen(false)} />
       <HubFiltersSheet visible={filtersOpen} initial={filters} onApply={setFilters} onClose={() => setFiltersOpen(false)} />
     </View>
@@ -311,10 +472,18 @@ export default function PitchesScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   mainTabRow: { flexDirection: "row", borderBottomWidth: 1 },
-  mainTab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderBottomWidth: 2 },
-  mainTabText: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  mainTab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 11, borderBottomWidth: 2 },
+  mainTabText: { fontSize: 12, fontFamily: "Inter_700Bold" },
+  tabCount: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999 },
+  tabCountText: { fontSize: 10, fontFamily: "Inter_700Bold" },
   hero: { marginHorizontal: 16, marginTop: 14, padding: 18, borderRadius: 20, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   servicesHero: { marginHorizontal: 16, marginTop: 14, padding: 18, borderRadius: 20, borderWidth: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  appsHero: { marginHorizontal: 16, marginTop: 14, padding: 18, borderRadius: 20, borderWidth: 1, flexDirection: "row", alignItems: "center", gap: 14 },
+  appsHeroLeft: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  appsHeroTitle: { fontSize: 17, fontFamily: "Inter_700Bold", letterSpacing: -0.3 },
+  appsHeroSub: { fontSize: 12, fontFamily: "Inter_500Medium", marginTop: 3 },
+  securityNote: { marginHorizontal: 16, marginTop: 10, flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 12, borderRadius: 12, borderWidth: 1 },
+  securityNoteText: { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", lineHeight: 17 },
   heroLabel: { fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 1.4 },
   heroValue: { fontSize: 32, fontFamily: "Inter_700Bold", letterSpacing: -1, marginTop: 6 },
   heroSub: { fontSize: 12, fontFamily: "Inter_500Medium", marginTop: 2 },

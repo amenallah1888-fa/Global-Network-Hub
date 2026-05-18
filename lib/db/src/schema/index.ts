@@ -13,3 +13,6 @@ export * from "./proposals";
 export * from "./comments";
 export * from "./milestones";
 export * from "./service_apps";
+export * from "./app_directory";
+export * from "./smart_agreements";
+export * from "./aml_flags";

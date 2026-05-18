@@ -1,0 +1,140 @@
+​"Please implement the following UI fixes and feature expansions based on our current Next.js and Prisma layout. Ensure strict adherence to the existing dark/elite design system.
+
+​PART 1: UI & UX Bug Fixes
+
+​1. Feed Post Options (Three-Dots Menu):
+
+​The three-dots ... menu icon on the top right of each post card is currently non-functional. Activate it to open a clean dropdown menu with options: 'Copy Link to Post', 'Report Post', and 'Hide Post'.
+
+​2. Media/Gallery Upload Input:
+
+​In the Post Composer box, clicking the Gallery/Image icon does nothing. Bind it to a hidden HTML <input type="file" accept="image/*" /> so clicking the icon triggers the device's native image picker.
+
+​3. 'Start a Circle' Sheet/Modal Layout Fix:
+
+​Fix the layout spacing inside the 'Start a Circle' slide-up modal. Increase the vertical margin (gap or space-y) between input rows because the text fields and labels are overlapping.
+
+​Scrolling Issue: The bottom action section ('Only you can approve members') is currently hidden behind the Replit global navigation bar. Ensure the modal container has proper bottom padding (pb-24) and overflow-y-auto so users can scroll down comfortably to see the submit button.
+
+​4. Project Details View Padding:
+
+​Ensure the Project Details screen layout accounts for the absolute elements or overlapping banners to prevent text occlusion.
+
+​PART 2: Core Feature Enhancements & Marketplace Detail
+
+​5. Professional Service Marketplace Upgrades:
+
+​Detailed Service View: Clicking on any Service card (like 'Full-Stack Dev') must navigate to a detailed view (/hub/services/[id]). This view must professionally display: Provider Portfolio, Reviews/Stars, and a 'Hire with Pi Escrow' payment button.
+
+​Hired Counter Logic: Ensure the hiredCount logic increments dynamically in the database whenever a user successfully closes a contract with a service provider.
+
+​6. New Feature: Decentralized App (DApp) Ecosystem Directory:
+
+​Database Schema Update: Create an AppDirectory table in Prisma: id, name, tagline, description, logoUrl, platform (Mobile / PC / Both), verifiedLink (URL), securityScore.
+
+​The UI Integration: Inside the Investment Hub, add a Third Tab named 'Apps' (next to Pitches and Services).
+
+​The Apps Grid: This space will act as a launchpad/ecosystem showcase for native Web3/Pi applications. Render them in professional clean cards showing their platform tags, full technical details, verification status (Secured/Verified), and a clean 'Launch App' button that safely opens their external link in a new secure tab."
+
+​"Please replace the previous feature request for Services/Apps with this enhanced, secure specification. We need real backend security and anti-money laundering (AML) tracking behind the UI badges, fully compliant with Pi Network's strict KYC and ecosystem ecosystem rules.
+
+​1. Real Identity & KYC Enforcement (Behind the 'Verified Badge')
+
+​The Logic: The 'Verified / Trusted' badge must not be hardcoded or editable by users.
+
+​Backend Rule: In the database, a user’s isVerified or trustScore can only be set to true after verifying their authentic Pi Network KYC state via the Pi SDK wrapper.
+
+​Access Control: If a user is not KYC-verified in the database, lock them from posting Pitches in the Hub or accepting Pi payments/investments. They can only read the Feed.
+
+​2. Strict Anti-Money Laundering (AML) & Transaction Tracking (The Security Core)
+
+​To prevent illicit financial behaviors, financial inflation, or shell projects inside HumanVerse:
+
+​Database Schema Update: Create an AuditLog and AntiMoneyLaunderingFlags table in Prisma.
+
+​Escrow Tracking Rules: 
+
+​Every Pi investment transferred to the Escrow system must log the sender’s authenticated Wallet ID, timestamp, and precise project milestone mapping.
+
+​Velocity Limits & Triggers: Implement an automated API guard check: If a single wallet attempts to transfer unusually large amounts of Pi rapidly across multiple unverified projects, or if a single project receives rapid structural transactions from related user nodes, flag the transaction as SUSPICIOUS_ACTIVITY.
+
+​Flagged transactions must automatically freeze the fund release in the Escrow system and halt status changes until a manual review or cryptographic verification occurs.
+
+​Transparency Log: Implement a read-only transaction metadata schema in PostgreSQL to store a immutable audit trail for every completed Milestone release.
+
+​3. Safe App Directory (No Arbitrary Links)
+
+​The Logic: The 'Launch App' button in our App Ecosystem Tab must not redirect users to any arbitrary, malicious URL.
+
+​Backend Rule: The URL field must strictly match the verified pinetwork:// or HTTPS mainnet sandbox domains approved within the Pi Developer platform.
+
+​Add a security middleware checking the App link against a local whitelist database before handling redirects.
+
+​Strict Compliance Rule:
+
+​Keep the existing beautiful UI theme completely intact, but ensure the Backend API controllers (/api/hub, /api/escrow, /api/transactions) are heavily fortified with these security, tracking, and validation layers."
+
+​"I need to replace the fake/instant actions on financial buttons with a multi-stage Legal Document Verification and Smart Contract Escrow workflow. Please implement the following architecture in Next.js, Prisma, and PostgreSQL:
+
+​1. Project Classification & Document Schema Update
+
+​Database Updates: Update the Project table in Prisma to strictly enforce legitimacy: 
+
+​Add an executionState enum: [IDEA, IN_PROGRESS, ESTABLISHED].
+
+​Create a ProjectDocument table: id, projectId, documentUrl (for licenses, IDs, or legal invoices), documentType, status (PENDING, APPROVED, REJECTED).
+
+​UI Rule: Projects can only be set to IN_PROGRESS or ESTABLISHED if the database flags their required legal documents as APPROVED. Otherwise, they are locked as an IDEA.
+
+​2. From Direct Clicking to Smart Contract Escrow (The Funding Flow)
+
+​The Interception Logic: Modify the API endpoints for actions like 'Interest Expressed' or 'Invest'. Clicking these buttons must NEVER execute an immediate transfer. Instead, it must initiate a formal Digital Contract State.
+
+​Prisma Schema for Contracts: Create a SmartAgreement table: 
+
+​id, senderId, receiverId, projectId, totalPiCommitted, termsHash (cryptographic integrity hash of agreement rules), status (DRAFT, LOCKED_IN_ESCROW, ACTIVE, COMPLETED, REFUNDED).
+
+​Strict Milestone Proofs (No Proof, No Pi): * Tie the Milestones table directly to document updates. A milestone release API route (/api/escrow/release) must validate that a verified proof file (e.g., JPEG/PDF receipt, legal contract) has been uploaded and logged in PostgreSQL before shifting the milestone status from LOCKED to RELEASED. 
+
+​If a milestone deadline passes without valid proof, trigger an automated database rollback flag to allow the investor to request a secure REFUND.
+
+​3. Safe App Ecosystem Vetting
+
+​The Logic: For the Apps Tab, add a submissionStatus field. Developers must supply their Sandbox Environment Credentials and terms of service before their DApp card goes live.
+
+​Strict Execution Rule:
+
+​Ensure that when a user interacts with any funding/investment element in the frontend Preview, the UI cleanly renders a 'Contract Verification & Milestone Setup' modal showing the stages and document upload checkpoints, rather than a generic success toast. Keep our elite dark design system identical."
+
+​"Please execute this absolute core update for HumanVerse. We are moving away from mock clicks to a verified, strict financial ecosystem powered by the newly deployed Pi Network Testnet RPC tools.
+
+​PART 1: Spacing, Form Inputs & UI Bug Fixes
+
+​Three-Dots Menu: Activate the ... menu on Feed posts to toggle a custom floating dropdown: 'Copy Link', 'Report', 'Hide'.
+
+​Gallery Icon: Bind the image/gallery icon in the post composer to an HTML <input type="file" accept="image/*" /> to trigger the system photo gallery.
+
+​Start a Circle Spacing & Scroll: Fix overlapping text fields inside the 'Start a Circle' slide-up sheet by increasing input margins (space-y-4). Add pb-24 and overflow-y-auto to the modal container so the bottom action rows and submit buttons are not blocked by the Replit global navigation bars.
+
+​Project Details Banner: Fix absolute positioning boundaries on the Project Details view to prevent text from overlapping under status badges.
+
+​PART 2: Real Pi Testnet RPC & Smart Contract Logic (Anti-Fraud Flow)
+
+​Stop all instant successful financial transactions. Implement a mandatory, audited process for Pitches and Services:
+
+​Project Legitimacy States: Projects inside the Hub must track an executionState (IDEA, IN_PROGRESS, ESTABLISHED). Create a ProjectDocument table in Prisma. Users must upload real proof (PDF/Image receipts, licenses, or invoices) to move out of the IDEA state.
+
+​Pi Testnet RPC Integration Configuration: Prepare our API architecture to interface directly with the newly launched Pi Testnet RPC (rpc.testnet.minepi.com). Setup placeholder helper methods for JSON-RPC 2.0 calls (method: "getHealth", etc.) to track live chain states.
+
+​Milestone Escrow via PiRC2 Logic: When a user invests or hires a service provider, instantiate a strict SmartAgreement row in PostgreSQL. Tie fund releases directly to verified milestone uploads. If proof documents aren't supplied before the database deadline, flag the contract for an automated secure refund rollback.
+
+​PART 3: Dedicated Ecosystem App Directory (DApps)
+
+​Add a Third Tab inside the Investment Hub called 'Apps' (next to Pitches and Services).
+
+​Render a clean, elite grid of Web3/Pi ecosystem applications. Each card must store: name, tagline, platform (Mobile / PC / Both), verifiedLink (strictly matching pinetwork:// or secure verified mainnet sandbox URLs), and a verified securityScore to prevent malicious external redirects.
+
+​Strict Compliance Guideline:
+
+​Keep our exact, high-quality dark theme styling intact. All frontend interactions on buttons must trigger the new multi-stage Contract/Document Verification modals instead of instant success alerts. Execute all backend route integrations and Prisma migrations cleanly."
+

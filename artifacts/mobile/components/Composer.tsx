@@ -6,7 +6,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Alert,
   Modal,
@@ -148,6 +148,8 @@ export function Composer() {
   const [locationOpen, setLocationOpen] = useState(false);
   const [pollOpen, setPollOpen] = useState(false);
   const [taggedCity, setTaggedCity] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const webFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const canPost = composeText.trim().length > 0 && !create.isPending;
 
@@ -161,6 +163,7 @@ export function Composer() {
         onSuccess: () => {
           setComposeText("");
           setTaggedCity(null);
+          setSelectedImage(null);
           queryClient.invalidateQueries({ queryKey: getListPostsQueryKey(), exact: false });
         },
       },
@@ -169,9 +172,28 @@ export function Composer() {
 
   const handleImage = async () => {
     if (Platform.OS === "web") {
-      Alert.alert("Image upload", "Image picking is available on the mobile app.");
+      if (!webFileInputRef.current) {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/*";
+        input.style.display = "none";
+        input.onchange = (e: Event) => {
+          const file = (e.target as HTMLInputElement).files?.[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              if (ev.target?.result) setSelectedImage(String(ev.target.result));
+            };
+            reader.readAsDataURL(file);
+          }
+        };
+        document.body.appendChild(input);
+        webFileInputRef.current = input;
+      }
+      webFileInputRef.current.click();
       return;
     }
+
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert("Permission needed", "Allow photo access to attach images to posts.");
@@ -183,7 +205,7 @@ export function Composer() {
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) {
-      Alert.alert("Image selected", "Full image upload coming with Pi Storage integration.");
+      setSelectedImage(result.assets[0].uri);
     }
   };
 
@@ -202,6 +224,17 @@ export function Composer() {
             ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : {}),
           }]}
         />
+        {selectedImage && (
+          <View style={[styles.imagePreviewWrap, { borderColor: colors.border }]}>
+            <Pressable onPress={() => setSelectedImage(null)} style={[styles.imageRemoveBtn, { backgroundColor: colors.card }]}>
+              <Feather name="x" size={12} color={colors.foreground} />
+            </Pressable>
+            <View style={[styles.imageAttached, { backgroundColor: colors.primary + "15", borderColor: colors.primary + "40" }]}>
+              <Feather name="image" size={13} color={colors.primary} />
+              <Text style={[styles.imageAttachedText, { color: colors.primary }]}>Image attached</Text>
+            </View>
+          </View>
+        )}
         {taggedCity && (
           <View style={[styles.cityTag, { backgroundColor: colors.primary + "15", borderColor: colors.primary + "40" }]}>
             <Feather name="map-pin" size={11} color={colors.primary} />
@@ -213,7 +246,11 @@ export function Composer() {
         )}
         <View style={styles.actions}>
           <View style={styles.iconRow}>
-            <IconBtn name="image" color={colors.mutedForeground} onPress={handleImage} />
+            <IconBtn
+              name="image"
+              color={selectedImage ? colors.primary : colors.mutedForeground}
+              onPress={handleImage}
+            />
             <IconBtn name="bar-chart-2" color={pollOpen ? colors.primary : colors.mutedForeground} onPress={() => setPollOpen(true)} />
             <IconBtn name="map-pin" color={taggedCity ? colors.primary : colors.mutedForeground} onPress={() => setLocationOpen(true)} />
           </View>
@@ -255,6 +292,10 @@ function IconBtn({ name, color, onPress }: { name: keyof typeof Feather.glyphMap
 const styles = StyleSheet.create({
   wrap: { marginHorizontal: 16, marginTop: 8, marginBottom: 16, padding: 14, borderRadius: 20, borderWidth: 1, flexDirection: "row", alignItems: "flex-start", gap: 12 },
   input: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular", minHeight: 40, maxHeight: 110, paddingTop: 8, paddingBottom: 4 },
+  imagePreviewWrap: { position: "relative", marginTop: 6 },
+  imageAttached: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1 },
+  imageAttachedText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  imageRemoveBtn: { position: "absolute", right: -6, top: -6, zIndex: 10, width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   cityTag: { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, borderWidth: 1, marginTop: 6 },
   cityTagText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   actions: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 },

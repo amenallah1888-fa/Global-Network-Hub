@@ -106,7 +106,7 @@ function CreateCircleSheet({
       <Pressable style={sheet.overlay} onPress={handleClose} />
       <View style={[sheet.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={sheet.handle} />
-        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 120 }}>
           <Text style={[sheet.title, { color: colors.foreground }]}>Start a Circle</Text>
           <Text style={[sheet.subtitle, { color: colors.mutedForeground }]}>
             Create a private or paid community
@@ -385,16 +385,16 @@ const styles = StyleSheet.create({
 const sheet = StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFillObject, justifyContent: "flex-end", zIndex: 100 },
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)" },
-  card: { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderBottomWidth: 0, padding: 24, paddingTop: 16, maxHeight: "92%", gap: 14 },
-  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: "#ccc", alignSelf: "center", marginBottom: 8 },
-  title: { fontSize: 20, fontFamily: "Inter_700Bold", letterSpacing: -0.4 },
-  subtitle: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: -8, marginBottom: 4 },
-  fieldWrap: { gap: 6, marginBottom: 2 },
+  card: { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderBottomWidth: 0, padding: 24, paddingTop: 16, maxHeight: "92%" },
+  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: "#ccc", alignSelf: "center", marginBottom: 12 },
+  title: { fontSize: 20, fontFamily: "Inter_700Bold", letterSpacing: -0.4, marginBottom: 2 },
+  subtitle: { fontSize: 13, fontFamily: "Inter_400Regular", marginBottom: 8 },
+  fieldWrap: { gap: 8, marginBottom: 16 },
   label: { fontSize: 12, fontFamily: "Inter_600SemiBold", letterSpacing: 0.3 },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontFamily: "Inter_400Regular", ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : {}) },
   textarea: { minHeight: 72, textAlignVertical: "top" },
   pickerBtn: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  typeRow: { flexDirection: "row", gap: 10, marginVertical: 4 },
+  typeRow: { flexDirection: "row", gap: 10, marginVertical: 8 },
   typeChip: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 12, borderWidth: 1 },
   typeText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   infoBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 10, borderWidth: 1 },
@@ -402,7 +402,7 @@ const sheet = StyleSheet.create({
   hint: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 3 },
   errorBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 10, borderWidth: 1 },
   errorText: { fontSize: 12, fontFamily: "Inter_500Medium", flex: 1 },
-  createBtn: { borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 8, marginBottom: 16 },
+  createBtn: { borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 16, marginBottom: 8 },
   createText: { fontSize: 15, fontFamily: "Inter_700Bold" },
   catOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", padding: 32 },
   catCard: { borderRadius: 18, borderWidth: 1, overflow: "hidden" },

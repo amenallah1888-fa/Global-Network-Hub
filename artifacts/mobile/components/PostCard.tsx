@@ -11,8 +11,8 @@ import { router } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -60,7 +60,6 @@ type CommentData = {
 function CommentThread({ postId, onClose }: { postId: string; onClose: () => void }) {
   const colors = useColors();
   const { token } = useAuth();
-  const currentUserId = useCurrentUserId();
   const [comments, setComments] = useState<CommentData[]>([]);
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState("");
@@ -168,13 +167,60 @@ function CommentThread({ postId, onClose }: { postId: string; onClose: () => voi
   );
 }
 
-export function PostCard({ post }: { post: Post }) {
+type MenuOption = { label: string; icon: keyof typeof Feather.glyphMap; destructive?: boolean; onPress: () => void };
+
+function PostMenu({ visible, onClose, options, colors }: {
+  visible: boolean;
+  onClose: () => void;
+  options: MenuOption[];
+  colors: ReturnType<typeof useColors>;
+}) {
+  if (!visible) return null;
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={menu.backdrop} onPress={onClose}>
+        <View style={[menu.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {options.map((opt, i) => (
+            <Pressable
+              key={opt.label}
+              onPress={() => { onClose(); opt.onPress(); }}
+              style={({ pressed }) => [
+                menu.item,
+                i < options.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border },
+                pressed && { backgroundColor: colors.cardElevated },
+              ]}
+            >
+              <Feather name={opt.icon} size={15} color={opt.destructive ? "#EF4444" : colors.foreground} />
+              <Text style={[menu.itemText, { color: opt.destructive ? "#EF4444" : colors.foreground }]}>
+                {opt.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const menu = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center" },
+  card: { width: 240, borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+  item: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 18, paddingVertical: 15 },
+  itemText: { fontSize: 15, fontFamily: "Inter_500Medium" },
+});
+
+export function PostCard({ post, hidden: hiddenProp = false }: { post: Post; hidden?: boolean }) {
   const colors = useColors();
   const queryClient = useQueryClient();
+  const { token } = useAuth();
   const author = useUserById(post.authorId);
   const [tipOpen, setTipOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [hidden, setHidden] = useState(hiddenProp);
   const image = getImage(post.imageKey);
+
+  if (hidden) return null;
 
   const patchPost = (updated: Post) => {
     queryClient.setQueriesData<Post[]>(
@@ -206,13 +252,33 @@ export function PostCard({ post }: { post: Post }) {
     setCommentsOpen((v) => !v);
   };
 
-  const onMore = () => {
-    Alert.alert("Post options", undefined, [
-      { text: "Copy text", onPress: () => {} },
-      { text: "Report post", style: "destructive", onPress: () => {} },
-      { text: "Cancel", style: "cancel" },
-    ]);
+  const handleCopyLink = async () => {
+    const link = `https://oasis.app/post/${post.id}`;
+    try {
+      if (Platform.OS === "web" && typeof navigator !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(link);
+      } else {
+        const { setStringAsync } = await import("expo-clipboard");
+        await setStringAsync(link);
+      }
+    } catch {}
   };
+
+  const handleReport = async () => {
+    try {
+      await fetch(`${API_BASE}/api/posts/${post.id}/report`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "user_report" }),
+      });
+    } catch {}
+  };
+
+  const menuOptions: MenuOption[] = [
+    { label: "Copy Link to Post", icon: "link", onPress: handleCopyLink },
+    { label: "Report Post", icon: "flag", destructive: true, onPress: handleReport },
+    { label: "Hide Post", icon: "eye-off", destructive: true, onPress: () => setHidden(true) },
+  ];
 
   const goToProfile = () => router.push(`/profile/${post.authorId}`);
 
@@ -242,7 +308,7 @@ export function PostCard({ post }: { post: Post }) {
             {author.title} · {author.company}
           </Text>
         </Pressable>
-        <Pressable hitSlop={10} onPress={onMore} style={styles.more}>
+        <Pressable hitSlop={10} onPress={() => setMenuOpen(true)} style={styles.more}>
           <Feather name="more-horizontal" size={18} color={colors.mutedForeground} />
         </Pressable>
       </View>
@@ -287,6 +353,8 @@ export function PostCard({ post }: { post: Post }) {
       {commentsOpen && (
         <CommentThread postId={post.id} onClose={() => setCommentsOpen(false)} />
       )}
+
+      <PostMenu visible={menuOpen} onClose={() => setMenuOpen(false)} options={menuOptions} colors={colors} />
 
       <TipSheet
         visible={tipOpen}

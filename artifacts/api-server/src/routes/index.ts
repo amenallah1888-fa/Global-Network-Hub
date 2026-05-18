@@ -15,6 +15,8 @@ import proposalsRouter from "./proposals";
 import aiRouter from "./ai";
 import milestonesRouter from "./milestones";
 import servicesRouter from "./services";
+import appsRouter from "./apps";
+import smartAgreementsRouter from "./smart-agreements";
 
 const router: IRouter = Router();
 
@@ -34,5 +36,7 @@ router.use(proposalsRouter);
 router.use(aiRouter);
 router.use(milestonesRouter);
 router.use(servicesRouter);
+router.use(appsRouter);
+router.use(smartAgreementsRouter);
 
 export default router;
