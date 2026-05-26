@@ -144,4 +144,24 @@ router.post("/smart-agreements/:id/documents", async (req, res): Promise<void> =
   res.status(201).json(doc);
 });
 
+router.patch("/project-documents/:id", async (req, res): Promise<void> => {
+  currentUserId(req);
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const status = req.body?.status === "APPROVED" ? "APPROVED" : "REJECTED";
+  const reviewNote = typeof req.body?.reviewNote === "string" ? req.body.reviewNote.trim() : null;
+  await db.update(projectDocumentsTable).set({ status, reviewNote: reviewNote || null }).where(eq(projectDocumentsTable.id, id));
+  const [doc] = await db.select().from(projectDocumentsTable).where(eq(projectDocumentsTable.id, id));
+  if (!doc) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(doc);
+});
+
+router.get("/admin/pending", async (req, res): Promise<void> => {
+  currentUserId(req);
+  const [pendingDocs, pendingPitches] = await Promise.all([
+    db.select().from(projectDocumentsTable).where(eq(projectDocumentsTable.status, "PENDING")).orderBy(desc(projectDocumentsTable.uploadedAt)).limit(50),
+    db.select().from(pitchesTable).where(eq(pitchesTable.verificationStatus, "pending")).orderBy(desc(pitchesTable.createdAt)).limit(30),
+  ]);
+  res.json({ documents: pendingDocs, pitches: pendingPitches });
+});
+
 export default router;

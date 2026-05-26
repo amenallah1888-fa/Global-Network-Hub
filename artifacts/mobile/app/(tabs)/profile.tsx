@@ -388,16 +388,28 @@ export default function ProfileScreen() {
             onPress={() => setWalletOpen(true)}
           />
           <ActionTile
-            icon="briefcase"
-            label="My pitch"
+            icon="trending-up"
+            label="My Campaigns"
             color={colors.accent}
-            onPress={onMyPitch}
+            onPress={() => router.push("/my-campaigns")}
           />
           <ActionTile
             icon="mail"
             label="Messages"
             color={colors.sponsor}
             onPress={() => router.push("/inbox")}
+          />
+          <ActionTile
+            icon="briefcase"
+            label="My pitch"
+            color={colors.primary}
+            onPress={onMyPitch}
+          />
+          <ActionTile
+            icon="shield"
+            label="Validator"
+            color="#8B5CF6"
+            onPress={() => router.push("/admin")}
           />
         </View>
       </View>

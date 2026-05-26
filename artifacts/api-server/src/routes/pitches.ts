@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import {
   db,
   pitchesTable,
@@ -8,6 +8,8 @@ import {
   usersTable,
   transactionsTable,
   serviceAppsTable,
+  milestonesTable,
+  projectDocumentsTable,
 } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
 import { createNotification } from "../lib/notify";
@@ -190,6 +192,40 @@ router.get("/pitches/top/ranked", async (_req, res): Promise<void> => {
     .orderBy(desc(pitchesTable.verificationStatus), desc(pitchesTable.raised), desc(pitchesTable.backersCount))
     .limit(5);
   res.json(top.map((p) => decoratePitch(p, false)));
+});
+
+router.get("/pitches/:id/milestones", async (req, res): Promise<void> => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const milestones = await db.select().from(milestonesTable).where(eq(milestonesTable.pitchId, id)).orderBy(asc(milestonesTable.order));
+  res.json(milestones.map((m) => ({ ...m, createdAt: m.createdAt.toISOString(), completedAt: m.completedAt?.toISOString() ?? null })));
+});
+
+router.get("/pitches/:id/documents", async (req, res): Promise<void> => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const docs = await db.select().from(projectDocumentsTable).where(eq(projectDocumentsTable.projectId, id)).orderBy(desc(projectDocumentsTable.uploadedAt));
+  res.json(docs.map((d) => ({ ...d, uploadedAt: d.uploadedAt.toISOString() })));
+});
+
+router.post("/pitches/:id/documents", async (req, res): Promise<void> => {
+  const meId = currentUserId(req);
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const documentUrl = String(req.body?.documentUrl ?? "").trim();
+  const documentType = String(req.body?.documentType ?? "proof").trim();
+  if (!documentUrl) { res.status(400).json({ error: "documentUrl required" }); return; }
+  const docId = uid("doc");
+  await db.insert(projectDocumentsTable).values({ id: docId, projectId: id, documentUrl, documentType, status: "PENDING" });
+  const [doc] = await db.select().from(projectDocumentsTable).where(eq(projectDocumentsTable.id, docId));
+  res.status(201).json({ ...doc, uploadedAt: doc.uploadedAt.toISOString() });
+});
+
+router.patch("/pitches/:id/verify", async (req, res): Promise<void> => {
+  currentUserId(req);
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const status = req.body?.status === "verified" ? "verified" : "pending";
+  await db.update(pitchesTable).set({ verificationStatus: status }).where(eq(pitchesTable.id, id));
+  const [updated] = await db.select().from(pitchesTable).where(eq(pitchesTable.id, id));
+  if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(decoratePitch(updated, false));
 });
 
 export default router;
