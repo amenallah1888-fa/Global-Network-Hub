@@ -1,18 +1,17 @@
 import OpenAI from "openai";
 
-if (!process.env.AI_INTEGRATIONS_OPENAI_BASE_URL) {
-  throw new Error(
-    "AI_INTEGRATIONS_OPENAI_BASE_URL must be set. Did you forget to provision the OpenAI AI integration?",
-  );
+const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+const managedKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+const standardKey = process.env.OPENAI_API_KEY;
+
+function createClient(): OpenAI | null {
+  if (baseURL && managedKey) {
+    return new OpenAI({ apiKey: managedKey, baseURL });
+  }
+  if (standardKey) {
+    return new OpenAI({ apiKey: standardKey });
+  }
+  return null;
 }
 
-if (!process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
-  throw new Error(
-    "AI_INTEGRATIONS_OPENAI_API_KEY must be set. Did you forget to provision the OpenAI AI integration?",
-  );
-}
-
-export const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+export const openai = createClient();

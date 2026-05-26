@@ -3,6 +3,7 @@ import { desc, sql } from "drizzle-orm";
 import { db, pitchesTable, markersTable, usersTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 
+
 const router: IRouter = Router();
 
 router.post("/ai/chat", async (req, res): Promise<void> => {
@@ -112,6 +113,13 @@ ${pitchSection ? pitchSection + "\n" : ""}Rules:
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
+
+  if (!openai) {
+    res.write(`data: ${JSON.stringify({ error: "AI service not configured. Add an OPENAI_API_KEY secret to enable the assistant." })}\n\n`);
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
+    return;
+  }
 
   try {
     const stream = await openai.chat.completions.create({
