@@ -1,8 +1,17 @@
 import { Router, type IRouter } from "express";
 import { desc, sql } from "drizzle-orm";
 import { db, pitchesTable, markersTable, usersTable } from "@workspace/db";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import Groq from "groq-sdk";
 
+const MODEL = "llama-3.3-70b-versatile";
+
+function createGroqClient(): Groq | null {
+  const key = process.env.GROQ_API_KEY;
+  if (!key) return null;
+  return new Groq({ apiKey: key });
+}
+
+const groq = createGroqClient();
 
 const router: IRouter = Router();
 
@@ -12,6 +21,20 @@ router.post("/ai/chat", async (req, res): Promise<void> => {
 
   if (!messages.length) {
     res.status(400).json({ error: "messages required" });
+    return;
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  if (!groq) {
+    const mock = "The HumanVerse AI assistant is ready — add a GROQ_API_KEY secret to activate it. Get your free key at console.groq.com.";
+    for (const char of mock) {
+      res.write(`data: ${JSON.stringify({ content: char })}\n\n`);
+    }
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
     return;
   }
 
@@ -110,21 +133,10 @@ ${pitchSection ? pitchSection + "\n" : ""}Rules:
     ...messages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
   ];
 
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-
-  if (!openai) {
-    res.write(`data: ${JSON.stringify({ error: "AI service not configured. Add an OPENAI_API_KEY secret to enable the assistant." })}\n\n`);
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-    res.end();
-    return;
-  }
-
   try {
-    const stream = await openai.chat.completions.create({
-      model: "gpt-5-mini",
-      max_completion_tokens: 8192,
+    const stream = await groq.chat.completions.create({
+      model: MODEL,
+      max_tokens: 8192,
       messages: chatMessages,
       stream: true,
     });

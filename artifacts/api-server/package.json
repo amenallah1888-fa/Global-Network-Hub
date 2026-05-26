@@ -18,6 +18,7 @@
     "cors": "^2",
     "drizzle-orm": "catalog:",
     "express": "^5",
+    "groq-sdk": "^1.2.0",
     "jsonwebtoken": "^9.0.3",
     "pino": "^9",
     "pino-http": "^10"
