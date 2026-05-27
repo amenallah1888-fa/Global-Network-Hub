@@ -10,6 +10,7 @@ import {
   serviceAppsTable,
   milestonesTable,
   projectDocumentsTable,
+  appDirectoryTable,
 } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
 import { createNotification } from "../lib/notify";
@@ -21,20 +22,16 @@ function uid(prefix: string) {
 }
 
 function computeTrustScore(pitch: typeof pitchesTable.$inferSelect): number {
-  let score = 0;
-  if (pitch.proofOfRealityUrl) score += 40;
-  if (pitch.founderLinkedin) score += 30;
-  if (pitch.roadmapUrl) score += 20;
-  if (pitch.portfolioUrl) score += 20;
-  if (pitch.experienceDescription) score += 10;
-  if (pitch.reportsCount > 3) score = Math.max(0, score - 30);
-  return Math.min(100, score);
+  return pitch.trustScore ?? 0;
 }
 
 function isAutoVerified(pitch: typeof pitchesTable.$inferSelect): boolean {
-  if (pitch.verificationStatus === "verified") return true;
-  if (pitch.entityType === "service_app") return !!(pitch.portfolioUrl && pitch.experienceDescription);
-  return !!(pitch.proofOfRealityUrl && pitch.founderLinkedin);
+  return pitch.verificationStatus === "verified" || (pitch.trustScore ?? 0) >= 100;
+}
+
+function parseValidatorApprovals(raw: string | null | undefined): Record<string, string> {
+  if (!raw) return {};
+  try { return JSON.parse(raw); } catch { return {}; }
 }
 
 function parseRequirements(raw: string | null | undefined): { type: string; description: string }[] {
@@ -50,6 +47,7 @@ function decoratePitch(p: typeof pitchesTable.$inferSelect, backed: boolean) {
     verified: isAutoVerified(p),
     trustScore: computeTrustScore(p),
     requirements: parseRequirements(p.requirements),
+    validatorApprovals: parseValidatorApprovals(p.validatorApprovals),
   };
 }
 
@@ -226,6 +224,92 @@ router.patch("/pitches/:id/verify", async (req, res): Promise<void> => {
   const [updated] = await db.select().from(pitchesTable).where(eq(pitchesTable.id, id));
   if (!updated) { res.status(404).json({ error: "Not found" }); return; }
   res.json(decoratePitch(updated, false));
+});
+
+const VALID_BLOCKS = ["identity", "reality", "roadmap", "portfolio"] as const;
+const BLOCK_POINTS = 25;
+
+router.post("/pitches/:id/validate-block", async (req, res): Promise<void> => {
+  const meId = currentUserId(req);
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const block = String(req.body?.block ?? "").trim();
+  const action = String(req.body?.action ?? "").trim();
+
+  if (!VALID_BLOCKS.includes(block as any) || !["approve", "reject"].includes(action)) {
+    res.status(400).json({ error: `block must be one of: ${VALID_BLOCKS.join(", ")}; action must be approve or reject` }); return;
+  }
+
+  const [me] = await db.select().from(usersTable).where(eq(usersTable.id, meId));
+  if (!me || (me.role !== "validator" && me.role !== "admin")) {
+    res.status(403).json({ error: "Validator or Admin role required to approve blocks" }); return;
+  }
+
+  const [pitch] = await db.select().from(pitchesTable).where(eq(pitchesTable.id, id));
+  if (!pitch) { res.status(404).json({ error: "Project not found" }); return; }
+
+  const approvals = parseValidatorApprovals(pitch.validatorApprovals);
+  approvals[block] = action;
+
+  const newTrustScore = Math.min(100, Object.values(approvals).filter(v => v === "approve").length * BLOCK_POINTS);
+  const autoVerified = newTrustScore >= 100;
+
+  await db.update(pitchesTable).set({
+    validatorApprovals: JSON.stringify(approvals),
+    trustScore: newTrustScore,
+    ...(autoVerified ? { verificationStatus: "verified" } : {}),
+  }).where(eq(pitchesTable.id, id));
+
+  let migrated = false;
+  if (autoVerified) {
+    if (pitch.entityType === "service_app") {
+      const existing = await db.select().from(serviceAppsTable).where(eq(serviceAppsTable.id, `svc_${id}`));
+      if (existing.length === 0) {
+        migrated = true;
+        await db.insert(serviceAppsTable).values({
+          id: `svc_${id}`,
+          providerId: pitch.founderId,
+          title: pitch.title,
+          category: pitch.serviceCategory ?? "Development",
+          description: pitch.summary,
+          pricePi: 0,
+          city: pitch.city,
+          country: null,
+          portfolioUrl: pitch.portfolioUrl,
+          trustScore: 100,
+          hiredCount: 0,
+          rating: 5,
+        });
+      }
+    } else if (pitch.entityType === "app") {
+      const existing = await db.select().from(appDirectoryTable).where(eq(appDirectoryTable.id, `app_${id}`));
+      if (existing.length === 0) {
+        migrated = true;
+        const safeLink = pitch.roadmapUrl?.startsWith("https://") ? pitch.roadmapUrl : "https://pi-apps.io";
+        await db.insert(appDirectoryTable).values({
+          id: `app_${id}`,
+          name: pitch.title,
+          tagline: pitch.summary.slice(0, 120),
+          description: pitch.summary,
+          platform: "Both",
+          category: pitch.industry,
+          verifiedLink: safeLink,
+          logoUrl: null,
+          securityScore: 100,
+          submissionStatus: "approved",
+          submittedBy: pitch.founderId,
+        });
+      }
+    }
+  }
+
+  const [updated] = await db.select().from(pitchesTable).where(eq(pitchesTable.id, id));
+  res.json({ ...decoratePitch(updated, false), migrated });
+});
+
+router.get("/pitches/my", async (req, res): Promise<void> => {
+  const meId = currentUserId(req);
+  const mine = await db.select().from(pitchesTable).where(eq(pitchesTable.founderId, meId)).orderBy(desc(pitchesTable.createdAt));
+  res.json(mine.map(p => decoratePitch(p, false)));
 });
 
 export default router;

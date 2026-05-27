@@ -60,10 +60,10 @@ const CITIES = [
 
 const FUNDING_OPTIONS: { value: FundingBand; label: string }[] = [
   { value: "any", label: "Any size" },
-  { value: "lt500k", label: "Under $500K" },
-  { value: "500k_2m", label: "$500K – $2M" },
-  { value: "2m_10m", label: "$2M – $10M" },
-  { value: "gt10m", label: "Over $10M" },
+  { value: "lt500k", label: "Under 500K π" },
+  { value: "500k_2m", label: "500K – 2M π" },
+  { value: "2m_10m", label: "2M – 10M π" },
+  { value: "gt10m", label: "Over 10M π" },
 ];
 
 export function fundingBandMatches(raising: number, band: FundingBand) {

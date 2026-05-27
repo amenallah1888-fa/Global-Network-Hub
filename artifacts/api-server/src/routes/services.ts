@@ -17,6 +17,15 @@ function withProvider(s: typeof serviceAppsTable.$inferSelect, providerMap: Map<
   };
 }
 
+const MOCK_SERVICES = [
+  { id: "mock_svc_1", providerId: "system", title: "Smart Contract Auditing", category: "Development", description: "Comprehensive security audits for Pi-native smart contracts and dApps. Certified blockchain security experts with 5+ years on Pi Network.", pricePi: 500, city: "Remote", country: "Global", portfolioUrl: null, trustScore: 100, hiredCount: 47, rating: 5, createdAt: new Date().toISOString(), provider: { id: "system", name: "Pi Security Labs", handle: "piseclabs", avatarKey: null, verified: true, city: "Remote" } },
+  { id: "mock_svc_2", providerId: "system", title: "Pi App UI/UX Design", category: "Design", description: "Full product design for Pi ecosystem apps. Figma prototypes, user research, accessibility audits, and handoff-ready design systems.", pricePi: 200, city: "Tunis", country: "Tunisia", portfolioUrl: null, trustScore: 95, hiredCount: 31, rating: 5, createdAt: new Date().toISOString(), provider: { id: "system", name: "DesignPi Studio", handle: "designpi", avatarKey: null, verified: true, city: "Tunis" } },
+  { id: "mock_svc_3", providerId: "system", title: "Pi Network Marketing", category: "Marketing", description: "Growth hacking and community building for Pi projects. Telegram, Twitter/X, and Pi Chat campaigns. Proven results with 10x engagement uplift.", pricePi: 150, city: "Lagos", country: "Nigeria", portfolioUrl: null, trustScore: 92, hiredCount: 62, rating: 4, createdAt: new Date().toISOString(), provider: { id: "system", name: "GrowPi Agency", handle: "growpi", avatarKey: null, verified: true, city: "Lagos" } },
+  { id: "mock_svc_4", providerId: "system", title: "Legal Entity Formation", category: "Legal", description: "Register your Pi-backed startup in UAE, UK, or USA. Full legal package: formation, contracts, IP registration, and compliance guidance.", pricePi: 350, city: "Dubai", country: "UAE", portfolioUrl: null, trustScore: 88, hiredCount: 18, rating: 5, createdAt: new Date().toISOString(), provider: { id: "system", name: "Pi Legal Group", handle: "pilegal", avatarKey: null, verified: true, city: "Dubai" } },
+  { id: "mock_svc_5", providerId: "system", title: "Backend API Development", category: "Development", description: "Node.js / Express / PostgreSQL backends for Pi apps. REST and WebSocket APIs, Drizzle ORM, cloud deployment, 99.9% uptime SLA.", pricePi: 300, city: "Nairobi", country: "Kenya", portfolioUrl: null, trustScore: 97, hiredCount: 55, rating: 5, createdAt: new Date().toISOString(), provider: { id: "system", name: "CodeForge Pi", handle: "codeforgepi", avatarKey: null, verified: true, city: "Nairobi" } },
+  { id: "mock_svc_6", providerId: "system", title: "Pitch Deck & Copywriting", category: "Copywriting", description: "Professional pitch decks, white papers, and investor materials tailored for Pi Network fundraising and ecosystem presentations.", pricePi: 120, city: "Cairo", country: "Egypt", portfolioUrl: null, trustScore: 90, hiredCount: 39, rating: 4, createdAt: new Date().toISOString(), provider: { id: "system", name: "Pi Content Co.", handle: "picontentco", avatarKey: null, verified: true, city: "Cairo" } },
+];
+
 router.get("/services", async (req, res): Promise<void> => {
   const category = req.query.category as string | undefined;
   const city = req.query.city as string | undefined;
@@ -24,6 +33,10 @@ router.get("/services", async (req, res): Promise<void> => {
   let rows = await db.select().from(serviceAppsTable).orderBy(desc(serviceAppsTable.trustScore), desc(serviceAppsTable.rating));
   if (category) rows = rows.filter((s) => s.category.toLowerCase() === category.toLowerCase());
   if (city) rows = rows.filter((s) => s.city?.toLowerCase() === city.toLowerCase());
+
+  if (rows.length === 0 && !category && !city) {
+    res.json(MOCK_SERVICES); return;
+  }
 
   const userIds = [...new Set(rows.map((r) => r.providerId))];
   const providers = userIds.length > 0

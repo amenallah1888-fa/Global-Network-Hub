@@ -24,6 +24,13 @@ import type { Pitch, User } from "@workspace/api-client-react";
 
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : "";
 
+const VALIDATOR_BLOCKS = [
+  { key: "identity", label: "Identity / LinkedIn", description: "Verified LinkedIn profile or official identity document confirming the founder's real-world identity.", icon: "user-check", points: 25 },
+  { key: "reality", label: "Proof of Reality", description: "Video demo, live product, or working prototype proving the project is real and functional.", icon: "play-circle", points: 25 },
+  { key: "roadmap", label: "Roadmap / Vision", description: "Published roadmap, timeline, or development plan showing a credible path to completion.", icon: "map", points: 25 },
+  { key: "portfolio", label: "Portfolio / Experience", description: "Past work, references, or team credentials demonstrating the ability to deliver.", icon: "briefcase", points: 25 },
+] as const;
+
 type PitchUpdate = { id: string; pitchId: string; authorId: string; content: string; createdAt: string };
 type Supporter = { id: string; name: string; avatarKey: string | null; handle: string };
 type Milestone = { id: string; pitchId: string; proposalId: string; title: string; description: string; percentageOfFunds: number; status: string; proofUrl: string | null; completedAt: string | null; order: number };
@@ -62,6 +69,7 @@ export default function PitchDetailScreen() {
   const [submittingProof, setSubmittingProof] = useState<string | null>(null);
   const [newDocUrl, setNewDocUrl] = useState("");
   const [addingDoc, setAddingDoc] = useState(false);
+  const [validatingBlock, setValidatingBlock] = useState<string | null>(null);
 
   const { data: pitch, isLoading } = useQuery<PitchDetail>({
     queryKey: [`/api/pitches/${id}`],
@@ -180,6 +188,22 @@ export default function PitchDetailScreen() {
         } catch { Alert.alert("Error", "Could not verify milestone"); }
       }},
     ]);
+  };
+
+  const handleValidateBlock = async (block: string, action: "approve" | "reject") => {
+    setValidatingBlock(block + "_" + action);
+    try {
+      const res = await fetch(`${API_BASE}/api/pitches/${id}/validate-block`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ block, action }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? "Failed"); }
+      const data = await res.json();
+      qc.invalidateQueries({ queryKey: [`/api/pitches/${id}`] });
+      qc.invalidateQueries({ queryKey: ["/api/pitches"] });
+      if (data.migrated) Alert.alert("Auto-Migrated!", `"${pitch?.title}" reached 100% trust and has been published to the Ecosystem!`);
+    } catch (err: any) { Alert.alert("Error", err.message ?? "Validation failed"); } finally { setValidatingBlock(null); }
   };
 
   const handleAddDocument = async () => {
@@ -451,23 +475,73 @@ export default function PitchDetailScreen() {
                     </View>
                   </View>
 
-                  {pitch.trustScore !== undefined && (
-                    <View style={[styles.trustCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                      <Text style={[styles.trustTitle, { color: colors.foreground }]}>Trust Score</Text>
-                      <View style={styles.trustRow}>
-                        <View style={[styles.trustBar, { backgroundColor: colors.border }]}>
-                          <View style={[styles.trustFill, { width: `${pitch.trustScore}%` as any, backgroundColor: pitch.trustScore >= 70 ? "#22C55E" : pitch.trustScore >= 40 ? "#F59E0B" : "#EF4444" }]} />
-                        </View>
-                        <Text style={[styles.trustScore, { color: colors.foreground }]}>{pitch.trustScore}/100</Text>
+                  <View style={[styles.trustCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <Text style={[styles.trustTitle, { color: colors.foreground }]}>Cumulative Trust Score</Text>
+                    <View style={styles.trustRow}>
+                      <View style={[styles.trustBar, { backgroundColor: colors.border }]}>
+                        <View style={[styles.trustFill, { width: `${pitch.trustScore ?? 0}%` as any, backgroundColor: (pitch.trustScore ?? 0) >= 100 ? "#22C55E" : (pitch.trustScore ?? 0) >= 50 ? "#F59E0B" : "#EF4444" }]} />
                       </View>
-                      <View style={styles.trustChecks}>
-                        <TrustCheck label="Proof of Reality" done={!!pitch.proofOfRealityUrl} colors={colors} />
-                        <TrustCheck label="Founder LinkedIn" done={!!pitch.founderLinkedin} colors={colors} />
-                        <TrustCheck label="Roadmap" done={!!pitch.roadmapUrl} colors={colors} />
-                        <TrustCheck label="Portfolio" done={!!pitch.portfolioUrl} colors={colors} />
-                      </View>
+                      <Text style={[styles.trustScore, { color: colors.foreground }]}>{pitch.trustScore ?? 0}/100</Text>
                     </View>
-                  )}
+                    <Text style={[styles.trustCheckLabel, { color: colors.mutedForeground, fontSize: 11 }]}>
+                      Each of the 4 validation blocks contributes +25% when approved by a Validator or Admin.
+                    </Text>
+                    {(pitch.trustScore ?? 0) >= 100 && (
+                      <View style={[styles.trustCheck, { backgroundColor: "#22C55E12", borderRadius: 8, padding: 8, marginTop: 4 }]}>
+                        <Feather name="check-circle" size={14} color="#22C55E" />
+                        <Text style={[styles.trustCheckLabel, { color: "#22C55E", fontFamily: "Inter_700Bold" }]}>100% — Auto-migrated to the Ecosystem!</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {VALIDATOR_BLOCKS.map(block => {
+                    const approvals: Record<string, string> = (pitch as any).validatorApprovals ?? {};
+                    const blockStatus = approvals[block.key];
+                    const approved = blockStatus === "approve";
+                    const rejected = blockStatus === "reject";
+                    const isValidator = user?.role === "validator" || user?.role === "admin";
+                    const bColor = approved ? "#22C55E" : rejected ? "#EF4444" : "#F59E0B";
+                    const bLabel = approved ? "Approved +25%" : rejected ? "Rejected" : "Pending Review";
+                    const isProcessing = validatingBlock?.startsWith(block.key + "_");
+                    return (
+                      <View key={block.key} style={[styles.milestoneCard, { backgroundColor: colors.card, borderColor: approved ? "#22C55E40" : colors.border, borderLeftWidth: 3, borderLeftColor: bColor }]}>
+                        <View style={styles.milestoneHeader}>
+                          <View style={[styles.milestoneNum, { backgroundColor: bColor + "18", borderColor: bColor }]}>
+                            <Feather name={block.icon as any} size={14} color={bColor} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.milestoneTitle, { color: colors.foreground }]}>{block.label}</Text>
+                            <Text style={[styles.milestoneMeta, { color: colors.mutedForeground }]}>+{block.points}% on approval</Text>
+                          </View>
+                          <View style={[styles.statusChip, { backgroundColor: bColor + "18", borderColor: bColor }]}>
+                            <Text style={[styles.statusChipText, { color: bColor }]}>{bLabel}</Text>
+                          </View>
+                        </View>
+                        <Text style={[styles.milestoneDesc, { color: colors.mutedForeground }]}>{block.description}</Text>
+                        {isValidator && !approved && (
+                          <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+                            <Pressable
+                              onPress={() => handleValidateBlock(block.key, "reject")}
+                              disabled={!!validatingBlock}
+                              style={({ pressed }) => [styles.verifyBtn, { backgroundColor: "#EF444418", borderWidth: 1, borderColor: "#EF4444", flex: 1, opacity: pressed || !!validatingBlock ? 0.7 : 1 }]}
+                            >
+                              {isProcessing && validatingBlock?.endsWith("_reject") ? <ActivityIndicator size="small" color="#EF4444" /> : <><Feather name="x-circle" size={13} color="#EF4444" /><Text style={[styles.verifyBtnText, { color: "#EF4444" }]}>Reject</Text></>}
+                            </Pressable>
+                            <Pressable
+                              onPress={() => handleValidateBlock(block.key, "approve")}
+                              disabled={!!validatingBlock}
+                              style={({ pressed }) => [styles.verifyBtn, { backgroundColor: "#22C55E", flex: 2, opacity: pressed || !!validatingBlock ? 0.7 : 1 }]}
+                            >
+                              {isProcessing && validatingBlock?.endsWith("_approve") ? <ActivityIndicator size="small" color="#fff" /> : <><Feather name="check-circle" size={13} color="#fff" /><Text style={styles.verifyBtnText}>Approve +{block.points}%</Text></>}
+                            </Pressable>
+                          </View>
+                        )}
+                        {!isValidator && !approved && !rejected && (
+                          <Text style={[styles.milestoneDesc, { color: colors.mutedForeground, fontStyle: "italic", marginTop: 6 }]}>Awaiting Validator review</Text>
+                        )}
+                      </View>
+                    );
+                  })}
 
                   <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Submitted Documents</Text>
                   <View style={[styles.updatesCard, { backgroundColor: colors.card, borderColor: colors.border }]}>

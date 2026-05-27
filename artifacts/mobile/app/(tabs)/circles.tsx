@@ -191,7 +191,7 @@ function CreateCircleSheet({
                 borderColor: isPaid ? colors.primary : colors.border,
               }]}
             >
-              <Feather name="dollar-sign" size={13} color={isPaid ? colors.primaryForeground : colors.foreground} />
+              <Text style={{ fontSize: 13, color: isPaid ? colors.primaryForeground : colors.foreground, fontFamily: "Inter_700Bold" }}>π</Text>
               <Text style={[sheet.typeText, { color: isPaid ? colors.primaryForeground : colors.foreground }]}>Paid</Text>
             </Pressable>
           </View>

@@ -61,7 +61,7 @@ export function TipSheet({ visible, authorName, onClose, onTip }: Props) {
                 { backgroundColor: colors.tip + "20" },
               ]}
             >
-              <Feather name="dollar-sign" size={18} color={colors.tip} />
+              <Text style={{ fontSize: 18, color: colors.tip, fontFamily: "Inter_700Bold" }}>π</Text>
             </View>
             <Text style={[styles.title, { color: colors.foreground }]}>
               Send a tip

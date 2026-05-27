@@ -343,7 +343,7 @@ export function PostCard({ post, hidden: hiddenProp = false }: { post: Post; hid
           onPress={onLike}
         />
         <Action
-          icon="dollar-sign"
+          icon="zap"
           value={post.tipsTotal > 0 ? formatNumber(post.tipsTotal) + " π" : "Tip"}
           color={post.tipsTotal > 0 ? colors.tip : colors.mutedForeground}
           onPress={() => setTipOpen(true)}

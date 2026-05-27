@@ -32,7 +32,7 @@ type Props = {
 const ICON: Record<string, keyof typeof Feather.glyphMap> = {
   like: "heart",
   retweet: "repeat",
-  tip: "dollar-sign",
+  tip: "zap",
   follow: "user-plus",
   circle_join: "users",
   circle_invite: "lock",

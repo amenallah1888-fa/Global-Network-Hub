@@ -1,0 +1,20 @@
+Act as a Lead Software Architect. We need to finalize the 'HumanVerse' app structure to mirror the Pi Network Ecosystem flow. Please execute the following technical requirements based on our updated structural discussion:
+
+1. **Pi Network Submission & Voting Pipeline:**
+   - Add a 'Submit Project' form component in the user dashboard/profile where creators can input their app title, description, domain link, and category (App or Service).
+   - Newly submitted items must initially appear ONLY in the 'Pitches' tab as an 'IDEA - Pending Verification'.
+
+2. **Role-Based Validator Logic & Trust Score Weighting:**
+   - When a creator uploads documents/proofs (e.g., LinkedIn, Proof of Reality, Roadmap), the project's Trust Score does NOT increase automatically.
+   - The 'Verification' tab must render 'Approve' and 'Reject' buttons ONLY for users with 'VALIDATOR' or 'ADMIN' roles.
+   - Every time a Validator/Admin approves a submitted proof or section, it adds a specific, incremental percentage to the cumulative Trust Score (e.g., +25% per validated block). Add a clear UI breakdown displaying how this score is calculated.
+
+3. **Auto-Migration Trigger:**
+   - Implement the deployment automation logic: Monitor the Trust Score. Once the continuous approvals from Validators drive the project's Trust Score to exactly 100%, trigger an automatic state change.
+   - The project status must automatically transition to 'VERIFIED', and the system must instantly move/publish this project to appear live inside the main 'Apps' or 'Services' tab so all users can see it.
+
+4. **UI/UX Consistency (Currency Fix) & Data Population:**
+   - Perform a global search and replace across all views, components, forms, input boxes, and tipping modals: STRIKE OUT all Dollar ($) signs. REPLACE them strictly with the Pi (\pi) symbol or 'Pi' text. The entire application must be entirely Pi-centric.
+   - Populate the empty 'Services' and 'Apps' screens with high-quality mock data of pre-verified projects to demonstrate the finalized UI.
+
+Please rebuild the backend triggers, API state handlers, and UI wrappers to seamlessly deploy this ecosystem.

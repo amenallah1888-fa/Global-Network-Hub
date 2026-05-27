@@ -10,6 +10,7 @@ export type AuthUser = {
   handle: string;
   name: string;
   avatarKey: string;
+  role?: string;
 };
 
 type AuthCtx = {

@@ -15,6 +15,7 @@ export const usersTable = pgTable("users", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   passwordHash: text("password_hash"),
   piUid: text("pi_uid").unique(),
+  role: text("role").notNull().default("user"),
 });
 
 export type User = typeof usersTable.$inferSelect;

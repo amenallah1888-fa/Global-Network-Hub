@@ -33,11 +33,19 @@ function uid() {
   return `app_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
+const MOCK_APPS = [
+  { id: "mock_app_1", name: "Pi Exchange", tagline: "Trade Pi seamlessly with peers", description: "A decentralized peer-to-peer exchange built natively on the Pi Network. Swap Pi for goods, services, and other digital assets with zero fees.", platform: "Both", category: "DeFi", verifiedLink: "pinetwork://exchange", logoUrl: null, securityScore: 98, submissionStatus: "approved", submittedBy: "system", createdAt: new Date().toISOString() },
+  { id: "mock_app_2", name: "PiMart", tagline: "Shop with Pi — the Pi-native marketplace", description: "Browse thousands of verified products and services. Pay exclusively with Pi. Sellers are KYC-verified through the Pi Network.", platform: "Mobile", category: "Commerce", verifiedLink: "pinetwork://pimart", logoUrl: null, securityScore: 95, submissionStatus: "approved", submittedBy: "system", createdAt: new Date().toISOString() },
+  { id: "mock_app_3", name: "OasisLearn", tagline: "Education powered by Pi", description: "Access thousands of courses, workshops, and live coaching sessions. Instructors earn Pi directly from students. Knowledge democratized.", platform: "Both", category: "Education", verifiedLink: "pinetwork://oasislearn", logoUrl: null, securityScore: 92, submissionStatus: "approved", submittedBy: "system", createdAt: new Date().toISOString() },
+  { id: "mock_app_4", name: "Pi Health", tagline: "Book doctors, pay in Pi", description: "Connect with licensed healthcare professionals worldwide. Schedule consultations, access digital prescriptions, and pay entirely in Pi.", platform: "Mobile", category: "Health", verifiedLink: "https://pi-apps.io", logoUrl: null, securityScore: 90, submissionStatus: "approved", submittedBy: "system", createdAt: new Date().toISOString() },
+  { id: "mock_app_5", name: "PiMap Pro", tagline: "Navigate and earn Pi", description: "Community-powered mapping that rewards contributors with Pi for adding verified locations, reporting road conditions, and helping others navigate.", platform: "Mobile", category: "Navigation", verifiedLink: "https://mapping.pi", logoUrl: null, securityScore: 88, submissionStatus: "approved", submittedBy: "system", createdAt: new Date().toISOString() },
+];
+
 router.get("/apps", async (_req, res): Promise<void> => {
   const apps = await db.select().from(appDirectoryTable)
     .where(eq(appDirectoryTable.submissionStatus, "approved"))
     .orderBy(desc(appDirectoryTable.securityScore), desc(appDirectoryTable.createdAt));
-  res.json(apps);
+  res.json(apps.length > 0 ? apps : MOCK_APPS);
 });
 
 router.post("/apps", async (req, res): Promise<void> => {

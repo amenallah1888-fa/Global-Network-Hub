@@ -29,10 +29,27 @@ type AdminTab = "documents" | "projects";
 export default function AdminScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { token } = useAuth();
+  const { token, user, setSession } = useAuth();
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState<AdminTab>("documents");
   const [processing, setProcessing] = useState<string | null>(null);
+  const [promotingValidator, setPromotingValidator] = useState(false);
+
+  const isValidator = user?.role === "validator" || user?.role === "admin";
+
+  const becomeValidator = async () => {
+    setPromotingValidator(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/promote-validator`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed");
+      const updated = await res.json();
+      setSession(token!, { ...user!, role: updated.role });
+      Alert.alert("Validator Mode Activated!", "You can now approve or reject trust blocks on any project's Verification tab.");
+    } catch { Alert.alert("Error", "Could not activate validator mode"); } finally { setPromotingValidator(false); }
+  };
 
   const { data, isLoading, refetch } = useQuery<{ documents: PendingDoc[]; pitches: PendingPitch[] }>({
     queryKey: ["/api/admin/pending"],
@@ -120,6 +137,36 @@ export default function AdminScreen() {
         <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
       ) : (
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} showsVerticalScrollIndicator={false}>
+          <View style={[styles.validatorCard, { backgroundColor: isValidator ? "#22C55E12" : colors.card, borderColor: isValidator ? "#22C55E40" : colors.border }]}>
+            <View style={styles.validatorCardRow}>
+              <View style={[styles.validatorIcon, { backgroundColor: isValidator ? "#22C55E18" : colors.cardElevated }]}>
+                <Feather name="shield" size={20} color={isValidator ? "#22C55E" : colors.mutedForeground} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.validatorTitle, { color: colors.foreground }]}>
+                  {isValidator ? "Validator Mode Active" : "Activate Validator Mode"}
+                </Text>
+                <Text style={[styles.validatorSub, { color: colors.mutedForeground }]}>
+                  {isValidator ? "You can approve or reject trust blocks on any project's Verification tab." : "Enables block-by-block approval of projects. Each block adds +25% trust score."}
+                </Text>
+              </View>
+            </View>
+            {!isValidator && (
+              <Pressable
+                onPress={becomeValidator}
+                disabled={promotingValidator}
+                style={({ pressed }) => [styles.validatorBtn, { backgroundColor: colors.primary, opacity: pressed || promotingValidator ? 0.7 : 1 }]}
+              >
+                {promotingValidator ? <ActivityIndicator size="small" color="#fff" /> : <><Feather name="shield" size={14} color="#fff" /><Text style={styles.validatorBtnText}>Become a Validator</Text></>}
+              </Pressable>
+            )}
+            {isValidator && (
+              <View style={[styles.validatorRoleBadge, { backgroundColor: "#22C55E18", borderColor: "#22C55E40" }]}>
+                <Feather name="check-circle" size={12} color="#22C55E" />
+                <Text style={[styles.validatorRoleText, { color: "#22C55E" }]}>Role: {user?.role?.toUpperCase()}</Text>
+              </View>
+            )}
+          </View>
           {activeTab === "documents" && (
             docs.length === 0 ? (
               <View style={styles.emptyBox}>
@@ -267,4 +314,13 @@ const styles = StyleSheet.create({
   pitchStat: { flexDirection: "row", alignItems: "center", gap: 5 },
   pitchStatText: { fontSize: 12, fontFamily: "Inter_500Medium" },
   pitchActions: { flexDirection: "row", gap: 8 },
+  validatorCard: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 16, gap: 12 },
+  validatorCardRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  validatorIcon: { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  validatorTitle: { fontSize: 15, fontFamily: "Inter_700Bold", marginBottom: 3 },
+  validatorSub: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  validatorBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 12, paddingVertical: 12 },
+  validatorBtnText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" },
+  validatorRoleBadge: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 20, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 6, alignSelf: "flex-start" },
+  validatorRoleText: { fontSize: 11, fontFamily: "Inter_700Bold" },
 });

@@ -356,10 +356,10 @@ export function PitchComposerSheet({ visible, onClose }: Props) {
                 />
               </Field>
 
-              <Field label="Funding goal (USD)" colors={colors}>
+              <Field label="Funding goal (Pi)" colors={colors}>
                 <View style={styles.amountRow}>
                   <Text style={[styles.dollar, { color: colors.foreground }]}>
-                    $
+                    π
                   </Text>
                   <TextInput
                     value={raisingStr}

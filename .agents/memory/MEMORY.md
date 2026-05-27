@@ -1,3 +1,6 @@
 - [Escrow & Milestone Architecture](escrow-milestones.md) — Smart agreements use DRAFT→LOCKED_IN_ESCROW→ACTIVE; milestones use locked→pending_proof→released. API endpoints for pitch milestones/docs/verify all now exist.
 - [New screens registered in _layout.tsx](new-screens.md) — my-campaigns and admin screens registered; accessible from profile Quick Actions grid.
 - [API Base URL pattern](api-base.md) — All mobile API calls use `process.env.EXPO_PUBLIC_DOMAIN` → `https://${domain}` prefix; never localhost or relative paths.
+- [Validator Trust Pipeline](validator-trust-pipeline.md) — 4 blocks (identity/reality/roadmap/portfolio), +25% each, stored in pitches.trustScore + validatorApprovals JSON col; auto-migrates to ecosystem at 100%.
+- [Pi Currency Convention](pi-currency.md) — All $ signs replaced with π throughout app; dollar-sign Feather icons replaced with "zap" or π Text nodes.
+- [Role System](role-system.md) — users.role ("user"/"validator"/"admin"); PATCH /auth/promote-validator for demo self-promotion; Admin screen has Become Validator card.

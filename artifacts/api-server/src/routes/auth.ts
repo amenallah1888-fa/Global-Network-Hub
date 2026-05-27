@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { db, usersTable } from "@workspace/db";
 import { signToken } from "../lib/auth";
+import { currentUserId } from "../lib/currentUser";
 
 const router: IRouter = Router();
 
@@ -118,6 +119,13 @@ router.post("/auth/pi", async (req, res): Promise<void> => {
 
   const token = signToken(user.id);
   res.json({ token, user: { ...user, following: false } });
+});
+
+router.patch("/auth/promote-validator", async (req, res): Promise<void> => {
+  const meId = currentUserId(req);
+  await db.update(usersTable).set({ role: "validator" }).where(eq(usersTable.id, meId));
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, meId));
+  res.json({ ...user });
 });
 
 export default router;
