@@ -6,10 +6,12 @@ import {
   ActivityIndicator,
   FlatList,
   Linking,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { router } from "expo-router";
@@ -70,6 +72,139 @@ const CAT_COLORS: Record<string, string> = {
   Development: "#6366F1", Design: "#EC4899", Marketing: "#F59E0B",
   Logistics: "#10B981", Legal: "#8B5CF6", Copywriting: "#0EA5E9", Finance: "#14B8A6",
 };
+
+const DAPP_CATEGORIES = ["DeFi", "NFT", "Gaming", "Social", "Commerce", "Utility", "Other"];
+
+function DAppSubmitSheet({ visible, onClose, onSubmitted }: { visible: boolean; onClose: () => void; onSubmitted: () => void }) {
+  const colors = useColors();
+  const { token } = useAuth();
+  const [name, setName] = useState("");
+  const [tagline, setTagline] = useState("");
+  const [description, setDescription] = useState("");
+  const [verifiedLink, setVerifiedLink] = useState("");
+  const [category, setCategory] = useState("Utility");
+  const [platform, setPlatform] = useState("Web");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const reset = () => { setName(""); setTagline(""); setDescription(""); setVerifiedLink(""); setCategory("Utility"); setPlatform("Web"); setError(""); };
+  const handleClose = () => { reset(); onClose(); };
+
+  const handleSubmit = async () => {
+    if (!name.trim()) { setError("App name is required."); return; }
+    if (!verifiedLink.trim()) { setError("Verified app link is required."); return; }
+    setError(""); setSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/pitches`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: name.trim(),
+          summary: tagline.trim() || description.trim(),
+          description: description.trim(),
+          entityType: "app",
+          platform,
+          category,
+          verifiedLink: verifiedLink.trim(),
+          trustScore: 0,
+          stage: "App",
+          industry: category,
+          raising: 0,
+          city: "",
+        }),
+      });
+      if (!res.ok) { const b = await res.json(); setError(b.error ?? "Submission failed."); return; }
+      reset(); onSubmitted();
+    } catch { setError("Network error. Please try again."); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+      <View style={daSt.backdrop}>
+        <Pressable style={daSt.overlayHit} onPress={handleClose} />
+        <View style={[daSt.sheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={daSt.handle} />
+          <View style={[daSt.header, { borderBottomColor: colors.border }]}>
+            <View style={[daSt.iconWrap, { backgroundColor: colors.primary + "18" }]}>
+              <Feather name="upload" size={16} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[daSt.title, { color: colors.foreground }]}>Submit a DApp</Text>
+              <Text style={[daSt.sub, { color: colors.mutedForeground }]}>Pi ecosystem app · reviewed before listing</Text>
+            </View>
+            <Pressable onPress={handleClose} hitSlop={10}><Feather name="x" size={20} color={colors.mutedForeground} /></Pressable>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+            {[
+              { label: "App Name *", value: name, set: setName, placeholder: "My Pi App" },
+              { label: "Tagline", value: tagline, set: setTagline, placeholder: "One-line description" },
+              { label: "Verified Link *", value: verifiedLink, set: setVerifiedLink, placeholder: "https://minepi.com/app/..." },
+            ].map(({ label, value, set, placeholder }) => (
+              <View key={label} style={daSt.fieldWrap}>
+                <Text style={[daSt.label, { color: colors.mutedForeground }]}>{label}</Text>
+                <TextInput
+                  value={value} onChangeText={set} placeholder={placeholder}
+                  placeholderTextColor={colors.mutedForeground}
+                  style={[daSt.input, { color: colors.foreground, backgroundColor: colors.background, borderColor: colors.border }]}
+                />
+              </View>
+            ))}
+            <View style={daSt.fieldWrap}>
+              <Text style={[daSt.label, { color: colors.mutedForeground }]}>Description</Text>
+              <TextInput
+                value={description} onChangeText={setDescription} placeholder="What does your app do?" multiline
+                placeholderTextColor={colors.mutedForeground}
+                style={[daSt.textarea, { color: colors.foreground, backgroundColor: colors.background, borderColor: colors.border }]}
+              />
+            </View>
+            <View style={daSt.fieldWrap}>
+              <Text style={[daSt.label, { color: colors.mutedForeground }]}>Category</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
+                {DAPP_CATEGORIES.map((c) => (
+                  <Pressable key={c} onPress={() => setCategory(c)} style={[daSt.chip, { backgroundColor: category === c ? colors.primary : colors.cardElevated, borderColor: category === c ? colors.primary : colors.border }]}>
+                    <Text style={{ color: category === c ? "#fff" : colors.foreground, fontSize: 12, fontFamily: "Inter_600SemiBold" }}>{c}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+            {error ? (
+              <View style={[daSt.error, { backgroundColor: "#EF444415", borderColor: "#EF4444" }]}>
+                <Feather name="alert-circle" size={12} color="#EF4444" />
+                <Text style={{ color: "#EF4444", fontSize: 12, fontFamily: "Inter_500Medium", flex: 1 }}>{error}</Text>
+              </View>
+            ) : null}
+            <Pressable
+              onPress={handleSubmit} disabled={submitting}
+              style={({ pressed }) => [daSt.btn, { backgroundColor: colors.primary, opacity: pressed || submitting ? 0.8 : 1 }]}
+            >
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={daSt.btnText}>Submit for Review</Text>}
+            </Pressable>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const daSt = StyleSheet.create({
+  backdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.55)" },
+  overlayHit: { ...StyleSheet.absoluteFillObject },
+  sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderBottomWidth: 0, maxHeight: "90%" },
+  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: "#ccc", alignSelf: "center", marginTop: 12, marginBottom: 4 },
+  header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1 },
+  iconWrap: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  sub: { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 1 },
+  fieldWrap: { gap: 6 },
+  label: { fontSize: 11, fontFamily: "Inter_700Bold", letterSpacing: 0.3 },
+  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: "Inter_400Regular" },
+  textarea: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: "Inter_400Regular", minHeight: 70, textAlignVertical: "top" },
+  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1 },
+  error: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 10, borderWidth: 1 },
+  btn: { borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 4, marginBottom: 20 },
+  btnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" },
+});
 
 function ServiceCard({ service }: { service: ServiceApp }) {
   const colors = useColors();
@@ -235,6 +370,7 @@ export default function PitchesScreen() {
   const [composerOpen, setComposerOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<HubFilters>(EMPTY_FILTERS);
+  const [dappSubmitOpen, setDappSubmitOpen] = useState(false);
 
   const { data: pitches, isLoading: pitchesLoading } = useListPitches();
   const { data: services, isLoading: servicesLoading } = useQuery<ServiceApp[]>({
@@ -247,7 +383,7 @@ export default function PitchesScreen() {
     staleTime: 30_000,
     enabled: !!token,
   });
-  const { data: apps, isLoading: appsLoading } = useQuery<DApp[]>({
+  const { data: apps, isLoading: appsLoading, refetch: appsRefetch } = useQuery<DApp[]>({
     queryKey: ["/api/apps"],
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/api/apps`, { headers: { Authorization: `Bearer ${token}` } });
@@ -436,6 +572,10 @@ export default function PitchesScreen() {
                   <Text style={[styles.appsHeroTitle, { color: colors.foreground }]}>Pi Ecosystem Apps</Text>
                   <Text style={[styles.appsHeroSub, { color: colors.mutedForeground }]}>{appList.length} verified DApps on Pi Network</Text>
                 </View>
+                <Pressable onPress={() => setDappSubmitOpen(true)} style={({ pressed }) => [styles.heroBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}>
+                  <Feather name="upload" size={13} color="#fff" />
+                  <Text style={[styles.heroBtnText, { color: "#fff", fontSize: 12 }]}>Submit App</Text>
+                </Pressable>
               </View>
               <View style={[styles.securityNote, { backgroundColor: colors.success + "10", borderColor: colors.success + "30" }]}>
                 <Feather name="shield" size={13} color={colors.success} />
@@ -455,6 +595,13 @@ export default function PitchesScreen() {
                 <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
                   Pi ecosystem DApps are reviewed before listing. Check back soon.
                 </Text>
+                <Pressable
+                  onPress={() => setDappSubmitOpen(true)}
+                  style={({ pressed }) => [styles.heroBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1, marginTop: 8 }]}
+                >
+                  <Feather name="upload" size={14} color="#fff" />
+                  <Text style={[styles.heroBtnText, { color: "#fff" }]}>Submit Your App</Text>
+                </Pressable>
               </View>
             )
           }
@@ -465,6 +612,7 @@ export default function PitchesScreen() {
 
       <PitchComposerSheet visible={composerOpen} onClose={() => setComposerOpen(false)} />
       <HubFiltersSheet visible={filtersOpen} initial={filters} onApply={setFilters} onClose={() => setFiltersOpen(false)} />
+      <DAppSubmitSheet visible={dappSubmitOpen} onClose={() => setDappSubmitOpen(false)} onSubmitted={() => { setDappSubmitOpen(false); appsRefetch(); }} />
     </View>
   );
 }

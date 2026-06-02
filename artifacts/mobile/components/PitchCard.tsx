@@ -3,7 +3,7 @@ import {
   getListPitchesQueryKey,
 } from "@workspace/api-client-react";
 import type { Pitch } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useState } from "react";
 import {
@@ -260,6 +260,125 @@ function InvestmentOfferModal({
   );
 }
 
+function MemoModal({ visible, pitchId, pitchTitle, onClose }: { visible: boolean; pitchId: string; pitchTitle: string; onClose: () => void }) {
+  const colors = useColors();
+  const { token } = useAuth();
+  const { data, isLoading, isError } = useQuery<any>({
+    queryKey: [`/api/pitches/${pitchId}/memo`],
+    queryFn: async () => {
+      const [pitchRes, docsRes] = await Promise.all([
+        fetch(`${API_BASE}/api/pitches/${pitchId}`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_BASE}/api/pitches/${pitchId}/documents`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      const pitch = pitchRes.ok ? await pitchRes.json() : null;
+      const docs = docsRes.ok ? await docsRes.json() : [];
+      return { pitch, docs };
+    },
+    enabled: visible && !!token,
+    staleTime: 30_000,
+  });
+
+  const pitch = data?.pitch;
+  const docs: any[] = data?.docs ?? [];
+  const approvals: Record<string, string> = pitch?.validatorApprovals ?? {};
+  const approvedCount = Object.values(approvals).filter(v => v === "approve").length;
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={memo.backdrop}>
+        <Pressable style={memo.overlay} onPress={onClose} />
+        <View style={[memo.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={memo.handle} />
+          <View style={[memo.header, { borderBottomColor: colors.border }]}>
+            <View style={[memo.iconWrap, { backgroundColor: colors.primary + "18" }]}>
+              <Feather name="file-text" size={16} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[memo.title, { color: colors.foreground }]} numberOfLines={1}>{pitchTitle}</Text>
+              <Text style={[memo.subtitle, { color: colors.mutedForeground }]}>Project Memo</Text>
+            </View>
+            <Pressable onPress={onClose} hitSlop={10}>
+              <Feather name="x" size={20} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+
+          {isLoading ? (
+            <View style={memo.center}><ActivityIndicator color={colors.primary} /></View>
+          ) : isError || !pitch ? (
+            <View style={memo.center}><Text style={[memo.errorText, { color: colors.mutedForeground }]}>Could not load memo.</Text></View>
+          ) : (
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
+              <View style={[memo.trustBar, { backgroundColor: colors.cardElevated }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[memo.trustLabel, { color: colors.mutedForeground }]}>TRUST SCORE</Text>
+                  <Text style={[memo.trustValue, { color: pitch.trustScore >= 70 ? colors.success : pitch.trustScore >= 40 ? colors.tip : colors.foreground }]}>
+                    {pitch.trustScore ?? 0}%
+                  </Text>
+                </View>
+                <View style={[memo.trustFillWrap, { backgroundColor: colors.border }]}>
+                  <View style={[memo.trustFill, {
+                    width: `${pitch.trustScore ?? 0}%` as any,
+                    backgroundColor: pitch.trustScore >= 70 ? colors.success : pitch.trustScore >= 40 ? colors.tip : "#EF4444",
+                  }]} />
+                </View>
+                <Text style={[memo.validatorNote, { color: colors.mutedForeground }]}>{approvedCount}/4 approved</Text>
+              </View>
+
+              <View style={[memo.section, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Text style={[memo.sectionLabel, { color: colors.mutedForeground }]}>SUMMARY</Text>
+                <Text style={[memo.bodyText, { color: colors.foreground }]}>{pitch.summary}</Text>
+              </View>
+
+              <View style={[memo.section, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Text style={[memo.sectionLabel, { color: colors.mutedForeground }]}>VALIDATOR APPROVALS</Text>
+                {(["identity", "reality", "roadmap", "portfolio"] as const).map((block) => {
+                  const state = approvals[block];
+                  const icon: any = state === "approve" ? "check-circle" : state === "reject" ? "x-circle" : "circle";
+                  const col = state === "approve" ? colors.success : state === "reject" ? "#EF4444" : colors.mutedForeground;
+                  const labels: Record<string, string> = { identity: "Identity Review", reality: "Proof of Reality", roadmap: "Roadmap / Vision", portfolio: "Portfolio / Experience" };
+                  return (
+                    <View key={block} style={[memo.blockRow, { borderTopColor: colors.border }]}>
+                      <Feather name={icon} size={15} color={col} />
+                      <Text style={[memo.blockLabel, { color: colors.foreground }]}>{labels[block]}</Text>
+                      <Text style={[memo.blockState, { color: col }]}>{state === "approve" ? "+25%" : state === "reject" ? "Rejected" : "Pending"}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+
+              {docs.length > 0 && (
+                <View style={[memo.section, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Text style={[memo.sectionLabel, { color: colors.mutedForeground }]}>SUBMITTED DOCUMENTS</Text>
+                  {docs.map((doc: any) => (
+                    <View key={doc.id} style={[memo.docRow, { borderTopColor: colors.border }]}>
+                      <Feather name="link" size={13} color={colors.primary} />
+                      <Text style={[memo.docType, { color: colors.mutedForeground }]}>{doc.documentType}</Text>
+                      <Text style={[memo.docStatus, { color: doc.status === "APPROVED" ? colors.success : colors.mutedForeground }]}>{doc.status}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              <View style={[memo.metaRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                {[
+                  { label: "Stage", value: pitch.stage },
+                  { label: "Industry", value: pitch.industry },
+                  { label: "City", value: pitch.city },
+                ].map((item) => (
+                  <View key={item.label} style={memo.metaItem}>
+                    <Text style={[memo.metaLabel, { color: colors.mutedForeground }]}>{item.label}</Text>
+                    <Text style={[memo.metaValue, { color: colors.foreground }]}>{item.value}</Text>
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export function PitchCard({ pitch }: { pitch: Pitch }) {
   const colors = useColors();
   const currentUserId = useCurrentUserId();
@@ -268,6 +387,7 @@ export function PitchCard({ pitch }: { pitch: Pitch }) {
   const pct = Math.min(100, Math.round((pitch.raised / pitch.raising) * 100));
   const cover = getImage(pitch.coverKey);
   const [offerOpen, setOfferOpen] = useState(false);
+  const [memoOpen, setMemoOpen] = useState(false);
 
   return (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -326,9 +446,10 @@ export function PitchCard({ pitch }: { pitch: Pitch }) {
           </Pressable>
         ) : (
           <Pressable
+            onPress={() => setMemoOpen(true)}
             style={({ pressed }) => [styles.secondaryBtn, { backgroundColor: colors.cardElevated, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
           >
-            <Feather name="eye" size={14} color={colors.foreground} />
+            <Feather name="file-text" size={14} color={colors.foreground} />
             <Text style={[styles.secondaryText, { color: colors.foreground }]}>Memo</Text>
           </Pressable>
         )}
@@ -359,6 +480,12 @@ export function PitchCard({ pitch }: { pitch: Pitch }) {
           setOfferOpen(false);
           queryClient.invalidateQueries({ queryKey: getListPitchesQueryKey() });
         }}
+      />
+      <MemoModal
+        visible={memoOpen}
+        pitchId={pitch.id}
+        pitchTitle={pitch.title}
+        onClose={() => setMemoOpen(false)}
       />
     </View>
   );
@@ -398,6 +525,38 @@ const styles = StyleSheet.create({
   secondaryText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   primaryBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 12 },
   primaryText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+});
+
+const memo = StyleSheet.create({
+  backdrop: { ...StyleSheet.absoluteFillObject, justifyContent: "flex-end", zIndex: 300 },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.6)" },
+  card: { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderBottomWidth: 0, maxHeight: "90%" },
+  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: "#ccc", alignSelf: "center", marginTop: 12, marginBottom: 4 },
+  header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1 },
+  iconWrap: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 15, fontFamily: "Inter_700Bold", letterSpacing: -0.2 },
+  subtitle: { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 1 },
+  center: { height: 140, alignItems: "center", justifyContent: "center" },
+  errorText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  trustBar: { borderRadius: 16, padding: 16, gap: 8 },
+  trustLabel: { fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
+  trustValue: { fontSize: 28, fontFamily: "Inter_700Bold", letterSpacing: -1 },
+  trustFillWrap: { height: 6, borderRadius: 3, overflow: "hidden" },
+  trustFill: { height: "100%", borderRadius: 3 },
+  validatorNote: { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 4 },
+  section: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 10 },
+  sectionLabel: { fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.6 },
+  bodyText: { fontSize: 14, lineHeight: 21, fontFamily: "Inter_400Regular" },
+  blockRow: { flexDirection: "row", alignItems: "center", gap: 10, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10 },
+  blockLabel: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium" },
+  blockState: { fontSize: 12, fontFamily: "Inter_700Bold" },
+  docRow: { flexDirection: "row", alignItems: "center", gap: 8, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10 },
+  docType: { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium" },
+  docStatus: { fontSize: 11, fontFamily: "Inter_700Bold" },
+  metaRow: { borderRadius: 14, borderWidth: 1, padding: 14, flexDirection: "row" },
+  metaItem: { flex: 1, alignItems: "center" },
+  metaLabel: { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 0.4 },
+  metaValue: { fontSize: 13, fontFamily: "Inter_700Bold", marginTop: 3 },
 });
 
 const modal = StyleSheet.create({

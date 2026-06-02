@@ -1,0 +1,47 @@
+You are the Lead Full-Stack Engineer on "HumanVerse" (Oasis). Inherit the core codebase and resolve exactly 7 functional issues, integrating our strict, pre-existing Anti-Fraud & Real-Time Trust Protocols over the current architecture.
+
+### ⚙️ GLOBAL RULES:
+1. Currency: Eliminate all "$" symbols from the UI. Replace them strictly with the Pi (\pi) token symbol.
+2. Preservation: Do not alter the current UI layouts, colors, or existing directory architecture.
+3. Strict Core Anti-Fraud Protocol (The Ascension of Trust): 
+   All projects, pitches, and applications must bind directly to our cryptographic verification architecture (`project_proofs`, `milestones`, and `smart_contracts`). The Trust Score must NOT be a static entry; it is a dynamic calculus calibrated by specific reality-proof checkpoints:
+   - Base Identity Review & Pitch Registration initializes the project at 0% Trust Score under the 'Pitches' view (Status: 'IDEA').
+   - Submission of verified technical documentation, financial whitepapers, and IPFS legal links increments the score by +45%.
+   - Deployment of audited smart contract architectures and locking funds inside the secure Escrow bubble increments the score by +25%.
+   - Every independent consensus validation approval executed by verified community Validators/Oracles increments the score by +25%.
+   - Auto-Migration Trigger: Implement/maintain the backend listener. The exact moment a project's Trust Score dynamically hits 100%, an automated transaction pipeline must immediately migrate the record from the 'Pitches' catalog into the live production 'Apps' or 'Services' directory.
+
+---
+
+### [Task 1] Chat Component Update:
+- Component: components/Chat.tsx
+- Fix: Wire the message send button to issue an active POST request to `api/chat/send` carrying the text payload and recipient ID (e.g., Marcus Vale). On HTTP 200, append the message payload to the chat state array, wipe the input field string, and execute an immediate scroll-to-bottom.
+
+### [Task 2] Project Memo Modal Implementation:
+- Component: components/Hub.tsx (Pitches Tab)
+- Fix: Attach an active onClick handler to the "Memo" action button on project cards. When triggered, open a high-contrast Tailwind CSS modal window that queries and renders the verified `memo` and structural text data fields fetched directly from that project's database entity.
+
+### [Task 3] Service & App Detail Relational Fix:
+- API Routes: `api/services/[id]` and `api/pitches/[id]`
+- Bug: Directing to details triggers an infinite spinner loop due to unhandled relational query definitions.
+- Fix: Correct the Drizzle ORM query syntax and relational table joins. Ensure the endpoint payload safely yields complete metadata blocks: smart contract deployment states, IPFS cryptographic paths to legal papers, and active trust percentage scores so the UI updates and the loading spinner terminates.
+
+### [Task 4] Developer Onboarding & App Screening Form:
+- Component: components/Hub.tsx (Apps Tab)
+- Fix: Embed a clean developer submission trigger button opening our multi-field screening sheet: Application Name, Target URL/Replit Domain, Description, and the mandatory Anti-Fraud fields (IPFS Upload selectors for structural papers, and input fields for Smart Contract Source/Audited Addresses). Commit new entries into the staging table initialized at 0% Trust Score under 'Pitches' (Status: 'IDEA').
+
+### [Task 5] Circle Access Gatekeeper & Ledger Protection:
+- Component: components/Circles.tsx
+- Fix: 
+  1. Append an expandable metadata text block displaying the core Circle profiles, admin details, and creator bios to allow due diligence before joining.
+  2. Implement a critical confirmation modal on the price action button to intercept the execution thread. Trigger a dialog box warning: "Confirm Access: \pi [Amount] will be deducted from your active wallet balance. Proceed?". Fire transaction code execution only if the user clicks 'CONFIRM'.
+
+### [Task 6] Ecosystem Social Feed Relational Card:
+- Component: components/Feed.tsx
+- Fix: Map geographic location strings and active ecosystem hashtag routers. Implement a conditional render block: if a post entity references an official platform app, service, or pitch, display a nested profile utility card linking users directly to its dashboard route.
+
+### [Task 7] Profile Settings Verification Mappings:
+- Component: components/Settings.tsx
+- Fix: 
+  1. Refactor user state profile elements to query and display the active profile's tier role (User, Community Validator, Admin) alongside current KYC checklist badges.
+  2. Build a sub-section labeled "My Platform Assets" querying the database for all apps, pitches, and services belonging to the logged-in user ID, tracking active live trust percentages and verification progress.

@@ -38,6 +38,34 @@ function formatNumber(n: number) {
   return n.toString();
 }
 
+const ENTITY_TAGS: { tag: RegExp; label: string; icon: keyof typeof Feather.glyphMap; route: string; color: string }[] = [
+  { tag: /#pitch\b/i, label: "Pitch Hub", icon: "zap", route: "/(tabs)/pitches", color: "#6366F1" },
+  { tag: /#app\b/i, label: "DApp Store", icon: "cpu", route: "/(tabs)/pitches", color: "#10B981" },
+  { tag: /#service\b/i, label: "Services", icon: "grid", route: "/(tabs)/pitches", color: "#F59E0B" },
+];
+
+function PostBody({ text, colors }: { text: string; colors: ReturnType<typeof useColors> }) {
+  const matched = ENTITY_TAGS.filter(({ tag }) => tag.test(text));
+  return (
+    <View>
+      <Text style={[styles.body, { color: colors.foreground }]}>{text}</Text>
+      {matched.map(({ label, icon, route, color }) => (
+        <Pressable
+          key={label}
+          onPress={() => router.push(route as any)}
+          style={({ pressed }) => [entityCard.row, { backgroundColor: color + "12", borderColor: color + "40", opacity: pressed ? 0.8 : 1 }]}
+        >
+          <View style={[entityCard.iconWrap, { backgroundColor: color + "22" }]}>
+            <Feather name={icon} size={13} color={color} />
+          </View>
+          <Text style={[entityCard.label, { color }]}>{label}</Text>
+          <Feather name="arrow-right" size={13} color={color} style={{ marginLeft: "auto" }} />
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 function formatRelative(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
@@ -313,7 +341,7 @@ export function PostCard({ post, hidden: hiddenProp = false }: { post: Post; hid
         </Pressable>
       </View>
 
-      <Text style={[styles.body, { color: colors.foreground }]}>{post.text}</Text>
+      <PostBody text={post.text} colors={colors} />
 
       {image ? (
         <Image
@@ -397,6 +425,12 @@ const styles = StyleSheet.create({
   actions: { flexDirection: "row", justifyContent: "space-between", marginTop: 16 },
   action: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4, paddingHorizontal: 6 },
   actionText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+});
+
+const entityCard = StyleSheet.create({
+  row: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, padding: 10, borderRadius: 12, borderWidth: 1 },
+  iconWrap: { width: 26, height: 26, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  label: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 });
 
 const thread = StyleSheet.create({

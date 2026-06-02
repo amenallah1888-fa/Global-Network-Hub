@@ -271,7 +271,7 @@ export default function ServiceDetailScreen() {
   const { token } = useAuth();
   const [escrowOpen, setEscrowOpen] = useState(false);
 
-  const { data: service, isLoading } = useQuery<ServiceDetail>({
+  const { data: service, isLoading, isError } = useQuery<ServiceDetail>({
     queryKey: [`/api/services/${id}`],
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/api/services/${id}`, { headers: { Authorization: `Bearer ${token}` } });
@@ -280,6 +280,7 @@ export default function ServiceDetailScreen() {
     },
     enabled: !!id && !!token,
     staleTime: 30_000,
+    retry: 1,
   });
 
   const catColor = service ? (CAT_COLORS[service.category] ?? colors.primary) : colors.primary;
@@ -295,7 +296,15 @@ export default function ServiceDetailScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      {isLoading || !service ? (
+      {isError ? (
+        <View style={[styles.center, { gap: 12 }]}>
+          <Feather name="alert-circle" size={32} color={colors.mutedForeground} />
+          <Text style={[styles.topTitle, { color: colors.mutedForeground, fontSize: 15 }]}>Service not found</Text>
+          <Pressable onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.primary, width: "auto", paddingHorizontal: 20 }]}>
+            <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold" }}>Go back</Text>
+          </Pressable>
+        </View>
+      ) : isLoading || !service ? (
         <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
       ) : (
         <>

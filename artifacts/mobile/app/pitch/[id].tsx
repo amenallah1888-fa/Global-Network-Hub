@@ -71,11 +71,12 @@ export default function PitchDetailScreen() {
   const [addingDoc, setAddingDoc] = useState(false);
   const [validatingBlock, setValidatingBlock] = useState<string | null>(null);
 
-  const { data: pitch, isLoading } = useQuery<PitchDetail>({
+  const { data: pitch, isLoading, isError } = useQuery<PitchDetail>({
     queryKey: [`/api/pitches/${id}`],
     queryFn: async () => { const res = await fetch(`${API_BASE}/api/pitches/${id}`, { headers: { Authorization: `Bearer ${token}` } }); if (!res.ok) throw new Error("Not found"); return res.json(); },
     enabled: !!id && !!token,
     staleTime: 15_000,
+    retry: 1,
   });
 
   const { data: updates } = useQuery<PitchUpdate[]>({
@@ -230,7 +231,15 @@ export default function PitchDetailScreen() {
         </Pressable>
       </View>
 
-      {isLoading || !pitch ? (
+      {isError ? (
+        <View style={[styles.center, { gap: 12 }]}>
+          <Feather name="alert-circle" size={32} color={colors.mutedForeground} />
+          <Text style={[styles.topBarTitle, { color: colors.mutedForeground }]}>Project not found</Text>
+          <Pressable onPress={() => router.back()} style={({ pressed }) => [styles.backBtn, { backgroundColor: colors.primary, paddingHorizontal: 20, opacity: pressed ? 0.8 : 1 }]}>
+            <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold" }}>Go back</Text>
+          </Pressable>
+        </View>
+      ) : isLoading || !pitch ? (
         <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
       ) : (
         <>

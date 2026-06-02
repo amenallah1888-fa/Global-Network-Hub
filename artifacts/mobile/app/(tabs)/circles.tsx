@@ -328,7 +328,7 @@ export default function CirclesScreen() {
                 <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Active now</Text>
               </View>
               <View style={[styles.stat, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[styles.statValue, { color: colors.tip }]}>${monthly}</Text>
+                <Text style={[styles.statValue, { color: colors.tip }]}>π {monthly}</Text>
                 <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Monthly</Text>
               </View>
             </View>

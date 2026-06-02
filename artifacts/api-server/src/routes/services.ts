@@ -75,7 +75,9 @@ router.get("/services/:id", async (req, res): Promise<void> => {
 
   const relatedIds = [...new Set(related.map((r) => r.providerId))];
   const relatedProviders = relatedIds.length > 0
-    ? await db.select({ id: usersTable.id, name: usersTable.name, handle: usersTable.handle, avatarKey: usersTable.avatarKey, verified: usersTable.verified, city: usersTable.city }).from(usersTable)
+    ? await db.select({ id: usersTable.id, name: usersTable.name, handle: usersTable.handle, avatarKey: usersTable.avatarKey, verified: usersTable.verified, city: usersTable.city })
+        .from(usersTable)
+        .where(sql`${usersTable.id} = ANY(ARRAY[${sql.join(relatedIds.map((uid) => sql`${uid}`), sql`, `)}])`)
     : [];
   const relProvMap = new Map(relatedProviders.map((p) => [p.id, p]));
 

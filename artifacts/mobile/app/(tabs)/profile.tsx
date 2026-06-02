@@ -6,7 +6,7 @@ import {
   useListUsers,
   useToggleFollow,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useState } from "react";
 import {
@@ -154,6 +154,28 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
           {tab === "account" && (
             <>
               <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[sm.sectionTitle, { color: colors.foreground }]}>Identity & Role</Text>
+                <View style={[sm.roleRow, { borderTopColor: colors.border }]}>
+                  <View style={[sm.roleBadge, { backgroundColor: me.role === "validator" ? colors.primary + "20" : me.role === "admin" ? "#EF4444" + "20" : colors.cardElevated, borderColor: me.role === "validator" ? colors.primary : me.role === "admin" ? "#EF4444" : colors.border }]}>
+                    <Feather name={me.role === "admin" ? "shield" : me.role === "validator" ? "check-circle" : "user"} size={13} color={me.role === "admin" ? "#EF4444" : me.role === "validator" ? colors.primary : colors.mutedForeground} />
+                    <Text style={[sm.roleText, { color: me.role === "admin" ? "#EF4444" : me.role === "validator" ? colors.primary : colors.mutedForeground }]}>
+                      {me.role === "admin" ? "Admin" : me.role === "validator" ? "Validator" : "Member"}
+                    </Text>
+                  </View>
+                  {me.verified && (
+                    <View style={[sm.roleBadge, { backgroundColor: "#22C55E20", borderColor: "#22C55E50" }]}>
+                      <Feather name="check-circle" size={13} color="#22C55E" />
+                      <Text style={[sm.roleText, { color: "#22C55E" }]}>Verified</Text>
+                    </View>
+                  )}
+                  <View style={[sm.roleBadge, { backgroundColor: colors.cardElevated, borderColor: colors.border }]}>
+                    <Feather name="award" size={13} color={colors.mutedForeground} />
+                    <Text style={[sm.roleText, { color: colors.mutedForeground }]}>KYC Pending</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <Text style={[sm.sectionTitle, { color: colors.foreground }]}>Pi Wallet</Text>
                 <View style={[sm.walletCard, { backgroundColor: colors.primary + "12", borderColor: colors.primary + "40" }]}>
                   <View style={[sm.walletIcon, { backgroundColor: colors.primary + "20" }]}>
@@ -182,6 +204,8 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                   </View>
                 </Pressable>
               </View>
+
+              <MyAssetsSection colors={colors} />
 
               <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <Text style={[sm.sectionTitle, { color: colors.foreground }]}>Account</Text>
@@ -222,6 +246,58 @@ function Field({ label, value, onChange, placeholder, multiline, colors }: {
           ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : {}),
         }]}
       />
+    </View>
+  );
+}
+
+function MyAssetsSection({ colors }: { colors: ReturnType<typeof useColors> }) {
+  const { token } = useAuth();
+  const currentUserId = useCurrentUserId();
+  const { data: pitches, isLoading } = useQuery<any[]>({
+    queryKey: ["/api/pitches", "mine"],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/pitches?mine=true`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return [];
+      const all = await res.json();
+      return all.filter((p: any) => p.founderId === currentUserId);
+    },
+    enabled: !!token,
+    staleTime: 30_000,
+  });
+  const assets = pitches ?? [];
+  if (isLoading) return null;
+  if (assets.length === 0) return (
+    <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <Text style={[sm.sectionTitle, { color: colors.foreground }]}>My Platform Assets</Text>
+      <View style={{ paddingHorizontal: 16, paddingBottom: 14 }}>
+        <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: colors.mutedForeground }}>
+          No pitches, apps or services listed yet.
+        </Text>
+      </View>
+    </View>
+  );
+  return (
+    <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <Text style={[sm.sectionTitle, { color: colors.foreground }]}>My Platform Assets</Text>
+      {assets.map((a: any, i: number) => {
+        const trust = a.trustScore ?? 0;
+        const col = trust >= 70 ? "#22C55E" : trust >= 40 ? "#F59E0B" : colors.mutedForeground;
+        return (
+          <View key={a.id} style={[sm.assetRow, { borderTopColor: colors.border, borderTopWidth: i === 0 ? 1 : 0 }]}>
+            <View style={[sm.assetIcon, { backgroundColor: colors.primary + "18" }]}>
+              <Feather name={(a.entityType === "app" ? "cpu" : a.entityType === "service_app" ? "grid" : "zap") as any} size={14} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.foreground }} numberOfLines={1}>{a.title}</Text>
+              <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>{a.stage} · {a.industry}</Text>
+            </View>
+            <View style={{ alignItems: "flex-end" }}>
+              <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: col }}>{trust}%</Text>
+              <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>Trust</Text>
+            </View>
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -576,6 +652,9 @@ const sm = StyleSheet.create({
   field: { borderTopWidth: 1, paddingHorizontal: 16, paddingVertical: 12 },
   fieldLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 0.3, marginBottom: 4 },
   fieldInput: { fontSize: 15, fontFamily: "Inter_400Regular" },
+  roleRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1 },
+  roleBadge: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1 },
+  roleText: { fontSize: 12, fontFamily: "Inter_700Bold" },
   walletCard: { flexDirection: "row", alignItems: "center", gap: 12, margin: 12, padding: 14, borderRadius: 14, borderWidth: 1 },
   walletIcon: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   walletIconText: { fontSize: 22, fontFamily: "Inter_700Bold" },
@@ -588,6 +667,8 @@ const sm = StyleSheet.create({
   toggleThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: "#fff", elevation: 2 },
   dangerRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14, borderTopWidth: 1 },
   dangerText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#EF4444" },
+  assetRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth },
+  assetIcon: { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center" },
 });
 
 const wm = StyleSheet.create({
