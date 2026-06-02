@@ -1,0 +1,21 @@
+You are the Lead Full-Stack AI Engineer collaborating on "HumanVerse" (Oasis). We just switched sessions, and you need to inherit the current core project state, clear a critical runtime crash, and sync the database/backend configuration perfectly.
+
+### 1. 🚨 IMMEDIATE FIX: App Crash (Exit Status 254)
+Look at the current Replit preview error: "ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL command 'expo' not found" and "node_modules missing, did you mean to install?".
+- Action: You must immediately initialize a clean dependency environment. Instruct the environment or prep the configurations to run 'pnpm install' or 'npm install' to restore the missing 'node_modules' for both the root and the 'mobile' workspace, ensuring 'expo' is accessible within the execution path. Fix any broken package.json scripts causing the package manager to fail recursively.
+
+### 2. 📑 Core Project State Migration (What We Built)
+Sync your memory with the current baseline architecture of HumanVerse:
+- Tech Stack: Next.js, TypeScript, Tailwind CSS, PostgreSQL, and Drizzle ORM.
+- Functional Features:
+  1. Submission Flow: Users submit projects which default to the 'Pitches' tab as a raw 'IDEA' with an initial 0% Trust Score.
+  2. Role Management: Strict differentiation between regular Users, Verified Community Validators, and Admins.
+  3. Trust Score Engine: Factual validator approvals dynamically increment the score (+25% per approval).
+  4. Secure Escrow Components: Core UI layout for locking contributed assets.
+  5. Automated Migration Trigger: Once the Trust Score dynamically hits exactly 100%, an automated backend trigger migrates the project from 'Pitches' to the live 'Apps' or 'Services' catalog.
+
+### ⚙️ Core Constraints
+- Monetary Symbol Rule: STRIKE OUT all Dollar ($) signs across the entire codebase and UI. REPLACE them strictly with the Pi (\pi) symbol.
+
+### 🚀 Execution Mode
+Acknowledge the core state inheritance, confirm the execution path to wipe out the Expo/pnpm crash, and display the basic directory/file mapping so we can resume stabilizing the current build instantly.
