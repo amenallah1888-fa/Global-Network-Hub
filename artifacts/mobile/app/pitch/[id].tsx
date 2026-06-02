@@ -70,6 +70,15 @@ export default function PitchDetailScreen() {
   const [newDocUrl, setNewDocUrl] = useState("");
   const [addingDoc, setAddingDoc] = useState(false);
   const [validatingBlock, setValidatingBlock] = useState<string | null>(null);
+  const [showDonateModal, setShowDonateModal] = useState(false);
+  const [donateAmount, setDonateAmount] = useState("5");
+  const [donating, setDonating] = useState(false);
+  const [donateSuccess, setDonateSuccess] = useState(false);
+  const [showOfferModal, setShowOfferModal] = useState(false);
+  const [offerAmount, setOfferAmount] = useState("");
+  const [offerNote, setOfferNote] = useState("");
+  const [sendingOffer, setSendingOffer] = useState(false);
+  const [offerSent, setOfferSent] = useState(false);
 
   const { data: pitch, isLoading, isError } = useQuery<PitchDetail>({
     queryKey: [`/api/pitches/${id}`],
@@ -207,6 +216,36 @@ export default function PitchDetailScreen() {
     } catch (err: any) { Alert.alert("Error", err.message ?? "Validation failed"); } finally { setValidatingBlock(null); }
   };
 
+  const handleDonate = async () => {
+    const amt = parseInt(donateAmount, 10);
+    if (!amt || amt <= 0) { Alert.alert("Invalid", "Enter a valid π amount"); return; }
+    setDonating(true);
+    try {
+      await fetch(`${API_BASE}/api/pitches/${id}/back`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: amt }),
+      });
+      qc.invalidateQueries({ queryKey: [`/api/pitches/${id}`] });
+      setDonateSuccess(true);
+    } catch { Alert.alert("Error", "Donation failed. Please try again."); } finally { setDonating(false); }
+  };
+
+  const handleSendOffer = async () => {
+    const amt = parseInt(offerAmount, 10);
+    if (!offerNote.trim()) { Alert.alert("Required", "Add a message with your offer"); return; }
+    setSendingOffer(true);
+    try {
+      await fetch(`${API_BASE}/api/pitches/${id}/back`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: amt > 0 ? amt : 0 }),
+      });
+      qc.invalidateQueries({ queryKey: [`/api/pitches/${id}`] });
+      setOfferSent(true);
+    } catch { Alert.alert("Error", "Could not send offer. Please try again."); } finally { setSendingOffer(false); }
+  };
+
   const handleAddDocument = async () => {
     if (!newDocUrl.trim()) return;
     setAddingDoc(true);
@@ -306,10 +345,20 @@ export default function PitchDetailScreen() {
                   </View>
 
                   {!pitch.backed ? (
-                    <Pressable onPress={handleInvest} style={({ pressed }) => [styles.investBtn, { backgroundColor: stageColor, opacity: pressed ? 0.85 : 1 }]}>
-                      <Feather name={isServiceApp ? "tool" : "trending-up"} size={16} color="#fff" />
-                      <Text style={[styles.investBtnText, { color: "#fff" }]}>{actionLabel}</Text>
-                    </Pressable>
+                    <View style={styles.actionRow}>
+                      <Pressable onPress={() => { setOfferSent(false); setOfferAmount(""); setOfferNote(""); setShowOfferModal(true); }} style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, opacity: pressed ? 0.8 : 1 }]}>
+                        <Feather name="send" size={14} color={colors.primary} />
+                        <Text style={[styles.actionBtnText, { color: colors.primary }]}>Send Offer</Text>
+                      </Pressable>
+                      <Pressable onPress={() => { setDonateSuccess(false); setDonateAmount("5"); setShowDonateModal(true); }} style={({ pressed }) => [styles.actionBtn, { backgroundColor: "#EF444418", borderColor: "#EF4444", borderWidth: 1, opacity: pressed ? 0.8 : 1 }]}>
+                        <Feather name="heart" size={14} color="#EF4444" />
+                        <Text style={[styles.actionBtnText, { color: "#EF4444" }]}>Donate</Text>
+                      </Pressable>
+                      <Pressable onPress={handleInvest} style={({ pressed }) => [styles.actionBtn, { backgroundColor: stageColor, opacity: pressed ? 0.85 : 1, flex: 1.3 }]}>
+                        <Feather name={isServiceApp ? "tool" : "trending-up"} size={14} color="#fff" />
+                        <Text style={[styles.actionBtnText, { color: "#fff" }]}>{isServiceApp ? "Hire" : "Invest"}</Text>
+                      </Pressable>
+                    </View>
                   ) : (
                     <View style={[styles.investBtn, { backgroundColor: colors.cardElevated, borderWidth: 1, borderColor: colors.border }]}>
                       <Feather name="check-circle" size={16} color="#22C55E" />
@@ -472,6 +521,45 @@ export default function PitchDetailScreen() {
 
               {activeTab === "verification" && (
                 <>
+                  {/* Proof of Intent */}
+                  <View style={[styles.proofIntentCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <View style={styles.proofIntentHeader}>
+                      <Feather name="shield" size={16} color={colors.primary} />
+                      <Text style={[styles.proofIntentTitle, { color: colors.foreground }]}>Proof of Intent</Text>
+                      <Text style={[styles.proofIntentSub, { color: colors.mutedForeground }]}>Founder-submitted evidence</Text>
+                    </View>
+                    <View style={styles.proofIntentGrid}>
+                      <View style={[styles.proofIntentItem, { backgroundColor: pitch.founderLinkedin ? "#22C55E12" : colors.background, borderColor: pitch.founderLinkedin ? "#22C55E40" : colors.border }]}>
+                        <Feather name="user-check" size={16} color={pitch.founderLinkedin ? "#22C55E" : colors.mutedForeground} />
+                        <Text style={[styles.proofIntentLabel, { color: pitch.founderLinkedin ? "#22C55E" : colors.mutedForeground }]}>Identity</Text>
+                        {pitch.founderLinkedin
+                          ? <Pressable onPress={() => Linking.openURL(pitch.founderLinkedin!)}><Text style={[styles.proofIntentLink, { color: "#22C55E" }]}>View LinkedIn →</Text></Pressable>
+                          : <Text style={[styles.proofIntentLink, { color: colors.mutedForeground }]}>Not submitted</Text>}
+                      </View>
+                      <View style={[styles.proofIntentItem, { backgroundColor: pitch.proofOfRealityUrl ? "#22C55E12" : colors.background, borderColor: pitch.proofOfRealityUrl ? "#22C55E40" : colors.border }]}>
+                        <Feather name="play-circle" size={16} color={pitch.proofOfRealityUrl ? "#22C55E" : colors.mutedForeground} />
+                        <Text style={[styles.proofIntentLabel, { color: pitch.proofOfRealityUrl ? "#22C55E" : colors.mutedForeground }]}>Reality Proof</Text>
+                        {pitch.proofOfRealityUrl
+                          ? <Pressable onPress={() => Linking.openURL(pitch.proofOfRealityUrl!)}><Text style={[styles.proofIntentLink, { color: "#22C55E" }]}>View Demo →</Text></Pressable>
+                          : <Text style={[styles.proofIntentLink, { color: colors.mutedForeground }]}>Not submitted</Text>}
+                      </View>
+                      <View style={[styles.proofIntentItem, { backgroundColor: pitch.roadmapUrl ? "#22C55E12" : colors.background, borderColor: pitch.roadmapUrl ? "#22C55E40" : colors.border }]}>
+                        <Feather name="map" size={16} color={pitch.roadmapUrl ? "#22C55E" : colors.mutedForeground} />
+                        <Text style={[styles.proofIntentLabel, { color: pitch.roadmapUrl ? "#22C55E" : colors.mutedForeground }]}>Roadmap</Text>
+                        {pitch.roadmapUrl
+                          ? <Pressable onPress={() => Linking.openURL(pitch.roadmapUrl!)}><Text style={[styles.proofIntentLink, { color: "#22C55E" }]}>View Plan →</Text></Pressable>
+                          : <Text style={[styles.proofIntentLink, { color: colors.mutedForeground }]}>Not submitted</Text>}
+                      </View>
+                      <View style={[styles.proofIntentItem, { backgroundColor: pitch.portfolioUrl ? "#22C55E12" : colors.background, borderColor: pitch.portfolioUrl ? "#22C55E40" : colors.border }]}>
+                        <Feather name="briefcase" size={16} color={pitch.portfolioUrl ? "#22C55E" : colors.mutedForeground} />
+                        <Text style={[styles.proofIntentLabel, { color: pitch.portfolioUrl ? "#22C55E" : colors.mutedForeground }]}>Portfolio</Text>
+                        {pitch.portfolioUrl
+                          ? <Pressable onPress={() => Linking.openURL(pitch.portfolioUrl!)}><Text style={[styles.proofIntentLink, { color: "#22C55E" }]}>View Work →</Text></Pressable>
+                          : <Text style={[styles.proofIntentLink, { color: colors.mutedForeground }]}>Not submitted</Text>}
+                      </View>
+                    </View>
+                  </View>
+
                   <View style={[styles.verificationBadge, { backgroundColor: isVerified ? "#22C55E18" : colors.cardElevated, borderColor: isVerified ? "#22C55E" : colors.border }]}>
                     <Feather name={isVerified ? "check-circle" : "clock"} size={28} color={isVerified ? "#22C55E" : colors.mutedForeground} />
                     <View style={{ flex: 1, marginLeft: 14 }}>
@@ -672,6 +760,84 @@ export default function PitchDetailScreen() {
         </View>
       </Modal>
 
+      {/* Donate Modal */}
+      <Modal visible={showDonateModal} transparent animationType="slide" onRequestClose={() => setShowDonateModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {donateSuccess ? (
+              <>
+                <View style={[styles.escrowSuccess, { backgroundColor: "#EF444418" }]}><Feather name="heart" size={36} color="#EF4444" /></View>
+                <Text style={[styles.escrowTitle, { color: "#EF4444" }]}>Donation Sent!</Text>
+                <Text style={[styles.escrowSub, { color: colors.mutedForeground }]}>{donateAmount} π donated directly to this project. Thank you for your support!</Text>
+                <Pressable onPress={() => setShowDonateModal(false)} style={({ pressed }) => [styles.escrowConfirmBtn, { backgroundColor: "#EF4444", opacity: pressed ? 0.85 : 1, marginTop: 16 }]}>
+                  <Text style={styles.escrowConfirmBtnText}>Close</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <View style={[styles.escrowHeader, { borderBottomColor: colors.border }]}>
+                  <Text style={[styles.escrowTitle, { color: colors.foreground }]}>Donate to Project</Text>
+                  <Pressable onPress={() => setShowDonateModal(false)} hitSlop={10}><Feather name="x" size={20} color={colors.mutedForeground} /></Pressable>
+                </View>
+                <Text style={[styles.escrowAmtLabel, { color: colors.mutedForeground }]}>Donation amount (π)</Text>
+                <View style={[styles.escrowAmtRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Text style={[styles.escrowPi, { color: "#EF4444" }]}>π</Text>
+                  <TextInput value={donateAmount} onChangeText={(v) => setDonateAmount(v.replace(/[^0-9]/g, ""))} keyboardType="numeric" style={[styles.escrowAmtInput, { color: colors.foreground }]} />
+                </View>
+                <View style={[styles.escrowTerms, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Text style={[styles.escrowTermsBody, { color: colors.mutedForeground }]}>• Funds sent directly to project founder{"\n"}• No escrow — immediate transfer{"\n"}• Non-refundable goodwill donation</Text>
+                </View>
+                <Pressable onPress={handleDonate} disabled={donating} style={({ pressed }) => [styles.escrowConfirmBtn, { backgroundColor: "#EF4444", opacity: pressed || donating ? 0.75 : 1 }]}>
+                  {donating ? <ActivityIndicator size="small" color="#fff" /> : <><Feather name="heart" size={15} color="#fff" /><Text style={styles.escrowConfirmBtnText}>Donate {donateAmount || "0"} π</Text></>}
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Send Offer Modal */}
+      <Modal visible={showOfferModal} transparent animationType="slide" onRequestClose={() => setShowOfferModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {offerSent ? (
+              <>
+                <View style={[styles.escrowSuccess, { backgroundColor: colors.primary + "18" }]}><Feather name="send" size={36} color={colors.primary} /></View>
+                <Text style={[styles.escrowTitle, { color: colors.primary }]}>Offer Sent!</Text>
+                <Text style={[styles.escrowSub, { color: colors.mutedForeground }]}>Your offer has been recorded. The founder will be notified and can respond to your interest.</Text>
+                <Pressable onPress={() => setShowOfferModal(false)} style={({ pressed }) => [styles.escrowConfirmBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1, marginTop: 16 }]}>
+                  <Text style={styles.escrowConfirmBtnText}>Close</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <View style={[styles.escrowHeader, { borderBottomColor: colors.border }]}>
+                  <Text style={[styles.escrowTitle, { color: colors.foreground }]}>Send Offer</Text>
+                  <Pressable onPress={() => setShowOfferModal(false)} hitSlop={10}><Feather name="x" size={20} color={colors.mutedForeground} /></Pressable>
+                </View>
+                <Text style={[styles.escrowAmtLabel, { color: colors.mutedForeground }]}>Your message / offer details</Text>
+                <TextInput
+                  value={offerNote}
+                  onChangeText={setOfferNote}
+                  placeholder="Describe your offer, partnership interest, or proposal…"
+                  placeholderTextColor={colors.mutedForeground}
+                  multiline
+                  style={[styles.reportInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
+                />
+                <Text style={[styles.escrowAmtLabel, { color: colors.mutedForeground, marginTop: 12 }]}>Optional: commit π amount</Text>
+                <View style={[styles.escrowAmtRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Text style={[styles.escrowPi, { color: colors.primary }]}>π</Text>
+                  <TextInput value={offerAmount} onChangeText={(v) => setOfferAmount(v.replace(/[^0-9]/g, ""))} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.mutedForeground} style={[styles.escrowAmtInput, { color: colors.foreground }]} />
+                </View>
+                <Pressable onPress={handleSendOffer} disabled={sendingOffer} style={({ pressed }) => [styles.escrowConfirmBtn, { backgroundColor: colors.primary, opacity: pressed || sendingOffer ? 0.75 : 1 }]}>
+                  {sendingOffer ? <ActivityIndicator size="small" color="#fff" /> : <><Feather name="send" size={15} color="#fff" /><Text style={styles.escrowConfirmBtnText}>Send Offer</Text></>}
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={showReportModal} transparent animationType="fade" onRequestClose={() => setShowReportModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -765,6 +931,17 @@ const styles = StyleSheet.create({
   proofBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   investBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, paddingVertical: 15, marginBottom: 20 },
   investBtnText: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  actionRow: { flexDirection: "row", gap: 8, marginBottom: 20 },
+  actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 14 },
+  actionBtnText: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  proofIntentCard: { borderRadius: 18, borderWidth: 1, padding: 16, marginBottom: 16, gap: 14 },
+  proofIntentHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  proofIntentTitle: { fontSize: 15, fontFamily: "Inter_700Bold", flex: 1 },
+  proofIntentSub: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  proofIntentGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  proofIntentItem: { width: "47%", borderRadius: 12, borderWidth: 1, padding: 12, gap: 6 },
+  proofIntentLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  proofIntentLink: { fontSize: 11, fontFamily: "Inter_500Medium" },
   sectionTitle: { fontSize: 15, fontFamily: "Inter_700Bold", marginTop: 8, marginBottom: 10 },
   founderCard: { flexDirection: "row", alignItems: "center", borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 16 },
   founderNameRow: { flexDirection: "row", alignItems: "center", gap: 5 },

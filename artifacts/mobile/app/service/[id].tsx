@@ -264,12 +264,124 @@ function EscrowModal({ service, visible, onClose }: {
   );
 }
 
+function DonateModal({ service, visible, onClose }: { service: ServiceDetail; visible: boolean; onClose: () => void }) {
+  const colors = useColors();
+  const { token } = useAuth();
+  const [amount, setAmount] = useState("5");
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const handleDonate = async () => {
+    const amt = parseInt(amount, 10);
+    if (!amt || amt <= 0) return;
+    setLoading(true);
+    try {
+      await fetch(`${API_BASE}/api/services/${service.id}/hire`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      setSuccess(true);
+    } catch {} finally { setLoading(false); }
+  };
+  const reset = () => { setAmount("5"); setSuccess(false); };
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={() => { reset(); onClose(); }}>
+      <View style={em.backdrop}>
+        <View style={[em.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[em.header, { borderBottomColor: colors.border }]}>
+            <Text style={[em.headerTitle, { color: colors.foreground }]}>{success ? "Donation Sent!" : "Donate to Provider"}</Text>
+            <Pressable onPress={() => { reset(); onClose(); }} hitSlop={10}><Feather name="x" size={20} color={colors.mutedForeground} /></Pressable>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
+            {success ? (
+              <View style={em.successWrap}>
+                <View style={[em.successIcon, { backgroundColor: "#EF444420" }]}><Feather name="heart" size={40} color="#EF4444" /></View>
+                <Text style={[em.successTitle, { color: colors.foreground }]}>{amount} π Donated!</Text>
+                <Text style={[em.successSub, { color: colors.mutedForeground }]}>Thank you for supporting this service provider directly.</Text>
+                <Pressable onPress={() => { reset(); onClose(); }} style={({ pressed }) => [em.btn, { backgroundColor: "#EF4444", opacity: pressed ? 0.85 : 1 }]}><Text style={em.btnText}>Done</Text></Pressable>
+              </View>
+            ) : (
+              <>
+                <View style={[em.infoBox, { backgroundColor: "#EF444410", borderColor: "#EF444430" }]}>
+                  <Feather name="heart" size={14} color="#EF4444" />
+                  <Text style={[em.infoText, { color: "#EF4444" }]}>Donate directly to this provider — no escrow, no contract.</Text>
+                </View>
+                <Text style={[em.fieldLabel, { color: colors.mutedForeground }]}>Amount (π)</Text>
+                <View style={[em.amountRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Text style={[em.piSymbol, { color: "#EF4444" }]}>π</Text>
+                  <TextInput value={amount} onChangeText={setAmount} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.mutedForeground} style={[em.amountInput, { color: colors.foreground }]} />
+                </View>
+                <Pressable onPress={handleDonate} disabled={loading} style={({ pressed }) => [em.btn, { backgroundColor: "#EF4444", opacity: pressed || loading ? 0.75 : 1 }]}>
+                  {loading ? <ActivityIndicator color="#fff" size="small" /> : <><Feather name="heart" size={15} color="#fff" /><Text style={em.btnText}>Donate {amount} π</Text></>}
+                </Pressable>
+              </>
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function SendOfferModal({ service, visible, onClose }: { service: ServiceDetail; visible: boolean; onClose: () => void }) {
+  const colors = useColors();
+  const { token } = useAuth();
+  const [note, setNote] = useState("");
+  const [amt, setAmt] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
+  const handleSend = async () => {
+    if (!note.trim()) { setError("Describe your offer or proposal"); return; }
+    setError(""); setLoading(true);
+    try {
+      await fetch(`${API_BASE}/api/services/${service.id}/hire`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      setSent(true);
+    } catch { setError("Could not send offer. Please try again."); } finally { setLoading(false); }
+  };
+  const reset = () => { setNote(""); setAmt(""); setSent(false); setError(""); };
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={() => { reset(); onClose(); }}>
+      <View style={em.backdrop}>
+        <View style={[em.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[em.header, { borderBottomColor: colors.border }]}>
+            <Text style={[em.headerTitle, { color: colors.foreground }]}>{sent ? "Offer Sent!" : "Send Offer"}</Text>
+            <Pressable onPress={() => { reset(); onClose(); }} hitSlop={10}><Feather name="x" size={20} color={colors.mutedForeground} /></Pressable>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
+            {sent ? (
+              <View style={em.successWrap}>
+                <View style={[em.successIcon, { backgroundColor: colors.primary + "20" }]}><Feather name="send" size={40} color={colors.primary} /></View>
+                <Text style={[em.successTitle, { color: colors.foreground }]}>Offer Delivered!</Text>
+                <Text style={[em.successSub, { color: colors.mutedForeground }]}>The provider has been notified. They will reach out to discuss your project.</Text>
+                <Pressable onPress={() => { reset(); onClose(); }} style={({ pressed }) => [em.btn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}><Text style={em.btnText}>Done</Text></Pressable>
+              </View>
+            ) : (
+              <>
+                <Text style={[em.fieldLabel, { color: colors.mutedForeground }]}>Your Proposal</Text>
+                <TextInput value={note} onChangeText={setNote} placeholder="Describe your project, requirements, timeline…" placeholderTextColor={colors.mutedForeground} multiline style={[em.scopeInput, { color: colors.foreground, backgroundColor: colors.background, borderColor: colors.border }]} />
+                <Text style={[em.fieldLabel, { color: colors.mutedForeground }]}>Budget (π, optional)</Text>
+                <View style={[em.amountRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                  <Text style={[em.piSymbol, { color: colors.primary }]}>π</Text>
+                  <TextInput value={amt} onChangeText={setAmt} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.mutedForeground} style={[em.amountInput, { color: colors.foreground }]} />
+                </View>
+                {error ? <Text style={[em.errorText, { color: "#EF4444" }]}>{error}</Text> : null}
+                <Pressable onPress={handleSend} disabled={loading} style={({ pressed }) => [em.btn, { backgroundColor: colors.primary, opacity: pressed || loading ? 0.75 : 1 }]}>
+                  {loading ? <ActivityIndicator color="#fff" size="small" /> : <><Feather name="send" size={15} color="#fff" /><Text style={em.btnText}>Send Offer</Text></>}
+                </Pressable>
+              </>
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function ServiceDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
   const [escrowOpen, setEscrowOpen] = useState(false);
+  const [donateOpen, setDonateOpen] = useState(false);
+  const [offerOpen, setOfferOpen] = useState(false);
 
   const { data: service, isLoading, isError } = useQuery<ServiceDetail>({
     queryKey: [`/api/services/${id}`],
@@ -349,6 +461,34 @@ export default function ServiceDetailScreen() {
               <Text style={[styles.trustLabel, { color: colors.mutedForeground }]}>Trust Score: {service.trustScore}/100</Text>
             </View>
 
+            {/* Proof of Intent */}
+            <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Proof of Intent</Text>
+              <View style={[styles.intentGrid]}>
+                <View style={[styles.intentItem, { backgroundColor: service.trustScore >= 70 ? "#22C55E12" : colors.background, borderColor: service.trustScore >= 70 ? "#22C55E40" : colors.border, borderWidth: 1, borderRadius: 12, padding: 12, flex: 1 }]}>
+                  <Feather name="shield" size={16} color={service.trustScore >= 70 ? "#22C55E" : colors.mutedForeground} />
+                  <Text style={[styles.intentLabel, { color: service.trustScore >= 70 ? "#22C55E" : colors.mutedForeground }]}>Trust Verified</Text>
+                  <Text style={[styles.intentValue, { color: colors.foreground }]}>{service.trustScore}/100</Text>
+                </View>
+                <View style={[styles.intentItem, { backgroundColor: service.hiredCount > 0 ? "#3B82F612" : colors.background, borderColor: service.hiredCount > 0 ? "#3B82F640" : colors.border, borderWidth: 1, borderRadius: 12, padding: 12, flex: 1 }]}>
+                  <Feather name="briefcase" size={16} color={service.hiredCount > 0 ? "#3B82F6" : colors.mutedForeground} />
+                  <Text style={[styles.intentLabel, { color: service.hiredCount > 0 ? "#3B82F6" : colors.mutedForeground }]}>Jobs Done</Text>
+                  <Text style={[styles.intentValue, { color: colors.foreground }]}>{service.hiredCount}</Text>
+                </View>
+                <View style={[styles.intentItem, { backgroundColor: service.provider?.verified ? "#22C55E12" : colors.background, borderColor: service.provider?.verified ? "#22C55E40" : colors.border, borderWidth: 1, borderRadius: 12, padding: 12, flex: 1 }]}>
+                  <Feather name="user-check" size={16} color={service.provider?.verified ? "#22C55E" : colors.mutedForeground} />
+                  <Text style={[styles.intentLabel, { color: service.provider?.verified ? "#22C55E" : colors.mutedForeground }]}>ID Verified</Text>
+                  <Text style={[styles.intentValue, { color: colors.foreground }]}>{service.provider?.verified ? "Yes" : "Pending"}</Text>
+                </View>
+              </View>
+              {service.portfolioUrl && (
+                <Pressable onPress={() => Linking.openURL(service.portfolioUrl!)} style={[styles.portfolioLink, { backgroundColor: colors.cardElevated, borderColor: colors.border }]}>
+                  <Feather name="external-link" size={14} color={colors.primary} />
+                  <Text style={[styles.portfolioText, { color: colors.primary }]}>View Portfolio Evidence</Text>
+                </Pressable>
+              )}
+            </View>
+
             {/* Provider */}
             {service.provider && (
               <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -413,21 +553,33 @@ export default function ServiceDetailScreen() {
             )}
           </ScrollView>
 
-          {/* Sticky hire bar */}
+          {/* Sticky 3-button action bar */}
           <View style={[styles.stickyBar, { backgroundColor: colors.card, borderTopColor: colors.border, paddingBottom: insets.bottom + 12 }]}>
             <View>
               <Text style={[styles.priceLabel, { color: colors.mutedForeground }]}>Starting from</Text>
               <Text style={[styles.priceValue, { color: colors.primary }]}>
-                {service.pricePi === 0 ? "Contact for price" : `${service.pricePi} π`}
+                {service.pricePi === 0 ? "Contact" : `${service.pricePi} π`}
               </Text>
             </View>
-            <Pressable onPress={() => setEscrowOpen(true)} style={({ pressed }) => [styles.hireBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}>
-              <Feather name="lock" size={15} color="#fff" />
-              <Text style={styles.hireBtnText}>Hire with Pi Escrow</Text>
-            </Pressable>
+            <View style={styles.actionBtnGroup}>
+              <Pressable onPress={() => setOfferOpen(true)} style={({ pressed }) => [styles.actionBtnSm, { backgroundColor: colors.cardElevated, borderWidth: 1, borderColor: colors.border, opacity: pressed ? 0.8 : 1 }]}>
+                <Feather name="send" size={14} color={colors.primary} />
+                <Text style={[styles.actionBtnSmText, { color: colors.primary }]}>Offer</Text>
+              </Pressable>
+              <Pressable onPress={() => setDonateOpen(true)} style={({ pressed }) => [styles.actionBtnSm, { backgroundColor: "#EF444415", borderWidth: 1, borderColor: "#EF444440", opacity: pressed ? 0.8 : 1 }]}>
+                <Feather name="heart" size={14} color="#EF4444" />
+                <Text style={[styles.actionBtnSmText, { color: "#EF4444" }]}>Donate</Text>
+              </Pressable>
+              <Pressable onPress={() => setEscrowOpen(true)} style={({ pressed }) => [styles.hireBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}>
+                <Feather name="lock" size={14} color="#fff" />
+                <Text style={styles.hireBtnText}>Hire</Text>
+              </Pressable>
+            </View>
           </View>
 
           <EscrowModal service={service} visible={escrowOpen} onClose={() => setEscrowOpen(false)} />
+          <DonateModal service={service} visible={donateOpen} onClose={() => setDonateOpen(false)} />
+          <SendOfferModal service={service} visible={offerOpen} onClose={() => setOfferOpen(false)} />
         </>
       )}
     </View>
@@ -479,9 +631,16 @@ const styles = StyleSheet.create({
   relatedMeta: { fontSize: 12, fontFamily: "Inter_500Medium" },
   stickyBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 14, borderTopWidth: 1 },
   priceLabel: { fontSize: 11, fontFamily: "Inter_500Medium" },
-  priceValue: { fontSize: 22, fontFamily: "Inter_700Bold", letterSpacing: -0.5 },
-  hireBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 22, paddingVertical: 14, borderRadius: 16 },
-  hireBtnText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" },
+  priceValue: { fontSize: 20, fontFamily: "Inter_700Bold", letterSpacing: -0.5 },
+  hireBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14 },
+  hireBtnText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" },
+  actionBtnGroup: { flexDirection: "row", alignItems: "center", gap: 8 },
+  actionBtnSm: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12 },
+  actionBtnSmText: { fontSize: 12, fontFamily: "Inter_700Bold" },
+  intentGrid: { flexDirection: "row", gap: 8 },
+  intentItem: { alignItems: "center", gap: 4 },
+  intentLabel: { fontSize: 10, fontFamily: "Inter_600SemiBold", textAlign: "center" },
+  intentValue: { fontSize: 14, fontFamily: "Inter_700Bold", textAlign: "center" },
 });
 
 const em = StyleSheet.create({
