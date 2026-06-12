@@ -1,13 +1,18 @@
 import { and, eq, lt, sql } from "drizzle-orm";
-import { db, milestonesTable, smartAgreementsTable, auditLogsTable } from "@workspace/db";
+import { db, milestonesTable, smartAgreementsTable, auditLogsTable, userAvatarsTable } from "@workspace/db";
 import { addReputationEvent } from "./reputation";
+import { awardXp } from "./xpEngine";
 
 function uid(prefix: string) {
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
+const DECAY_INACTIVE_DAYS = 7;
+const DECAY_XP_PCT = 5;
+
 async function processTimelockMilestones() {
   const now = new Date();
+
   const expired = await db.select().from(milestonesTable).where(
     and(
       eq(milestonesTable.status, "pending_proof"),
@@ -32,6 +37,7 @@ async function processTimelockMilestones() {
     const [agreement] = await db.select().from(smartAgreementsTable).where(eq(smartAgreementsTable.projectId, m.pitchId));
     if (agreement) {
       await addReputationEvent(agreement.receiverId, "milestone_delivered", `Milestone "${m.title}" auto-released by timelock`, m.id);
+      await awardXp(agreement.receiverId, "milestone_completed");
     }
   }
 
@@ -52,22 +58,67 @@ async function processTimelockMilestones() {
 
       await addReputationEvent(sa.receiverId, "escrow_completed", `Agreement ${sa.id} completed`, sa.id);
       await addReputationEvent(sa.senderId, "escrow_completed", `Agreement ${sa.id} funded`, sa.id);
+      await awardXp(sa.receiverId, "escrow_completed");
+      await awardXp(sa.senderId, "escrow_completed");
     }
   }
 }
 
+async function processDecay() {
+  const cutoff = new Date(Date.now() - DECAY_INACTIVE_DAYS * 86400 * 1000);
+
+  const inactive = await db.select().from(userAvatarsTable).where(
+    and(
+      lt(userAvatarsTable.lastActivityAt, cutoff),
+      eq(userAvatarsTable.decayActive, false)
+    )
+  );
+
+  for (const av of inactive) {
+    if (av.xp <= 0) continue;
+    const decayAmount = Math.max(1, Math.floor(av.xp * DECAY_XP_PCT / 100));
+    const newXp = Math.max(0, av.xp - decayAmount);
+
+    await db.update(userAvatarsTable).set({
+      xp: newXp,
+      decayActive: true,
+      dailyStreak: 0,
+      updatedAt: new Date(),
+    }).where(eq(userAvatarsTable.id, av.id));
+
+    await db.insert(auditLogsTable).values({
+      id: uid("al"),
+      entityType: "avatar",
+      entityId: av.id,
+      actorId: "system",
+      action: "XP_DECAY",
+      metadata: JSON.stringify({ userId: av.userId, decayAmount, newXp, reason: `${DECAY_INACTIVE_DAYS} days of inactivity` }),
+    });
+  }
+}
+
 let timelockInterval: ReturnType<typeof setInterval> | null = null;
+let decayInterval: ReturnType<typeof setInterval> | null = null;
 
 export function startTimelockWorker() {
   if (timelockInterval) return;
+
   timelockInterval = setInterval(async () => {
     try { await processTimelockMilestones(); } catch (e) {
-      console.error("[timelockWorker] error:", e);
+      console.error("[timelockWorker] milestone error:", e);
     }
   }, 60_000);
-  console.log("[timelockWorker] started — checking every 60s");
+
+  decayInterval = setInterval(async () => {
+    try { await processDecay(); } catch (e) {
+      console.error("[timelockWorker] decay error:", e);
+    }
+  }, 6 * 3600 * 1000);
+
+  console.log("[timelockWorker] started — milestones every 60s, decay every 6h");
 }
 
 export function stopTimelockWorker() {
   if (timelockInterval) { clearInterval(timelockInterval); timelockInterval = null; }
+  if (decayInterval) { clearInterval(decayInterval); decayInterval = null; }
 }

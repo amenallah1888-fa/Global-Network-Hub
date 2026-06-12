@@ -20,6 +20,8 @@ import smartAgreementsRouter from "./smart-agreements";
 import reviewsRouter from "./reviews";
 import disputesRouter from "./disputes";
 import reputationRouter from "./reputation";
+import avatarRouter from "./avatar";
+import capsulesRouter from "./capsules";
 
 const router: IRouter = Router();
 
@@ -44,5 +46,7 @@ router.use(smartAgreementsRouter);
 router.use(reviewsRouter);
 router.use(disputesRouter);
 router.use(reputationRouter);
+router.use(avatarRouter);
+router.use(capsulesRouter);
 
 export default router;

@@ -1,0 +1,27 @@
+​"CRITICAL CONSTRAINT: Do NOT change, redesign, or overwrite the existing UI/UX, layouts, screens, or core content. All the new features below must be implemented strictly as under-the-hood background logic, API endpoints, database architecture, and modular back-end additions. Keep the current design and screens exactly as they are.
+​I need you to act as a Lead Software Architect and Product Engineer to implement a comprehensive Gamification, Retention, and Web3 Avatar Layer for 'HumanVerse' as described below:
+​1. The Evolving Web3 Avatar System (The Core Engine):
+​Database Logic: Add a system to track user Progression (user_xp, avatar_level, current_skin_id).
+​Evolution Rules: The Avatar's level and visual skins must be strictly and accurately hard-linked to successful project actions inside the platform (acting as a visual Proof of Work):
+​The Builder Path (Freelancers/Developers): XP and exclusive skins are unlocked based on successful escrow transactions (e.g., reaching 5 consecutive 5-star reviews, completing high-value Pi transactions).
+​The Founder Path (Project Owners): XP and exclusive skins are unlocked based on launching pitches, milestones met, and consistency in uploading weekly updates to their project capsules.
+​The Investor Path (Backers): XP and special gold/whale skins are unlocked based on the total volume of Pi funded into active ecosystem pitches.
+​Skins & Slots Logic: Create the backend framework to handle dynamic slots for unlocking and equipping visual Skins/Badges based on the user's computed level. (Assume static visual asset IDs like skin_lvl_1, skin_builder_pro, etc., stored in an asset folder).
+​The Decay/Hunger Mechanism: Implement a time-based background function: if a user remains inactive (no chats, updates, or transactions) for more than 7 days, reduce a small percentage of XP or temporarily deactivate premium skins until they log back in and perform an action.
+​Web3 NFT Minting & Trading Backend: Create the database states and API endpoints to allow an Avatar that reaches a high tier to be marked as 'Minted' via the Pi SDK. Prepare the tables for a peer-to-peer Marketplace where users can trade these verified Avatars as NFTs, preserving their built-in reputation scores. Implement a 2.5% royalty fee logic on transactions.
+​2. High-Retention Platform Features (Additions):
+​Feature A: Proof of Contribution & Daily Streaks:
+​Create a database schema to track daily consecutive logins (daily_streak).
+​Award XP bonuses for active daily interaction (e.g., participating in Circles, giving feedback on pitches).
+​Implement a multiplier logic that boosts the user's general Reputation Score if they maintain a high streak.
+​Feature B: Smart 'Memory Capsules' (Building in Public):
+​Create the database architecture for a Project_Capsules table linked to existing pitches.
+​Allow founders to post weekly chronological updates (video links, code logs, text milestones).
+​Expose this data via APIs so it feeds into the current ecosystem interaction mechanics without changing current feed designs.
+​Feature C: AI-Powered Mastermind Circles:
+​Build background matchmaking routines utilizing the existing AI engine to auto-group highly compatible users (e.g., 5 developers and 3 designers) into temporary 48-hour brainstorming circles based on vector similarity of their skills/interests.
+​Program the AI agent to initiate these circles with a relevant marketplace challenge to spark real-time high-quality engagements.
+​Instructions for Implementation:
+​Provide the necessary PostgreSQL database updates, table relations, and schemas required for these additions (Avatars, Streaks, Capsules, and NFT status).
+​Write the background logic scripts or triggers (e.g., calculating XP gain upon a successful Escrow closure).
+​Do not alter any frontend visual code. Expose all features purely through secure API design and database calculations."

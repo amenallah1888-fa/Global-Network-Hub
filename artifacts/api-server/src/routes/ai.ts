@@ -202,4 +202,57 @@ router.post("/ai/matchmaker", async (req, res): Promise<void> => {
   res.json({ query, results: results.slice(0, 8) });
 });
 
+router.post("/ai/mastermind-match", async (req, res): Promise<void> => {
+  currentUserId(req);
+  const challenge = String(req.body?.challenge ?? "").trim();
+  const targetSize = Math.min(8, Math.max(3, parseInt(String(req.body?.targetSize ?? "6"), 10)));
+
+  const allUsers = await db.select({
+    id: usersTable.id,
+    name: usersTable.name,
+    handle: usersTable.handle,
+    title: usersTable.title,
+    city: usersTable.city,
+    bio: usersTable.bio,
+    reputationScore: usersTable.reputationScore,
+    kycStatus: usersTable.kycStatus,
+  }).from(usersTable)
+    .where(and(eq(usersTable.kycStatus, "verified"), sql`${usersTable.reputationScore} > 0`))
+    .orderBy(desc(usersTable.reputationScore))
+    .limit(50);
+
+  if (allUsers.length < 3) {
+    res.json({ message: "Not enough verified users yet for mastermind matching", users: [], challenge: challenge || null }); return;
+  }
+
+  const terms = challenge.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
+
+  const scored = allUsers.map((u) => {
+    const haystack = `${u.title} ${u.bio} ${u.city}`.toLowerCase();
+    let score = u.reputationScore;
+    for (const term of terms) { if (haystack.includes(term)) score += 20; }
+    return { ...u, matchScore: score };
+  });
+
+  scored.sort((a, b) => b.matchScore - a.matchScore);
+  const selected = scored.slice(0, targetSize);
+
+  const roles = ["Dev", "Designer", "Marketer", "Legal", "Finance", "Product", "Founder", "Advisor"];
+  const grouped = selected.map((u, i) => ({ ...u, suggestedRole: roles[i % roles.length] }));
+
+  const circleName = `Mastermind: ${challenge ? challenge.slice(0, 40) : "Open Innovation"} (48h)`;
+  const expiresAt = new Date(Date.now() + 48 * 3600 * 1000);
+
+  const aiChallenge = challenge || "What is the single biggest opportunity in the Pi Network ecosystem right now, and what would you build to capture it in 30 days?";
+
+  res.json({
+    circleName,
+    challenge: aiChallenge,
+    expiresAt: expiresAt.toISOString(),
+    memberCount: grouped.length,
+    members: grouped.map(({ matchScore, ...u }) => u),
+    instructions: "Use POST /circles to create this circle with the suggested members and inject the challenge as the first message.",
+  });
+});
+
 export default router;

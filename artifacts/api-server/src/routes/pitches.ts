@@ -14,6 +14,7 @@ import {
 } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
 import { createNotification } from "../lib/notify";
+import { awardXp } from "../lib/xpEngine";
 
 const router: IRouter = Router();
 
@@ -108,6 +109,9 @@ router.post("/pitches", async (req, res): Promise<void> => {
   });
 
   const [created] = await db.select().from(pitchesTable).where(eq(pitchesTable.id, id));
+
+  await awardXp(meId, "pitch_launched");
+
   res.status(201).json(decoratePitch(created, false));
 });
 

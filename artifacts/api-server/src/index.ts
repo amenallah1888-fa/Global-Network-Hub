@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { seedIfEmpty } from "./lib/seed";
 import { startTimelockWorker } from "./lib/timelockWorker";
+import { seedSkinCatalog } from "./lib/xpEngine";
 
 const rawPort = process.env["PORT"];
 
@@ -22,6 +23,12 @@ if (Number.isNaN(port) || port <= 0) {
     await seedIfEmpty();
   } catch (err) {
     logger.error({ err }, "Seed failed");
+  }
+
+  try {
+    await seedSkinCatalog();
+  } catch (err) {
+    logger.error({ err }, "Skin catalog seed failed");
   }
 
   startTimelockWorker();

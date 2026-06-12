@@ -12,6 +12,8 @@ import {
 } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
 import { createNotification } from "../lib/notify";
+import { awardXp } from "../lib/xpEngine";
+import { addReputationEvent } from "../lib/reputation";
 
 const router: IRouter = Router();
 
@@ -166,6 +168,12 @@ router.post("/proposals/:id/accept", async (req, res): Promise<void> => {
     amount: proposal.amountPi,
     message: `accepted your ${proposal.type === "investment" ? "investment" : "donation"} offer of ${proposal.amountPi} π on "${pitch.title}"`,
   });
+
+  if (proposal.type === "investment") {
+    await awardXp(proposal.investorId, "pi_invested", { piAmount: proposal.amountPi });
+    if (proposal.amountPi >= 100) await awardXp(proposal.investorId, "escrow_high_value");
+    await addReputationEvent(proposal.investorId, "escrow_completed", `Backed "${pitch.title}" with ${proposal.amountPi} π`, txId);
+  }
 
   res.json({ accepted: true, pitchTitle: pitch.title });
 });
