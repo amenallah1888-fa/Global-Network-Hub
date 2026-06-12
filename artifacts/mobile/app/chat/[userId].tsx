@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
 import { useColors } from "@/hooks/useColors";
+import { useAvatarData } from "@/lib/useAvatarData";
 import { useCurrentUserId, useUserById } from "@/lib/userCache";
 
 function formatTime(iso: string) {
@@ -52,6 +53,7 @@ export default function ChatScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
   const currentUserId = useCurrentUserId();
   const peer = useUserById(userId);
+  const { data: peerAvatar } = useAvatarData(userId);
   const queryClient = useQueryClient();
   const listRef = useRef<FlatList>(null);
   const [text, setText] = useState("");
@@ -135,7 +137,12 @@ export default function ChatScreen() {
         >
           <Feather name="arrow-left" size={18} color={colors.foreground} />
         </Pressable>
-        <Avatar avatarKey={peer.avatarKey} size={36} />
+        <Avatar
+          avatarKey={peer.avatarKey}
+          size={36}
+          level={peerAvatar?.level}
+          skinTier={peerAvatar?.activeSkin?.tier}
+        />
         <View style={styles.titleWrap}>
           <View style={styles.nameRow}>
             <Text

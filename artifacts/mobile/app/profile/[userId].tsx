@@ -18,6 +18,7 @@ import { Avatar } from "@/components/Avatar";
 import { PostCard } from "@/components/PostCard";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import { useAvatarData } from "@/lib/useAvatarData";
 import type { Circle, Pitch, Post, User } from "@workspace/api-client-react";
 
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
@@ -55,6 +56,7 @@ export default function PublicProfileScreen() {
   const qc = useQueryClient();
   const [following, setFollowing] = useState<boolean | null>(null);
   const [tab, setTab] = useState<Tab>("posts");
+  const { data: profileAvatar } = useAvatarData(userId);
 
   const { data: profile, isLoading } = useQuery<PublicProfile>({
     queryKey: [`/api/users/${userId}`],
@@ -139,7 +141,13 @@ export default function PublicProfileScreen() {
               {/* Hero */}
               <View style={[styles.hero, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
                 <View style={styles.heroTop}>
-                  <Avatar avatarKey={profile.avatarKey} size={80} ring />
+                  <Avatar
+                    avatarKey={profile.avatarKey}
+                    size={80}
+                    ring
+                    level={profileAvatar?.level}
+                    skinTier={profileAvatar?.activeSkin?.tier}
+                  />
                   <View style={styles.heroActions}>
                     <Pressable onPress={handleFollow} style={({ pressed }) => [styles.followBtn, {
                       backgroundColor: isFollowing ? colors.cardElevated : colors.primary,

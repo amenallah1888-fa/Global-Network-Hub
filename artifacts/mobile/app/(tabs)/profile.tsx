@@ -28,6 +28,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import { useAvatarData } from "@/lib/useAvatarData";
 import { useCurrentUser, useCurrentUserId } from "@/lib/userCache";
 
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
@@ -368,6 +369,8 @@ export default function ProfileScreen() {
   const joinedCircles = allCircles.filter((c) => c.joined).length;
   const monthlySpend = allCircles.filter((c) => c.joined && c.paid).reduce((s, c) => s + c.price, 0);
 
+  const { data: avatarData } = useAvatarData(currentUserId);
+
   const myPitch = allPosts.length > 0 ? null : null;
   const myPitchId = null;
 
@@ -406,7 +409,13 @@ export default function ProfileScreen() {
       <View style={[styles.cover, { backgroundColor: colors.card, paddingTop: topPad + 24, borderColor: colors.border }]}>
         <View style={styles.coverTop}>
           <Pressable onPress={() => router.push(`/profile/${currentUserId}`)}>
-            <Avatar avatarKey={me.avatarKey} size={84} ring />
+            <Avatar
+              avatarKey={me.avatarKey}
+              size={84}
+              ring
+              level={avatarData?.level}
+              skinTier={avatarData?.activeSkin?.tier}
+            />
           </Pressable>
           <View style={styles.coverActions}>
             <Pressable
@@ -428,6 +437,12 @@ export default function ProfileScreen() {
           <View style={styles.nameRow}>
             <Text style={[styles.name, { color: colors.foreground }]}>{me.name}</Text>
             {me.verified ? <Feather name="check-circle" size={16} color={colors.primary} style={{ marginLeft: 6 }} /> : null}
+            {(avatarData?.dailyStreak ?? 0) > 1 && (
+              <View style={[styles.streakBadge, { backgroundColor: "#F59E0B20", borderColor: "#F59E0B50" }]}>
+                <Text style={{ fontSize: 12 }}>🔥</Text>
+                <Text style={[styles.streakNum, { color: "#F59E0B" }]}>{avatarData!.dailyStreak}</Text>
+              </View>
+            )}
           </View>
           <Text style={[styles.handle, { color: colors.mutedForeground }]}>@{me.handle}</Text>
           <Text style={[styles.bio, { color: colors.foreground }]}>
@@ -607,6 +622,8 @@ const styles = StyleSheet.create({
   iconBtn: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   nameBlock: { marginTop: 16 },
   nameRow: { flexDirection: "row", alignItems: "center" },
+  streakBadge: { flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, borderWidth: 1, marginLeft: 6 },
+  streakNum: { fontSize: 11, fontFamily: "Inter_700Bold" },
   name: { fontSize: 24, fontFamily: "Inter_700Bold", letterSpacing: -0.5 },
   handle: { marginTop: 2, fontSize: 13, fontFamily: "Inter_500Medium" },
   bio: { marginTop: 10, fontSize: 14, lineHeight: 20, fontFamily: "Inter_400Regular" },

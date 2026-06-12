@@ -4,7 +4,7 @@ import {
   getListPitchesQueryKey,
   useCreatePitch,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -24,8 +24,13 @@ import {
   View,
 } from "react-native";
 
+import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { COVER_PRESETS, getImage } from "@/lib/imageMap";
+
+const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
+  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+  : "";
 
 type Props = {
   visible: boolean;
@@ -61,8 +66,22 @@ const CITIES: { name: string; x: number; y: number }[] = [
 
 export function PitchComposerSheet({ visible, onClose }: Props) {
   const colors = useColors();
+  const { token } = useAuth();
   const queryClient = useQueryClient();
   const create = useCreatePitch();
+
+  const { data: meProfile } = useQuery<any>({
+    queryKey: ["/api/me"],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("auth");
+      return res.json();
+    },
+    enabled: !!token,
+    staleTime: 60_000,
+  });
 
   const [title, setTitle] = useState("");
   const [summary, setSummary] = useState("");
@@ -149,6 +168,10 @@ export function PitchComposerSheet({ visible, onClose }: Props) {
 
   const handleSubmit = () => {
     if (!canSubmit) return;
+    if (meProfile?.kycStatus !== "verified") {
+      setError("KYC verification is required to publish a pitch. Go to Profile → Settings → Account to get verified.");
+      return;
+    }
     setError(null);
     const city = CITIES.find((c) => c.name === cityName) ?? CITIES[0];
     if (Platform.OS !== "web") {

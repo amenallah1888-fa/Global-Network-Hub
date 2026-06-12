@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Linking,
   Modal,
@@ -30,6 +31,135 @@ import { SegmentControl } from "@/components/SegmentControl";
 import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+
+type ServiceComposerProps = {
+  visible: boolean;
+  onClose: () => void;
+  onSubmitted: () => void;
+};
+
+function ServiceComposerSheet({ visible, onClose, onSubmitted }: ServiceComposerProps) {
+  const colors = useColors();
+  const { token } = useAuth();
+  const [svcTitle, setSvcTitle] = useState("");
+  const [svcDesc, setSvcDesc] = useState("");
+  const [svcCategory, setSvcCategory] = useState("Development");
+  const [svcPrice, setSvcPrice] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const reset = () => { setSvcTitle(""); setSvcDesc(""); setSvcCategory("Development"); setSvcPrice(""); setError(""); };
+  const handleClose = () => { reset(); onClose(); };
+
+  const handleSubmit = async () => {
+    if (!svcTitle.trim()) { setError("Service title is required."); return; }
+    setError(""); setSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/services`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: svcTitle.trim(),
+          description: svcDesc.trim(),
+          category: svcCategory,
+          pricePi: parseFloat(svcPrice) || 0,
+        }),
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        setError(b.error ?? "Could not list service.");
+        return;
+      }
+      reset(); onSubmitted();
+    } catch { setError("Network error. Please try again."); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+      <View style={scs.backdrop}>
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={handleClose} />
+        <View style={[scs.sheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={scs.handle} />
+          <View style={[scs.header, { borderBottomColor: colors.border }]}>
+            <View style={[scs.iconWrap, { backgroundColor: colors.primary + "18" }]}>
+              <Feather name="grid" size={16} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[scs.title, { color: colors.foreground }]}>Offer a Service</Text>
+              <Text style={[scs.sub, { color: colors.mutedForeground }]}>List your skill in the π marketplace</Text>
+            </View>
+            <Pressable onPress={handleClose} hitSlop={10}><Feather name="x" size={20} color={colors.mutedForeground} /></Pressable>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+            {[
+              { label: "Service Title *", value: svcTitle, set: setSvcTitle, placeholder: "e.g. Smart Contract Audit" },
+              { label: "Price (π)", value: svcPrice, set: setSvcPrice, placeholder: "0 = Contact for price", keyboard: "numeric" },
+            ].map(({ label, value, set, placeholder, keyboard }: any) => (
+              <View key={label} style={scs.fieldWrap}>
+                <Text style={[scs.label, { color: colors.mutedForeground }]}>{label}</Text>
+                <TextInput
+                  value={value} onChangeText={set} placeholder={placeholder}
+                  keyboardType={keyboard ?? "default"}
+                  placeholderTextColor={colors.mutedForeground}
+                  style={[scs.input, { color: colors.foreground, backgroundColor: colors.background, borderColor: colors.border }]}
+                />
+              </View>
+            ))}
+            <View style={scs.fieldWrap}>
+              <Text style={[scs.label, { color: colors.mutedForeground }]}>Description</Text>
+              <TextInput
+                value={svcDesc} onChangeText={setSvcDesc} placeholder="What exactly do you offer?" multiline
+                placeholderTextColor={colors.mutedForeground}
+                style={[scs.textarea, { color: colors.foreground, backgroundColor: colors.background, borderColor: colors.border }]}
+              />
+            </View>
+            <View style={scs.fieldWrap}>
+              <Text style={[scs.label, { color: colors.mutedForeground }]}>Category</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
+                {SERVICE_CATEGORIES.filter(c => c !== "All").map((c) => (
+                  <Pressable key={c} onPress={() => setSvcCategory(c)} style={[scs.chip, { backgroundColor: svcCategory === c ? colors.primary : colors.cardElevated, borderColor: svcCategory === c ? colors.primary : colors.border }]}>
+                    <Text style={{ color: svcCategory === c ? "#fff" : colors.foreground, fontSize: 12, fontFamily: "Inter_600SemiBold" }}>{c}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+            {error ? (
+              <View style={[scs.error, { backgroundColor: "#EF444415", borderColor: "#EF4444" }]}>
+                <Feather name="alert-circle" size={12} color="#EF4444" />
+                <Text style={{ color: "#EF4444", fontSize: 12, fontFamily: "Inter_500Medium", flex: 1 }}>{error}</Text>
+              </View>
+            ) : null}
+            <Pressable
+              onPress={handleSubmit} disabled={submitting}
+              style={({ pressed }) => [scs.btn, { backgroundColor: colors.primary, opacity: pressed || submitting ? 0.8 : 1 }]}
+            >
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={scs.btnText}>List My Service</Text>}
+            </Pressable>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const scs = StyleSheet.create({
+  backdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.55)" },
+  sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderBottomWidth: 0, maxHeight: "90%" },
+  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: "#ccc", alignSelf: "center", marginTop: 12, marginBottom: 4 },
+  header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1 },
+  iconWrap: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  sub: { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 1 },
+  fieldWrap: { gap: 6 },
+  label: { fontSize: 11, fontFamily: "Inter_700Bold", letterSpacing: 0.3 },
+  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: "Inter_400Regular" },
+  textarea: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: "Inter_400Regular", minHeight: 70, textAlignVertical: "top" },
+  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1 },
+  error: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 10, borderWidth: 1 },
+  btn: { borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 4, marginBottom: 20 },
+  btnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" },
+});
 
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
@@ -371,9 +501,35 @@ export default function PitchesScreen() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<HubFilters>(EMPTY_FILTERS);
   const [dappSubmitOpen, setDappSubmitOpen] = useState(false);
+  const [serviceComposerOpen, setServiceComposerOpen] = useState(false);
+
+  const { data: meData } = useQuery<any>({
+    queryKey: ["/api/me"],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/me`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error("auth");
+      return res.json();
+    },
+    enabled: !!token,
+    staleTime: 60_000,
+  });
+
+  const isKycVerified = meData?.kycStatus === "verified";
+
+  const requireKyc = (action: () => void) => {
+    if (!isKycVerified) {
+      Alert.alert(
+        "KYC Verification Required",
+        "You need to complete KYC verification to publish on the Hub. Go to Profile → Settings → Account to start verification.",
+        [{ text: "OK", style: "default" }]
+      );
+      return;
+    }
+    action();
+  };
 
   const { data: pitches, isLoading: pitchesLoading } = useListPitches();
-  const { data: services, isLoading: servicesLoading } = useQuery<ServiceApp[]>({
+  const { data: services, isLoading: servicesLoading, refetch: servicesRefetch } = useQuery<ServiceApp[]>({
     queryKey: ["/api/services"],
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/api/services`, { headers: { Authorization: `Bearer ${token}` } });
@@ -461,7 +617,7 @@ export default function PitchesScreen() {
                   <Text style={[styles.heroValue, { color: colors.foreground }]}>{(totalRaising / 1_000_000).toFixed(1)}M π</Text>
                   <Text style={[styles.heroSub, { color: colors.mutedForeground }]}>across {visiblePitches.length} live {visiblePitches.length === 1 ? "round" : "rounds"}</Text>
                 </View>
-                <Pressable onPress={() => setComposerOpen(true)} style={({ pressed }) => [styles.heroBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}>
+                <Pressable onPress={() => requireKyc(() => setComposerOpen(true))} style={({ pressed }) => [styles.heroBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}>
                   <Feather name="plus" size={14} color={colors.primaryForeground} />
                   <Text style={[styles.heroBtnText, { color: colors.primaryForeground }]}>Pitch</Text>
                 </Pressable>
@@ -518,9 +674,10 @@ export default function PitchesScreen() {
                   <Text style={[styles.heroValue, { color: colors.foreground }]}>{serviceList.length}</Text>
                   <Text style={[styles.heroSub, { color: colors.mutedForeground }]}>providers accepting Pi</Text>
                 </View>
-                <View style={[styles.marketplaceBadge, { backgroundColor: colors.primary + "15", borderColor: colors.primary + "40" }]}>
-                  <Text style={[styles.marketplaceBadgeText, { color: colors.primary }]}>π Economy</Text>
-                </View>
+                <Pressable onPress={() => requireKyc(() => setServiceComposerOpen(true))} style={({ pressed }) => [styles.heroBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}>
+                  <Feather name="plus" size={14} color="#fff" />
+                  <Text style={[styles.heroBtnText, { color: "#fff" }]}>Offer</Text>
+                </Pressable>
               </View>
 
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12, gap: 8 }}>
@@ -613,6 +770,7 @@ export default function PitchesScreen() {
       <PitchComposerSheet visible={composerOpen} onClose={() => setComposerOpen(false)} />
       <HubFiltersSheet visible={filtersOpen} initial={filters} onApply={setFilters} onClose={() => setFiltersOpen(false)} />
       <DAppSubmitSheet visible={dappSubmitOpen} onClose={() => setDappSubmitOpen(false)} onSubmitted={() => { setDappSubmitOpen(false); appsRefetch(); }} />
+      <ServiceComposerSheet visible={serviceComposerOpen} onClose={() => setServiceComposerOpen(false)} onSubmitted={() => { setServiceComposerOpen(false); servicesRefetch(); }} />
     </View>
   );
 }
