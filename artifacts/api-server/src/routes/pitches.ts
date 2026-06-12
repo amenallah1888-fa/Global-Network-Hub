@@ -61,6 +61,12 @@ router.get("/pitches", async (req, res): Promise<void> => {
 
 router.post("/pitches", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
+
+  const [me] = await db.select({ kycStatus: usersTable.kycStatus }).from(usersTable).where(eq(usersTable.id, meId));
+  if (!me || me.kycStatus !== "verified") {
+    res.status(403).json({ error: "KYC verification required to post a Pitch. Complete identity verification first.", code: "KYC_REQUIRED" }); return;
+  }
+
   const body = req.body ?? {};
   const title = String(body.title ?? "").trim();
   const summary = String(body.summary ?? "").trim();

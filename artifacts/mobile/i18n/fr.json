@@ -1,0 +1,101 @@
+{
+  "common": {
+    "back": "Retour",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "confirm": "Confirmer",
+    "close": "Fermer",
+    "loading": "Chargement…",
+    "error": "Une erreur s'est produite",
+    "retry": "Réessayer",
+    "done": "Terminé",
+    "submit": "Soumettre",
+    "send": "Envoyer",
+    "next": "Suivant",
+    "previous": "Précédent"
+  },
+  "auth": {
+    "signIn": "Se Connecter",
+    "register": "S'inscrire",
+    "signOut": "Se Déconnecter",
+    "handle": "Pseudo",
+    "password": "Mot de passe",
+    "piNetwork": "Se connecter avec Pi Network",
+    "demoHint": "Démo : pseudo alex · mot de passe oasis123"
+  },
+  "nav": {
+    "feed": "Fil",
+    "map": "Atlas",
+    "pitches": "Projets",
+    "services": "Services",
+    "profile": "Profil",
+    "chat": "Chat",
+    "circles": "Cercles"
+  },
+  "pitch": {
+    "invest": "Investir en Séquestre",
+    "sendOffer": "Envoyer une Offre",
+    "donate": "Faire un Don",
+    "milestones": "Jalons",
+    "verification": "Vérification",
+    "overview": "Aperçu",
+    "proofOfIntent": "Preuve d'Intention",
+    "trustScore": "Score de Confiance Cumulé",
+    "backers": "Soutiens",
+    "raised": "collecté sur",
+    "stage": "Étape",
+    "industry": "Secteur",
+    "founder": "Fondateur",
+    "updates": "Mises à jour",
+    "noUpdates": "Aucune mise à jour",
+    "escrowLock": "Verrouiller en Séquestre",
+    "escrowActive": "Accord Actif !"
+  },
+  "service": {
+    "hireEscrow": "Embaucher avec Séquestre Pi",
+    "sendOffer": "Envoyer une Offre",
+    "donate": "Faire un Don",
+    "proofOfIntent": "Preuve d'Intention",
+    "trustVerified": "Confiance Vérifiée",
+    "jobsDone": "Missions Réalisées",
+    "idVerified": "ID Vérifiée",
+    "aboutProvider": "À propos du Prestataire",
+    "portfolio": "Portfolio",
+    "similar": "Services Similaires",
+    "startingFrom": "À partir de"
+  },
+  "escrow": {
+    "terms": "Conditions de Séquestre",
+    "fundsLocked": "Fonds bloqués jusqu'à vérification du travail",
+    "proofOnCompletion": "Le prestataire soumet une preuve à la fin",
+    "autoRefund": "Remboursement automatique en 30 jours sans livraison",
+    "amlActive": "Contrôles AML actifs",
+    "auditTrail": "Piste d'audit immuable enregistrée",
+    "lockFunds": "Bloquer les Fonds en Séquestre",
+    "contractLocked": "Contrat Verrouillé !",
+    "secureHeld": "Vos π sont en séquestre sécurisé."
+  },
+  "reputation": {
+    "score": "Score de Réputation",
+    "tier": "Niveau",
+    "newcomer": "Débutant",
+    "bronze": "Bronze",
+    "silver": "Argent",
+    "gold": "Or",
+    "diamond": "Diamant"
+  },
+  "kyc": {
+    "verified": "KYC Vérifié",
+    "pending": "KYC En attente",
+    "none": "Non Vérifié",
+    "required": "Vérification KYC requise",
+    "becomeVerified": "Devenir Vérifié KYC"
+  },
+  "dispute": {
+    "open": "Ouvrir un Litige",
+    "reason": "Motif du litige",
+    "timelockInfo": "L'autre partie a 24h pour répondre avant l'analyse IA.",
+    "juryPhase": "Phase de Jury",
+    "resolved": "Résolu"
+  }
+}

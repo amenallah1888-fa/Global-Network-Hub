@@ -12,6 +12,8 @@ export const milestonesTable = pgTable("milestones", {
   completedAt: timestamp("completed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   order: integer("order").notNull().default(0),
+  timelockDeadline: timestamp("timelock_deadline", { withTimezone: true }),
+  timelockAutoReleaseAt: timestamp("timelock_auto_release_at", { withTimezone: true }),
 });
 
 export const auditLogsTable = pgTable("audit_logs", {

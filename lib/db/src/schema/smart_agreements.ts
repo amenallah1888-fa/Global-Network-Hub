@@ -11,6 +11,11 @@ export const smartAgreementsTable = pgTable("smart_agreements", {
   refundDeadline: timestamp("refund_deadline", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  disputeStatus: text("dispute_status"),
+  timelockDeadline: timestamp("timelock_deadline", { withTimezone: true }),
+  juryDeadline: timestamp("jury_deadline", { withTimezone: true }),
+  aiVerdict: text("ai_verdict"),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
 });
 
 export const projectDocumentsTable = pgTable("project_documents", {

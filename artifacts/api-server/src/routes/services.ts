@@ -105,6 +105,9 @@ router.post("/services", async (req, res): Promise<void> => {
   }
 
   const [me] = await db.select().from(usersTable).where(eq(usersTable.id, meId));
+  if (!me || me.kycStatus !== "verified") {
+    res.status(403).json({ error: "KYC verification required to offer a Service. Complete identity verification first.", code: "KYC_REQUIRED" }); return;
+  }
   const trustScore = me?.verified ? 80 : 40;
 
   const id = uid("svc");

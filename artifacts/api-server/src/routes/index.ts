@@ -17,6 +17,9 @@ import milestonesRouter from "./milestones";
 import servicesRouter from "./services";
 import appsRouter from "./apps";
 import smartAgreementsRouter from "./smart-agreements";
+import reviewsRouter from "./reviews";
+import disputesRouter from "./disputes";
+import reputationRouter from "./reputation";
 
 const router: IRouter = Router();
 
@@ -38,5 +41,8 @@ router.use(milestonesRouter);
 router.use(servicesRouter);
 router.use(appsRouter);
 router.use(smartAgreementsRouter);
+router.use(reviewsRouter);
+router.use(disputesRouter);
+router.use(reputationRouter);
 
 export default router;

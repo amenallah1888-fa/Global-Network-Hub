@@ -1,0 +1,101 @@
+{
+  "common": {
+    "back": "Back",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "close": "Close",
+    "loading": "Loading…",
+    "error": "Something went wrong",
+    "retry": "Retry",
+    "done": "Done",
+    "submit": "Submit",
+    "send": "Send",
+    "next": "Next",
+    "previous": "Previous"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "register": "Register",
+    "signOut": "Sign Out",
+    "handle": "Handle",
+    "password": "Password",
+    "piNetwork": "Sign in with Pi Network",
+    "demoHint": "Demo: handle alex · password oasis123"
+  },
+  "nav": {
+    "feed": "Feed",
+    "map": "Atlas",
+    "pitches": "Pitches",
+    "services": "Services",
+    "profile": "Profile",
+    "chat": "Chat",
+    "circles": "Circles"
+  },
+  "pitch": {
+    "invest": "Invest in Escrow",
+    "sendOffer": "Send Offer",
+    "donate": "Donate",
+    "milestones": "Milestones",
+    "verification": "Verification",
+    "overview": "Overview",
+    "proofOfIntent": "Proof of Intent",
+    "trustScore": "Cumulative Trust Score",
+    "backers": "Backers",
+    "raised": "raised of",
+    "stage": "Stage",
+    "industry": "Industry",
+    "founder": "Founder",
+    "updates": "Updates",
+    "noUpdates": "No updates yet",
+    "escrowLock": "Lock in Escrow",
+    "escrowActive": "Agreement Active!"
+  },
+  "service": {
+    "hireEscrow": "Hire with Pi Escrow",
+    "sendOffer": "Send Offer",
+    "donate": "Donate",
+    "proofOfIntent": "Proof of Intent",
+    "trustVerified": "Trust Verified",
+    "jobsDone": "Jobs Done",
+    "idVerified": "ID Verified",
+    "aboutProvider": "About the Provider",
+    "portfolio": "Portfolio",
+    "similar": "Similar Services",
+    "startingFrom": "Starting from"
+  },
+  "escrow": {
+    "terms": "Escrow Terms",
+    "fundsLocked": "Funds locked until work is verified",
+    "proofOnCompletion": "Provider submits proof on completion",
+    "autoRefund": "30-day automatic refund if no delivery",
+    "amlActive": "AML velocity checks active",
+    "auditTrail": "Immutable audit trail recorded",
+    "lockFunds": "Lock Funds in Escrow",
+    "contractLocked": "Contract Locked!",
+    "secureHeld": "Your π is securely held in escrow."
+  },
+  "reputation": {
+    "score": "Reputation Score",
+    "tier": "Tier",
+    "newcomer": "Newcomer",
+    "bronze": "Bronze",
+    "silver": "Silver",
+    "gold": "Gold",
+    "diamond": "Diamond"
+  },
+  "kyc": {
+    "verified": "KYC Verified",
+    "pending": "KYC Pending",
+    "none": "Not Verified",
+    "required": "KYC verification required",
+    "becomeVerified": "Become KYC Verified"
+  },
+  "dispute": {
+    "open": "Open Dispute",
+    "reason": "Reason for dispute",
+    "timelockInfo": "The other party has 24h to respond before AI analysis begins.",
+    "juryPhase": "Jury Phase",
+    "resolved": "Resolved"
+  }
+}

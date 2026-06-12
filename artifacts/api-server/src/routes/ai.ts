@@ -1,6 +1,8 @@
 import { Router, type IRouter } from "express";
-import { desc, sql } from "drizzle-orm";
-import { db, pitchesTable, markersTable, usersTable } from "@workspace/db";
+import { desc, sql, eq, and } from "drizzle-orm";
+import { db, pitchesTable, markersTable, usersTable, serviceAppsTable } from "@workspace/db";
+import { currentUserId } from "../lib/currentUser";
+import { cache, TTL } from "../lib/cache";
 import Groq from "groq-sdk";
 
 const MODEL = "llama-3.3-70b-versatile";
@@ -12,33 +14,13 @@ function createGroqClient(): Groq | null {
 }
 
 const groq = createGroqClient();
-
 const router: IRouter = Router();
 
-router.post("/ai/chat", async (req, res): Promise<void> => {
-  const messages: { role: string; content: string }[] = req.body?.messages ?? [];
-  const pitchContext: Record<string, unknown> | null = req.body?.pitchContext ?? null;
+async function buildEcosystemContext(): Promise<string> {
+  const cacheKey = "ecosystem_context";
+  const cached = cache.get<string>(cacheKey);
+  if (cached) return cached;
 
-  if (!messages.length) {
-    res.status(400).json({ error: "messages required" });
-    return;
-  }
-
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-
-  if (!groq) {
-    const mock = "The HumanVerse AI assistant is ready — add a GROQ_API_KEY secret to activate it. Get your free key at console.groq.com.";
-    for (const char of mock) {
-      res.write(`data: ${JSON.stringify({ content: char })}\n\n`);
-    }
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-    res.end();
-    return;
-  }
-
-  let ecosystemContext = "";
   try {
     const [pitchStats] = await db.select({
       count: sql<number>`count(*)::int`,
@@ -54,79 +36,104 @@ router.post("/ai/chat", async (req, res): Promise<void> => {
       industry: pitchesTable.industry,
       stage: pitchesTable.stage,
       backersCount: pitchesTable.backersCount,
-    }).from(pitchesTable)
-      .orderBy(desc(pitchesTable.raised))
-      .limit(5);
+      trustScore: pitchesTable.trustScore,
+    }).from(pitchesTable).orderBy(desc(pitchesTable.raised)).limit(8);
 
     const trendingCities = await db.select({
       city: markersTable.city,
       count: sql<number>`count(*)::int`,
-    }).from(markersTable)
-      .groupBy(markersTable.city)
-      .orderBy(sql`count(*) desc`)
-      .limit(5);
+    }).from(markersTable).groupBy(markersTable.city).orderBy(sql`count(*) desc`).limit(5);
 
-    const serviceApps = await db.select({
-      title: pitchesTable.title,
-      city: pitchesTable.city,
-      industry: pitchesTable.industry,
-    }).from(pitchesTable)
-      .where(sql`${pitchesTable.entityType} = 'service_app'`)
-      .orderBy(desc(pitchesTable.createdAt))
-      .limit(8);
+    const services = await db.select({
+      id: serviceAppsTable.id,
+      title: serviceAppsTable.title,
+      category: serviceAppsTable.category,
+      city: serviceAppsTable.city,
+      trustScore: serviceAppsTable.trustScore,
+      rating: serviceAppsTable.rating,
+      hiredCount: serviceAppsTable.hiredCount,
+      description: serviceAppsTable.description,
+    }).from(serviceAppsTable).orderBy(desc(serviceAppsTable.trustScore), desc(serviceAppsTable.rating)).limit(10);
 
-    const totalUsers = await db.select({ count: sql<number>`count(*)::int` }).from(usersTable);
+    const [totalUsers] = await db.select({ count: sql<number>`count(*)::int` }).from(usersTable);
 
-    ecosystemContext = `
+    const topUsers = await db.select({
+      id: usersTable.id,
+      name: usersTable.name,
+      handle: usersTable.handle,
+      city: usersTable.city,
+      reputationScore: usersTable.reputationScore,
+      kycStatus: usersTable.kycStatus,
+    }).from(usersTable).orderBy(desc(usersTable.reputationScore)).limit(5);
+
+    const ctx = `
 HUMANVERSE ECOSYSTEM DATA (live):
-- Total projects on platform: ${pitchStats?.count ?? 0}
-- Total Pi raised across all projects: ${pitchStats?.totalRaised ?? 0} π
-- Total users: ${totalUsers[0]?.count ?? 0}
+- Total projects: ${pitchStats?.count ?? 0} | Total Pi raised: ${pitchStats?.totalRaised ?? 0} π | Total users: ${totalUsers?.count ?? 0}
 
-TOP 5 MOST FUNDED PROJECTS:
-${topFunded.map((p, i) => `${i + 1}. "${p.title}" (${p.city}) — ${p.raised} π raised of ${p.raising} π goal, ${p.backersCount} backers, ${p.industry}, ${p.stage}`).join("\n")}
+TOP FUNDED PROJECTS (search these when users ask about pitches/startups):
+${topFunded.map((p, i) => `${i + 1}. ID:${p.id} "${p.title}" (${p.city}) — ${p.raised}π raised, ${p.backersCount} backers, ${p.industry}, ${p.stage}, trust:${p.trustScore ?? 0}%`).join("\n")}
 
-TRENDING CITIES ON THE ATLAS:
-${trendingCities.map((c, i) => `${i + 1}. ${c.city} (${c.count} markers)`).join(", ")}
+AVAILABLE SERVICES (search these when users ask for help, skills, or providers):
+${services.map((s, i) => `${i + 1}. ID:${s.id} "${s.title}" [${s.category}] ${s.city} — ${s.trustScore}/100 trust, ${s.rating}/5 rating, ${s.hiredCount} hired — ${s.description?.slice(0, 60)}…`).join("\n")}
 
-LATEST SERVICE APPS:
-${serviceApps.map((s) => `"${s.title}" in ${s.city} (${s.industry})`).join(", ")}
+TOP REPUTATION USERS (suggest for collaboration or validation):
+${topUsers.map((u) => `@${u.handle} (${u.city}) score:${u.reputationScore} kyc:${u.kycStatus}`).join(" | ")}
+
+TRENDING CITIES: ${trendingCities.map((c) => `${c.city}(${c.count})`).join(", ")}
 `.trim();
+
+    cache.set(cacheKey, ctx, TTL.MEDIUM);
+    return ctx;
   } catch {
-    ecosystemContext = "Ecosystem data temporarily unavailable.";
+    return "Ecosystem data temporarily unavailable.";
   }
+}
+
+router.post("/ai/chat", async (req, res): Promise<void> => {
+  const messages: { role: string; content: string }[] = req.body?.messages ?? [];
+  const pitchContext: Record<string, unknown> | null = req.body?.pitchContext ?? null;
+
+  if (!messages.length) { res.status(400).json({ error: "messages required" }); return; }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  if (!groq) {
+    const mock = "The HumanVerse AI assistant is ready — add a GROQ_API_KEY secret to activate it. Get your free key at console.groq.com.";
+    for (const char of mock) res.write(`data: ${JSON.stringify({ content: char })}\n\n`);
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
+    return;
+  }
+
+  const ecosystemContext = await buildEcosystemContext();
 
   let pitchSection = "";
   if (pitchContext) {
     pitchSection = `
 CURRENT PROJECT CONTEXT (user is viewing this project):
-- Title: ${pitchContext.title}
-- Summary: ${pitchContext.summary}
-- City: ${pitchContext.city}
-- Industry: ${pitchContext.industry}
-- Stage: ${pitchContext.stage}
-- Raised: ${pitchContext.raised} π of ${pitchContext.raising} π
-- Backers: ${pitchContext.backersCount}
-- Verified: ${pitchContext.verified ? "Yes" : "No"}
-- Roadmap: ${pitchContext.roadmapUrl ?? "Not provided"}
-- Proof of Reality: ${pitchContext.proofOfRealityUrl ?? "Not provided"}
+- Title: ${pitchContext.title} | City: ${pitchContext.city} | Industry: ${pitchContext.industry} | Stage: ${pitchContext.stage}
+- Raised: ${pitchContext.raised} π of ${pitchContext.raising} π | Backers: ${pitchContext.backersCount} | Verified: ${pitchContext.verified ? "Yes" : "No"}
+- Roadmap: ${pitchContext.roadmapUrl ?? "Not provided"} | Proof: ${pitchContext.proofOfRealityUrl ?? "Not provided"}
 `.trim();
   }
 
-  const systemPrompt = `You are HumanVerse Intelligence, the AI assistant embedded in HumanVerse — a social business super app built on the Pi Network ecosystem. You help users discover projects, evaluate investments, find services, and navigate the ecosystem.
+  const systemPrompt = `You are HumanVerse Intelligence, the AI assistant and Broker for HumanVerse — a social business super app on the Pi Network.
 
-You communicate in a concise, confident, and human tone — similar to Grok on X. You are helpful, direct, and sometimes witty.
+You act as a smart broker: when users ask about projects, services, skills, or people, you MUST search the ecosystem data above and suggest specific entities by name, referencing their IDs so the app can deep-link. Format suggestions as:
+• 🔗 [Title](id:ENTITY_ID) — brief reason
 
-All currency in HumanVerse is Pi (π). Never mention dollars or other currencies unless specifically asked.
+All currency is Pi (π). Never mention dollars unless asked.
 
 ${ecosystemContext}
 
 ${pitchSection ? pitchSection + "\n" : ""}Rules:
-- Keep responses concise (3-5 sentences max unless asked for detail)
-- Use bullet points when listing items
-- Never hallucinate data — use only the ecosystem data provided above
-- If asked to analyze a project, base it on the current project context if available
-- If asked about something not in the data, say you'll have more data as the ecosystem grows`;
+- Be concise (3-5 sentences max unless asked for detail)
+- Use bullets when listing. Reference IDs when suggesting specific entities.
+- Never hallucinate — only use data provided above
+- If asked to find something not in the data, acknowledge the limit
+- For matchmaking: extract keywords from the user's request, match against categories/industries/titles in the data`;
 
   const chatMessages = [
     { role: "system" as const, content: systemPrompt },
@@ -134,25 +141,65 @@ ${pitchSection ? pitchSection + "\n" : ""}Rules:
   ];
 
   try {
-    const stream = await groq.chat.completions.create({
-      model: MODEL,
-      max_tokens: 8192,
-      messages: chatMessages,
-      stream: true,
-    });
-
+    const stream = await groq.chat.completions.create({ model: MODEL, max_tokens: 8192, messages: chatMessages, stream: true });
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content;
-      if (content) {
-        res.write(`data: ${JSON.stringify({ content })}\n\n`);
-      }
+      if (content) res.write(`data: ${JSON.stringify({ content })}\n\n`);
     }
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
-  } catch (err) {
+  } catch {
     res.write(`data: ${JSON.stringify({ error: "AI service unavailable. Please try again." })}\n\n`);
     res.end();
   }
+});
+
+router.post("/ai/matchmaker", async (req, res): Promise<void> => {
+  currentUserId(req);
+  const query = String(req.body?.query ?? "").toLowerCase().trim();
+  const type = req.body?.type as "service" | "pitch" | "any" ?? "any";
+
+  if (!query) { res.status(400).json({ error: "query required" }); return; }
+
+  const terms = query.split(/\s+/).filter((t) => t.length > 2);
+
+  const results: { type: string; id: string; title: string; score: number; meta: string }[] = [];
+
+  if (type !== "pitch") {
+    const services = await db.select({
+      id: serviceAppsTable.id, title: serviceAppsTable.title, category: serviceAppsTable.category,
+      city: serviceAppsTable.city, trustScore: serviceAppsTable.trustScore, rating: serviceAppsTable.rating,
+      description: serviceAppsTable.description,
+    }).from(serviceAppsTable).orderBy(desc(serviceAppsTable.trustScore)).limit(30);
+
+    for (const svc of services) {
+      const haystack = `${svc.title} ${svc.category} ${svc.description ?? ""} ${svc.city}`.toLowerCase();
+      let matchScore = 0;
+      for (const term of terms) { if (haystack.includes(term)) matchScore += 2; }
+      matchScore += (svc.trustScore ?? 0) / 50;
+      matchScore += (svc.rating ?? 0) / 5;
+      if (matchScore > 1) results.push({ type: "service", id: svc.id, title: svc.title, score: matchScore, meta: `${svc.category} · ${svc.city} · ${svc.trustScore}/100` });
+    }
+  }
+
+  if (type !== "service") {
+    const pitches = await db.select({
+      id: pitchesTable.id, title: pitchesTable.title, industry: pitchesTable.industry,
+      city: pitchesTable.city, stage: pitchesTable.stage, raised: pitchesTable.raised,
+      summary: pitchesTable.summary, trustScore: pitchesTable.trustScore,
+    }).from(pitchesTable).orderBy(desc(pitchesTable.raised)).limit(30);
+
+    for (const p of pitches) {
+      const haystack = `${p.title} ${p.industry} ${p.summary ?? ""} ${p.city} ${p.stage}`.toLowerCase();
+      let matchScore = 0;
+      for (const term of terms) { if (haystack.includes(term)) matchScore += 2; }
+      matchScore += (p.trustScore ?? 0) / 50;
+      if (matchScore > 1) results.push({ type: "pitch", id: p.id, title: p.title, score: matchScore, meta: `${p.industry} · ${p.stage} · ${p.raised}π raised` });
+    }
+  }
+
+  results.sort((a, b) => b.score - a.score);
+  res.json({ query, results: results.slice(0, 8) });
 });
 
 export default router;

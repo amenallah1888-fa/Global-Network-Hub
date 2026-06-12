@@ -16,3 +16,5 @@ export * from "./service_apps";
 export * from "./app_directory";
 export * from "./smart_agreements";
 export * from "./aml_flags";
+export * from "./reviews";
+export * from "./disputes";

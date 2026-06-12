@@ -128,4 +128,11 @@ router.patch("/auth/promote-validator", async (req, res): Promise<void> => {
   res.json({ ...user });
 });
 
+router.patch("/auth/promote-kyc", async (req, res): Promise<void> => {
+  const meId = currentUserId(req);
+  await db.update(usersTable).set({ kycStatus: "verified", kycVerifiedAt: new Date() }).where(eq(usersTable.id, meId));
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, meId));
+  res.json({ ...user });
+});
+
 export default router;

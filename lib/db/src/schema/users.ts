@@ -16,6 +16,10 @@ export const usersTable = pgTable("users", {
   passwordHash: text("password_hash"),
   piUid: text("pi_uid").unique(),
   role: text("role").notNull().default("user"),
+  kycStatus: text("kyc_status").notNull().default("none"),
+  kycVerifiedAt: timestamp("kyc_verified_at", { withTimezone: true }),
+  reputationScore: integer("reputation_score").notNull().default(0),
+  locale: text("locale").notNull().default("en"),
 });
 
 export type User = typeof usersTable.$inferSelect;

@@ -1,0 +1,25 @@
+CRITICAL CONSTRAINT: Do NOT change, redesign, or overwrite the existing UI/UX, layouts, screens, or core content that I have already built. All the requirements below must be implemented strictly as under-the-hood additions, back-end logic, database updates, and back-end structural improvements to empower the existing application. Keep the current design and screens exactly as they are.
+​I am building a high-level, production-ready Web3 ecosystem platform called 'HumanVerse' on the Pi Network. I need you to act as a Lead Software Architect and Product Engineer to implement the following features and structural improvements strictly as additions to the existing system:
+​1. Automated Hybrid Escrow System (Back-end & Smart Logic addition):
+​Implement a smart escrow logic that doesn't rely solely on human validators, operating behind the existing transaction screens.
+​Create a 'Milestone-based' release system: funds are released upon completion of project milestones.
+​Integrate an automated dispute resolution flow in the back-end:
+a) Priority 1: Automated 'Time-lock' release (if work is uploaded and client doesn't respond within a set period).
+b) Priority 2: AI-driven analysis of chat logs and file history to recommend a verdict.
+c) Priority 3: Community Jury (DAO-style) for complex disputes: randomly select 5-7 high-reputation, KYC-verified users to vote on the dispute. Reward accurate voters and penalize those who vote against the majority.
+​2. Reputation & Anti-Fraud Security (Database & Verification addition):
+​Hard-gate platform participation behind the scenes: Users must have their database status as 'KYC Verified' to post 'Pitches' or 'Services'.
+​Implement 'On-chain' verified reviews: A review/rating for a service can only be submitted if the database confirms a 'COMPLETED' transaction state between the buyer and seller.
+​Introduce a 'Reputation Score' calculated in the database based on successful escrow transactions, not just user activity.
+​3. AI-Driven Ecosystem Matchmaking (AI Assistant Enhancement):
+​Transform the 'HumanVerse Intelligence' assistant into a RAG (Retrieval-Augmented Generation) system without changing its current chat UI.
+​The AI should act as a 'Broker': when a user asks for services or skills, the AI must perform a Vector Search across the database to suggest specific high-reputation users, pitches, or services.
+​Provide the logic to link user prompts to service/pitch entities.
+​4. Scalability & Global Readiness (Infrastructure & Localization addition):
+​Structural Refactoring: Prepare the codebase for transition from prototyping to a scalable environment (PostgreSQL for structured data, Redis for real-time chat/queues).
+​Internationalization (i18n): Implement a background structure that supports multi-language JSON files, detecting the user's browser language automatically without breaking current text layouts.
+​Performance: Propose a caching strategy to handle high traffic for real-time notifications and feed updates.
+​Instructions:
+​Provide the database schema modifications (PostgreSQL/Supabase) needed to support the Escrow system and Reputation scores.
+​Show me the back-end logic, algorithms, and functions needed to handle these additions.
+​Remember: No UI overrides or core visual changes. Keep everything I built visually intact, and only add the engineering required to power it up."

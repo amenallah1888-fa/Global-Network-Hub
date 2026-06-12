@@ -1,0 +1,101 @@
+{
+  "common": {
+    "back": "Atrás",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "close": "Cerrar",
+    "loading": "Cargando…",
+    "error": "Algo salió mal",
+    "retry": "Reintentar",
+    "done": "Listo",
+    "submit": "Enviar",
+    "send": "Enviar",
+    "next": "Siguiente",
+    "previous": "Anterior"
+  },
+  "auth": {
+    "signIn": "Iniciar Sesión",
+    "register": "Registrarse",
+    "signOut": "Cerrar Sesión",
+    "handle": "Usuario",
+    "password": "Contraseña",
+    "piNetwork": "Iniciar con Pi Network",
+    "demoHint": "Demo: usuario alex · contraseña oasis123"
+  },
+  "nav": {
+    "feed": "Inicio",
+    "map": "Atlas",
+    "pitches": "Proyectos",
+    "services": "Servicios",
+    "profile": "Perfil",
+    "chat": "Chat",
+    "circles": "Círculos"
+  },
+  "pitch": {
+    "invest": "Invertir en Custodia",
+    "sendOffer": "Enviar Oferta",
+    "donate": "Donar",
+    "milestones": "Hitos",
+    "verification": "Verificación",
+    "overview": "Resumen",
+    "proofOfIntent": "Prueba de Intención",
+    "trustScore": "Puntuación de Confianza",
+    "backers": "Patrocinadores",
+    "raised": "recaudado de",
+    "stage": "Etapa",
+    "industry": "Industria",
+    "founder": "Fundador",
+    "updates": "Actualizaciones",
+    "noUpdates": "Sin actualizaciones aún",
+    "escrowLock": "Bloquear en Custodia",
+    "escrowActive": "¡Acuerdo Activo!"
+  },
+  "service": {
+    "hireEscrow": "Contratar con Custodia Pi",
+    "sendOffer": "Enviar Oferta",
+    "donate": "Donar",
+    "proofOfIntent": "Prueba de Intención",
+    "trustVerified": "Confianza Verificada",
+    "jobsDone": "Trabajos Realizados",
+    "idVerified": "ID Verificada",
+    "aboutProvider": "Sobre el Proveedor",
+    "portfolio": "Portafolio",
+    "similar": "Servicios Similares",
+    "startingFrom": "Desde"
+  },
+  "escrow": {
+    "terms": "Términos de Custodia",
+    "fundsLocked": "Fondos bloqueados hasta verificar el trabajo",
+    "proofOnCompletion": "El proveedor envía prueba al completar",
+    "autoRefund": "Reembolso automático en 30 días si no hay entrega",
+    "amlActive": "Controles AML activos",
+    "auditTrail": "Registro de auditoría inmutable",
+    "lockFunds": "Bloquear Fondos en Custodia",
+    "contractLocked": "¡Contrato Bloqueado!",
+    "secureHeld": "Tu π está en custodia segura."
+  },
+  "reputation": {
+    "score": "Puntuación de Reputación",
+    "tier": "Nivel",
+    "newcomer": "Novato",
+    "bronze": "Bronce",
+    "silver": "Plata",
+    "gold": "Oro",
+    "diamond": "Diamante"
+  },
+  "kyc": {
+    "verified": "KYC Verificado",
+    "pending": "KYC Pendiente",
+    "none": "No Verificado",
+    "required": "Se requiere verificación KYC",
+    "becomeVerified": "Verificarme con KYC"
+  },
+  "dispute": {
+    "open": "Abrir Disputa",
+    "reason": "Motivo de la disputa",
+    "timelockInfo": "La otra parte tiene 24h para responder antes del análisis IA.",
+    "juryPhase": "Fase de Jurado",
+    "resolved": "Resuelto"
+  }
+}
