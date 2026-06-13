@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Avatar } from "@/components/Avatar";
 import { NotificationsSheet } from "@/components/NotificationsSheet";
 import { useColors } from "@/hooks/useColors";
+import { useAvatarData } from "@/lib/useAvatarData";
 import { useCurrentUser } from "@/lib/userCache";
 
 type Props = {
@@ -33,6 +34,8 @@ export function Header({
     Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const [notifOpen, setNotifOpen] = useState(false);
   const queryClient = useQueryClient();
+
+  const { data: avatarData } = useAvatarData(me.id);
 
   const { data: notifs } = useListNotifications({
     query: { refetchInterval: 8000, staleTime: 4000 } as any,
@@ -57,7 +60,13 @@ export function Header({
           },
         ]}
       >
-        <Avatar avatarKey={me.avatarKey} size={36} />
+        <Avatar
+          avatarKey={me.avatarKey}
+          size={36}
+          level={avatarData?.level}
+          skinTier={avatarData?.activeSkin?.tier}
+          ring={!!avatarData && avatarData.level >= 5}
+        />
         <View style={styles.titleWrap}>
           <Text
             style={[styles.title, { color: colors.foreground }]}

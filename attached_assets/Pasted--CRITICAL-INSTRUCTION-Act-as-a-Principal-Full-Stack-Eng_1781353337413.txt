@@ -1,0 +1,15 @@
+​"CRITICAL INSTRUCTION: Act as a Principal Full-Stack Engineer and Solutions Architect. We have imported this project from GitHub into a fresh Replit account. The app is currently crashing with a Schema Validation / Missing Configuration Keys error because the database environment variables (Supabase) are not set up in this new account.
+​You must resolve all crashes, rebuild the local infrastructure, and fully wire up the frontend and backend features sequentially without altering my current UI/UX layout design, colors, or CSS themes.
+​Step 1: Fix Infrastructure, Missing Keys & Crashes
+​Inspect the database connection configuration (e.g., lib/db/ or initialization files).
+​Since the production Supabase Keys are missing in this fresh account, automatically provision and switch the project to a built-in Replit PostgreSQL database or a fully functional local SQLite/PostgreSQL fallback. Alternatively, generate mock environment variables (SUPABASE_URL, SUPABASE_ANON_KEY) if the backend has a mock-server mode, ensuring the server boots with npm run dev with ZERO configuration errors.
+​Run npm install to ensure all deep dependencies in package.json are fully resolved.
+​Step 2: Database Migration & Schema Sync
+​Scan the lib/db/src/schema/ directory and find all existing schema definition files (including the newly added avatars.ts, gamification tracking, daily streaks, and project capsules).
+​Sync and execute these schemas against the active database instance so that all core tables (user_gamification, avatar_skins, project_capsules) and their relational constraints are successfully created.
+​Step 3: Wire up the Frontend Components (Dynamic Rendering)
+​Once the server is stable, connect the background logic directly into the existing UI components:
+​The Avatar System: Update the User Profile component, Chat Headers, and Hub/Service lists to dynamically fetch and render the active user's current_skin_url from the database.
+​The KYC Gate: Add an interceptor check on the Publish to the Hub and Add Service buttons. If the user's fetched profile status is not 'VERIFIED', prevent the action and trigger a clean, professional toast notification/popup.
+​The Daily Streak: Safely inject the daily_streak count variable into the profile header interface as a numerical flame icon or badge.
+​Please debug the console error first, swap/fix the database configuration, and confirm once the entire app is fully alive and interactive in the preview."
