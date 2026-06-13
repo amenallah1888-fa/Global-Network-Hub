@@ -36,7 +36,8 @@ type Supporter = { id: string; name: string; avatarKey: string | null; handle: s
 type Milestone = { id: string; pitchId: string; proposalId: string; title: string; description: string; percentageOfFunds: number; status: string; proofUrl: string | null; completedAt: string | null; order: number };
 type ProjectDocument = { id: string; projectId: string; documentUrl: string; documentType: string; status: string; reviewNote: string | null; uploadedAt: string };
 type PitchDetail = Pitch & { founder: (User & { following?: boolean }) | null; related: (Pitch & { verified?: boolean })[]; supporters?: Supporter[]; verified?: boolean; trustScore?: number; entityType?: string; serviceCategory?: string; verificationStatus?: string; roadmapUrl?: string | null; founderLinkedin?: string | null; proofOfRealityUrl?: string | null; portfolioUrl?: string | null; experienceDescription?: string | null };
-type ActiveTab = "overview" | "milestones" | "verification";
+type ActiveTab = "overview" | "milestones" | "verification" | "capsules";
+type Capsule = { id: string; pitchId: string; founderId: string; title: string; body: string; videoUrl: string | null; codeLogUrl: string | null; weekNumber: number; createdAt: string };
 type EscrowStep = "idle" | "initiating" | "locking" | "active";
 
 function formatPi(n: number) { return `${n.toLocaleString()} π`; }
@@ -79,6 +80,10 @@ export default function PitchDetailScreen() {
   const [offerNote, setOfferNote] = useState("");
   const [sendingOffer, setSendingOffer] = useState(false);
   const [offerSent, setOfferSent] = useState(false);
+  const [capsuleTitle, setCapsuleTitle] = useState("");
+  const [capsuleBody, setCapsuleBody] = useState("");
+  const [capsuleVideoUrl, setCapsuleVideoUrl] = useState("");
+  const [postingCapsule, setPostingCapsule] = useState(false);
 
   const { data: pitch, isLoading, isError } = useQuery<PitchDetail>({
     queryKey: [`/api/pitches/${id}`],
@@ -107,6 +112,13 @@ export default function PitchDetailScreen() {
     queryFn: async () => { const res = await fetch(`${API_BASE}/api/pitches/${id}/documents`, { headers: { Authorization: `Bearer ${token}` } }); if (!res.ok) return []; return res.json(); },
     enabled: !!id && !!token,
     staleTime: 20_000,
+  });
+
+  const { data: capsulesData, refetch: refetchCapsules } = useQuery<{ pitchTitle: string; founder: any; totalCapsules: number; capsules: Capsule[] }>({
+    queryKey: [`/api/pitches/${id}/capsules`],
+    queryFn: async () => { const res = await fetch(`${API_BASE}/api/pitches/${id}/capsules`, { headers: { Authorization: `Bearer ${token}` } }); if (!res.ok) return { pitchTitle: "", founder: null, totalCapsules: 0, capsules: [] }; return res.json(); },
+    enabled: !!id && !!token && activeTab === "capsules",
+    staleTime: 15_000,
   });
 
   const isFounder = pitch?.founderId === user?.id;
@@ -174,6 +186,27 @@ export default function PitchDetailScreen() {
       setNewUpdate("");
       qc.invalidateQueries({ queryKey: [`/api/pitches/${id}/updates`] });
     } finally { setPostingUpdate(false); }
+  };
+
+  const handlePostCapsule = async () => {
+    if (!capsuleTitle.trim() || !capsuleBody.trim()) return;
+    setPostingCapsule(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/pitches/${id}/capsules`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ title: capsuleTitle, body: capsuleBody, videoUrl: capsuleVideoUrl.trim() || null }),
+      });
+      if (res.ok) {
+        setCapsuleTitle("");
+        setCapsuleBody("");
+        setCapsuleVideoUrl("");
+        refetchCapsules();
+      } else {
+        const d = await res.json();
+        Alert.alert("Error", d.error ?? "Could not post capsule");
+      }
+    } finally { setPostingCapsule(false); }
   };
 
   const handleSubmitProof = async (milestoneId: string) => {
@@ -297,10 +330,10 @@ export default function PitchDetailScreen() {
             </View>
 
             <View style={[styles.tabBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-              {(["overview", "milestones", "verification"] as ActiveTab[]).map((tab) => (
+              {(["overview", "milestones", "verification", "capsules"] as ActiveTab[]).map((tab) => (
                 <Pressable key={tab} onPress={() => setActiveTab(tab)} style={[styles.tabBtn, { borderBottomColor: activeTab === tab ? colors.primary : "transparent" }]}>
                   <Text style={[styles.tabText, { color: activeTab === tab ? colors.primary : colors.mutedForeground }]}>
-                    {tab === "overview" ? "Overview" : tab === "milestones" ? "Milestones" : "Verification"}
+                    {tab === "overview" ? "Overview" : tab === "milestones" ? "Milestones" : tab === "verification" ? "Verify" : "Capsules"}
                   </Text>
                 </Pressable>
               ))}
@@ -671,6 +704,83 @@ export default function PitchDetailScreen() {
                       ))
                     )}
                   </View>
+                </>
+              )}
+
+              {activeTab === "capsules" && (
+                <>
+                  {/* Founder composer */}
+                  {isFounder && (
+                    <View style={[styles.updatesCard, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: 16 }]}>
+                      <View style={[styles.updateComposer, { borderBottomColor: colors.border }]}>
+                        <Text style={[styles.sectionTitle, { color: colors.foreground, fontSize: 13, flex: 1 }]}>📦 Post a Project Capsule</Text>
+                        <Text style={[styles.milestoneMeta, { color: colors.mutedForeground }]}>+30 XP</Text>
+                      </View>
+                      <View style={{ padding: 12, gap: 10 }}>
+                        <TextInput
+                          value={capsuleTitle}
+                          onChangeText={setCapsuleTitle}
+                          placeholder="Week title  e.g. Week 3 — Auth shipped!"
+                          placeholderTextColor={colors.mutedForeground}
+                          style={[styles.updateInput, { color: colors.foreground, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 10, ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : {}) }]}
+                        />
+                        <TextInput
+                          value={capsuleBody}
+                          onChangeText={setCapsuleBody}
+                          placeholder="Share progress, blockers, learnings…"
+                          placeholderTextColor={colors.mutedForeground}
+                          multiline
+                          numberOfLines={4}
+                          style={[styles.updateInput, { color: colors.foreground, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 10, minHeight: 90, textAlignVertical: "top", ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : {}) }]}
+                        />
+                        <TextInput
+                          value={capsuleVideoUrl}
+                          onChangeText={setCapsuleVideoUrl}
+                          placeholder="Video / demo URL (optional)"
+                          placeholderTextColor={colors.mutedForeground}
+                          style={[styles.updateInput, { color: colors.foreground, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 10, ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : {}) }]}
+                        />
+                        <Pressable
+                          onPress={handlePostCapsule}
+                          disabled={postingCapsule || !capsuleTitle.trim() || !capsuleBody.trim()}
+                          style={({ pressed }) => [styles.updatePostBtn, { backgroundColor: colors.primary, paddingHorizontal: 18, paddingVertical: 11, borderRadius: 10, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center", opacity: pressed || postingCapsule || !capsuleTitle.trim() || !capsuleBody.trim() ? 0.55 : 1 }]}
+                        >
+                          {postingCapsule ? <ActivityIndicator size="small" color="#fff" /> : <><Feather name="package" size={14} color="#fff" /><Text style={[styles.verifyBtnText, { color: "#fff" }]}>Publish Capsule</Text></>}
+                        </Pressable>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Capsules timeline */}
+                  {(!capsulesData || capsulesData.capsules.length === 0) ? (
+                    <View style={[styles.emptyBox, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: 16, borderWidth: 1 }]}>
+                      <Feather name="package" size={28} color={colors.mutedForeground} />
+                      <Text style={[styles.emptyText, { color: colors.mutedForeground, textAlign: "center" }]}>
+                        {isFounder ? "No capsules yet.\nPost your first build update above!" : "The founder hasn't posted any capsules yet.\nCheck back after the project launches."}
+                      </Text>
+                    </View>
+                  ) : (
+                    capsulesData.capsules.map((cap, idx) => (
+                      <View key={cap.id} style={[styles.milestoneCard, { backgroundColor: colors.card, borderColor: colors.border, borderLeftWidth: 3, borderLeftColor: colors.primary }]}>
+                        <View style={styles.milestoneHeader}>
+                          <View style={[styles.milestoneNum, { backgroundColor: colors.primary + "18", borderColor: colors.primary + "50" }]}>
+                            <Text style={[styles.milestoneMeta, { color: colors.primary, fontFamily: "Inter_700Bold" }]}>W{cap.weekNumber}</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.milestoneTitle, { color: colors.foreground }]}>{cap.title}</Text>
+                            <Text style={[styles.milestoneMeta, { color: colors.mutedForeground }]}>{timeAgo(cap.createdAt)}</Text>
+                          </View>
+                          {cap.videoUrl && (
+                            <Pressable onPress={() => Linking.openURL(cap.videoUrl!)} style={[styles.statusChip, { backgroundColor: "#8B5CF618", borderColor: "#8B5CF640" }]}>
+                              <Feather name="play-circle" size={12} color="#8B5CF6" />
+                              <Text style={[styles.statusChipText, { color: "#8B5CF6" }]}>Demo</Text>
+                            </Pressable>
+                          )}
+                        </View>
+                        <Text style={[styles.milestoneDesc, { color: colors.mutedForeground, lineHeight: 20 }]}>{cap.body}</Text>
+                      </View>
+                    ))
+                  )}
                 </>
               )}
             </View>

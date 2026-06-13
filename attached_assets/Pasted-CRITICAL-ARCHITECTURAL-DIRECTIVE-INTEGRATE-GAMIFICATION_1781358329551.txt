@@ -1,0 +1,31 @@
+CRITICAL ARCHITECTURAL DIRECTIVE: INTEGRATE GAMIFICATION & CAPSULES USING PROGRESSIVE DISCLOSURE
+
+You are building a world-class application futures-platform (HumanVerse), not a minor app. Every single feature developed in the database layer (avatars, skins, quests, and project capsules) must be fully visible, cohesive, error-free, and easy to navigate. 
+
+To prevent user cognitive overload and maintain our clean, professional UI, you must integrate these features using strict "Progressive Disclosure" principles. Do NOT create new main navigation tabs. Instead, embed these features deeply and cleanly into existing screens (profile.tsx, pitches.tsx, components, etc.) as detailed below:
+
+### 1. Embedded Avatar & Skins Hub (Inside Existing Profile Screen)
+- Location: Do NOT create a new main navigation tab. Instead, integrate this directly into the existing Profile screen.
+- Entry Point: When a user views their own profile header, clicking on their Avatar image or profile level badge must open an elegant, high-performance Sub-Modal or sliding drawer (e.g., 'Avatar & Progression Hub').
+- Inside this Sub-Modal, implement:
+  * Visual Avatar Preview: Render the active user's dynamic avatar skin based on database values.
+  * Progress Tracker: A sleek horizontal progress bar indicating (Current XP / Next Level XP) along with the active daily streak badge.
+  * Skins Gallery Grid: A clean, categorized grid displaying unlocked and locked avatar skins sorted by rarity tiers (Common, Uncommon, Rare, Epic, Legendary).
+  * Evolution Quests Panel: A nested, scannable sub-section or list clearly outlining the tasks required to level up (e.g., 'Complete a Freelance Contract Escrow: +50 XP', 'Publish a Project Update Capsule: +30 XP').
+
+### 2. Project Capsules Feed (As a Tab Inside Specific Project Details)
+- Location: Do NOT create a standalone screen for capsules. 
+- Entry Point: Inside the 'Hub' page (or inside the specific project details component/pitch layout), implement a new sub-tab next to 'Details' or 'Overview' named **'Project Capsules'**.
+- Inside this Tab, implement:
+  * Founder's Portal: If the viewing user is the project owner, display a clean, micro-input field allowing them to post chronological text/media updates (Memory Capsules).
+  * Live Timeline Feed: For general users, render a professional vertical timeline showing the project's historical micro-updates chronologically, making it easy to browse the project's building journey.
+
+### 3. Global Dynamic Avatar Rendering
+- Target: Ensure the application's global headers and lists feel integrated and alive.
+- Implementation: Dynamically fetch and display the user's active `current_skin_url` from the database. 
+- Default Fallback: If the user is at 'Level 1' with no custom skins unlocked, safely fall back to a high-quality, professional starter avatar frame across:
+  * The top Main Header (Profile icon).
+  * Chat/Messages Headers.
+  * Hub/Pitch author listings.
+
+CRITICAL UI CONSTRAINT: Maintain all existing layout structures, core colors, and CSS styling rules. All new interactive components must feel like a native, clean extension of the current design system. Execute these frontend additions across the relevant active files now.

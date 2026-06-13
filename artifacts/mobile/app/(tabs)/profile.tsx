@@ -30,6 +30,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useAvatarData } from "@/lib/useAvatarData";
 import { useCurrentUser, useCurrentUserId } from "@/lib/userCache";
+import { AvatarProgressionHub } from "@/components/AvatarProgressionHub";
 
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
@@ -358,6 +359,7 @@ export default function ProfileScreen() {
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [walletOpen, setWalletOpen] = useState(false);
+  const [avatarHubOpen, setAvatarHubOpen] = useState(false);
 
   const allPosts = posts ?? [];
   const allCircles = circles ?? [];
@@ -408,7 +410,7 @@ export default function ProfileScreen() {
     >
       <View style={[styles.cover, { backgroundColor: colors.card, paddingTop: topPad + 24, borderColor: colors.border }]}>
         <View style={styles.coverTop}>
-          <Pressable onPress={() => router.push(`/profile/${currentUserId}`)}>
+          <Pressable onPress={() => setAvatarHubOpen(true)}>
             <Avatar
               avatarKey={me.avatarKey}
               size={84}
@@ -528,6 +530,12 @@ export default function ProfileScreen() {
 
       <SettingsModal visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <WalletModal visible={walletOpen} onClose={() => setWalletOpen(false)} monthlySpend={monthlySpend} />
+      <AvatarProgressionHub
+        visible={avatarHubOpen}
+        onClose={() => setAvatarHubOpen(false)}
+        userId={currentUserId ?? ""}
+        avatarKey={me.avatarKey}
+      />
     </ScrollView>
   );
 }
