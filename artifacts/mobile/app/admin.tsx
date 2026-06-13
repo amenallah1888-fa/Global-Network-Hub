@@ -24,7 +24,33 @@ type PendingPitch = { id: string; title: string; summary: string; city: string; 
 
 function timeAgo(dateStr: string) { const diff = Date.now() - new Date(dateStr).getTime(); const mins = Math.floor(diff / 60000); if (mins < 60) return `${mins}m ago`; const hrs = Math.floor(mins / 60); if (hrs < 24) return `${hrs}h ago`; return `${Math.floor(hrs / 24)}d ago`; }
 
-type AdminTab = "documents" | "projects";
+type AdminTab = "documents" | "projects" | "reputation";
+
+const REP_EVENTS = [
+  { type: "kyc_verified", label: "KYC Verified", emoji: "🛡️", delta: 15 },
+  { type: "escrow_completed", label: "Escrow Completed", emoji: "✅", delta: 10 },
+  { type: "escrow_dispute_won", label: "Won a Dispute", emoji: "🏆", delta: 5 },
+  { type: "jury_accurate_vote", label: "Accurate Jury Vote", emoji: "⚖️", delta: 4 },
+  { type: "milestone_delivered", label: "Milestone Delivered", emoji: "🚀", delta: 3 },
+  { type: "review_received", label: "Review Received", emoji: "⭐", delta: 2 },
+  { type: "jury_inaccurate_vote", label: "Inaccurate Jury Vote", emoji: "❌", delta: -3 },
+  { type: "escrow_dispute_lost", label: "Lost a Dispute", emoji: "💸", delta: -10 },
+];
+
+const DISPUTE_PHASES = [
+  { icon: "⏰", title: "Timelock (24h)", desc: "After a dispute is raised, the other party has 24 hours to respond or resolve directly." },
+  { icon: "🤖", title: "AI Analysis", desc: "If unresolved, the AI analyzes the dispute reason and chat history, producing a recommendation." },
+  { icon: "👥", title: "Jury Vote (72h)", desc: "5 KYC-verified users with 10+ reputation are selected as jurors and vote within 72 hours." },
+  { icon: "⚖️", title: "Verdict & Reputation", desc: "Majority wins. Accurate jurors earn +4 rep, inaccurate lose −3. The dispute loser loses −10 rep." },
+];
+
+const REP_TIERS = [
+  { min: 0, max: 9, label: "Newcomer", emoji: "🌱", color: "#6B7280", nextLabel: "Builder", nextAt: 10 },
+  { min: 10, max: 24, label: "Builder", emoji: "⭐", color: "#3B82F6", nextLabel: "Trusted", nextAt: 25 },
+  { min: 25, max: 49, label: "Trusted", emoji: "🌟", color: "#22C55E", nextLabel: "Expert", nextAt: 50 },
+  { min: 50, max: 99, label: "Expert", emoji: "🏆", color: "#F59E0B", nextLabel: "Legend", nextAt: 100 },
+  { min: 100, max: Infinity, label: "Legend", emoji: "💎", color: "#8B5CF6", nextLabel: "Legend", nextAt: 100 },
+];
 
 export default function AdminScreen() {
   const colors = useColors();
@@ -36,6 +62,8 @@ export default function AdminScreen() {
   const [promotingValidator, setPromotingValidator] = useState(false);
 
   const isValidator = user?.role === "validator" || user?.role === "admin";
+  const repScore = user?.reputationScore ?? 0;
+  const repTier = REP_TIERS.find(t => repScore >= t.min && repScore <= t.max) ?? REP_TIERS[0];
 
   const becomeValidator = async () => {
     setPromotingValidator(true);
@@ -124,10 +152,10 @@ export default function AdminScreen() {
       </View>
 
       <View style={[styles.tabBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        {(["documents", "projects"] as AdminTab[]).map(tab => (
+        {(["documents", "projects", "reputation"] as AdminTab[]).map(tab => (
           <Pressable key={tab} onPress={() => setActiveTab(tab)} style={[styles.tabBtn, { borderBottomColor: activeTab === tab ? colors.primary : "transparent" }]}>
             <Text style={[styles.tabText, { color: activeTab === tab ? colors.primary : colors.mutedForeground }]}>
-              {tab === "documents" ? `Documents${docs.length > 0 ? ` (${docs.length})` : ""}` : `Projects${pitches.length > 0 ? ` (${pitches.length})` : ""}`}
+              {tab === "documents" ? `Docs${docs.length > 0 ? ` (${docs.length})` : ""}` : tab === "projects" ? `Projects${pitches.length > 0 ? ` (${pitches.length})` : ""}` : "Reputation"}
             </Text>
           </Pressable>
         ))}
@@ -269,6 +297,83 @@ export default function AdminScreen() {
                 </View>
               ))
             )
+          )}
+
+          {activeTab === "reputation" && (
+            <>
+              <View style={[styles.docCard, { backgroundColor: colors.card, borderColor: colors.border, alignItems: "center", paddingVertical: 28 }]}>
+                <View style={{ width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center", backgroundColor: repTier.color + "18", borderWidth: 2, borderColor: repTier.color + "40" }}>
+                  <Text style={{ fontSize: 32 }}>{repTier.emoji}</Text>
+                </View>
+                <Text style={{ fontSize: 52, fontFamily: "Inter_700Bold", color: colors.foreground, marginTop: 12, lineHeight: 60 }}>
+                  {repScore}
+                </Text>
+                <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: repTier.color, marginBottom: 16 }}>{repTier.label}</Text>
+                {repScore < 100 && (
+                  <View style={{ width: "100%", paddingHorizontal: 4 }}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                      <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>
+                        Progress to {repTier.nextLabel}
+                      </Text>
+                      <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: colors.foreground }}>
+                        {repScore} / {repTier.nextAt}
+                      </Text>
+                    </View>
+                    <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.border, overflow: "hidden" }}>
+                      <View style={{ height: "100%", borderRadius: 4, backgroundColor: repTier.color, width: `${Math.min(100, Math.round((repScore / repTier.nextAt) * 100))}%` as any }} />
+                    </View>
+                  </View>
+                )}
+              </View>
+
+              <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: colors.foreground, marginBottom: 10, marginTop: 6 }}>How Reputation is Earned</Text>
+              <View style={[styles.docCard, { backgroundColor: colors.card, borderColor: colors.border, paddingVertical: 0, paddingHorizontal: 0, overflow: "hidden" }]}>
+                {REP_EVENTS.map((ev, i) => (
+                  <View key={ev.type} style={{ flexDirection: "row", alignItems: "center", padding: 14, borderTopWidth: i === 0 ? 0 : StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: (ev.delta > 0 ? "#22C55E" : "#EF4444") + "15" }}>
+                      <Text style={{ fontSize: 16 }}>{ev.emoji}</Text>
+                    </View>
+                    <Text style={{ flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: colors.foreground, marginLeft: 12 }}>{ev.label}</Text>
+                    <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: (ev.delta > 0 ? "#22C55E" : "#EF4444") + "15" }}>
+                      <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: ev.delta > 0 ? "#22C55E" : "#EF4444" }}>
+                        {ev.delta > 0 ? "+" : ""}{ev.delta}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+
+              <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: colors.foreground, marginBottom: 10, marginTop: 18 }}>AI Dispute Resolution</Text>
+              <View style={[styles.docCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                {DISPUTE_PHASES.map((phase, i) => (
+                  <View key={phase.title} style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: i < DISPUTE_PHASES.length - 1 ? 18 : 0 }}>
+                    <View style={{ alignItems: "center", marginRight: 14, minWidth: 32 }}>
+                      <View style={{ width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary + "18" }}>
+                        <Text style={{ fontSize: 16 }}>{phase.icon}</Text>
+                      </View>
+                      {i < DISPUTE_PHASES.length - 1 && (
+                        <View style={{ width: 2, height: 14, backgroundColor: colors.border, marginTop: 4 }} />
+                      )}
+                    </View>
+                    <View style={{ flex: 1, paddingTop: 6 }}>
+                      <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: colors.foreground }}>{phase.title}</Text>
+                      <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 18, marginTop: 2 }}>{phase.desc}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+
+              <View style={[styles.docCard, { backgroundColor: colors.primary + "08", borderColor: colors.primary + "30", flexDirection: "row", alignItems: "center", gap: 14, marginTop: 10 }]}>
+                <Text style={{ fontSize: 22 }}>⚖️</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: colors.foreground }}>Jury Eligibility</Text>
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 18, marginTop: 3 }}>
+                    You need <Text style={{ fontFamily: "Inter_700Bold", color: colors.primary }}>10+ reputation</Text> and KYC-verified status to serve as a juror and earn rewards. Your score: <Text style={{ fontFamily: "Inter_700Bold", color: repScore >= 10 ? "#22C55E" : colors.foreground }}>{repScore}</Text>
+                    {repScore >= 10 ? " ✅ Eligible" : ` (need ${10 - repScore} more)`}.
+                  </Text>
+                </View>
+              </View>
+            </>
           )}
         </ScrollView>
       )}

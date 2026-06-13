@@ -11,6 +11,15 @@ export type AuthUser = {
   name: string;
   avatarKey: string;
   role?: string;
+  reputationScore?: number;
+  kycStatus?: string;
+  verified?: boolean;
+  bio?: string;
+  city?: string;
+  country?: string;
+  title?: string;
+  company?: string;
+  followersCount?: number;
 };
 
 type AuthCtx = {

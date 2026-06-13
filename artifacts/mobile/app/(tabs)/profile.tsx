@@ -210,6 +210,30 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
               <MyAssetsSection colors={colors} />
 
               <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[sm.sectionTitle, { color: colors.foreground }]}>Community</Text>
+                <Pressable
+                  onPress={() => { onClose(); router.push("/admin"); }}
+                  style={[sm.toggleRow, { borderTopColor: colors.border }]}
+                >
+                  <View style={[sm.walletIcon, { backgroundColor: "#22C55E18", marginRight: 12 }]}>
+                    <Feather name="shield" size={16} color="#22C55E" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[sm.toggleLabel, { color: colors.foreground }]}>Validator Portal</Text>
+                    <Text style={[sm.toggleSub, { color: colors.mutedForeground }]}>Review projects, docs & earn reputation</Text>
+                  </View>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    {(me.role === "validator" || me.role === "admin") && (
+                      <View style={{ backgroundColor: "#22C55E18", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3 }}>
+                        <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: "#22C55E" }}>ACTIVE</Text>
+                      </View>
+                    )}
+                    <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                  </View>
+                </Pressable>
+              </View>
+
+              <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <Text style={[sm.sectionTitle, { color: colors.foreground }]}>Account</Text>
                 <Pressable onPress={signOut} style={[sm.dangerRow, { borderTopColor: colors.border }]}>
                   <Feather name="log-out" size={16} color="#EF4444" />
@@ -443,6 +467,12 @@ export default function ProfileScreen() {
               <View style={[styles.streakBadge, { backgroundColor: "#F59E0B20", borderColor: "#F59E0B50" }]}>
                 <Text style={{ fontSize: 12 }}>🔥</Text>
                 <Text style={[styles.streakNum, { color: "#F59E0B" }]}>{avatarData!.dailyStreak}</Text>
+              </View>
+            )}
+            {((me as any).reputationScore ?? 0) > 0 && (
+              <View style={[styles.streakBadge, { backgroundColor: "#8B5CF620", borderColor: "#8B5CF650" }]}>
+                <Text style={{ fontSize: 11 }}>⭐</Text>
+                <Text style={[styles.streakNum, { color: "#8B5CF6" }]}>{(me as any).reputationScore}</Text>
               </View>
             )}
           </View>
