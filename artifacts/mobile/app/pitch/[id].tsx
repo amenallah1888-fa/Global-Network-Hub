@@ -46,6 +46,10 @@ function timeAgo(dateStr: string) { const diff = Date.now() - new Date(dateStr).
 function shortHash(h: string) { return h ? `${h.slice(0, 6)}…${h.slice(-4)}` : "—"; }
 
 const STAGE_COLOR: Record<string, string> = { "Pre-seed": "#F97316", Seed: "#EAB308", "Series A": "#22C55E", "Series B": "#3B82F6", "Series C": "#8B5CF6" };
+const MOCK_CAPSULES: Capsule[] = [
+  { id: "mock-1", pitchId: "demo", founderId: "demo", title: "Week 1 — Foundation shipped 🚀", body: "Bootstrapped the repo, configured CI/CD pipeline, and integrated the Pi SDK for payment processing. Architecture decisions documented. Team velocity looking strong — ahead of schedule by 2 days.", videoUrl: null, codeLogUrl: null, weekNumber: 1, createdAt: new Date(Date.now() - 14 * 86400000).toISOString() },
+  { id: "mock-2", pitchId: "demo", founderId: "demo", title: "Week 2 — Auth & Escrow MVP live", body: "User authentication complete. Pi escrow wallet integration tested on testnet — 3 successful transactions. UI polished to match design specs. Next milestone: public beta onboarding.", videoUrl: null, codeLogUrl: null, weekNumber: 2, createdAt: new Date(Date.now() - 7 * 86400000).toISOString() },
+];
 const MILESTONE_STATUS_COLOR: Record<string, string> = { locked: "#6B7280", pending_proof: "#F59E0B", released: "#22C55E" };
 const MILESTONE_STATUS_LABEL: Record<string, string> = { locked: "Locked", pending_proof: "Proof Submitted", released: "Released" };
 
@@ -84,6 +88,11 @@ export default function PitchDetailScreen() {
   const [capsuleBody, setCapsuleBody] = useState("");
   const [capsuleVideoUrl, setCapsuleVideoUrl] = useState("");
   const [postingCapsule, setPostingCapsule] = useState(false);
+  const [expandedCapsule, setExpandedCapsule] = useState<string | null>(null);
+  const [tipCapsuleId, setTipCapsuleId] = useState<string | null>(null);
+  const [tipAmount, setTipAmount] = useState("1");
+  const [tipping, setTipping] = useState(false);
+  const [tipSuccess, setTipSuccess] = useState(false);
 
   const { data: pitch, isLoading, isError } = useQuery<PitchDetail>({
     queryKey: [`/api/pitches/${id}`],
@@ -207,6 +216,20 @@ export default function PitchDetailScreen() {
         Alert.alert("Error", d.error ?? "Could not post capsule");
       }
     } finally { setPostingCapsule(false); }
+  };
+
+  const handleTipCapsule = async () => {
+    const amt = parseInt(tipAmount, 10);
+    if (!amt || amt <= 0 || !tipCapsuleId) return;
+    setTipping(true);
+    try {
+      await fetch(`${API_BASE}/api/pitches/${id}/back`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: amt }),
+      });
+      setTipSuccess(true);
+    } catch { Alert.alert("Error", "Could not send tip"); } finally { setTipping(false); }
   };
 
   const handleSubmitProof = async (milestoneId: string) => {
@@ -751,36 +774,110 @@ export default function PitchDetailScreen() {
                     </View>
                   )}
 
-                  {/* Capsules timeline */}
-                  {(!capsulesData || capsulesData.capsules.length === 0) ? (
-                    <View style={[styles.emptyBox, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: 16, borderWidth: 1 }]}>
-                      <Feather name="package" size={28} color={colors.mutedForeground} />
-                      <Text style={[styles.emptyText, { color: colors.mutedForeground, textAlign: "center" }]}>
-                        {isFounder ? "No capsules yet.\nPost your first build update above!" : "The founder hasn't posted any capsules yet.\nCheck back after the project launches."}
-                      </Text>
-                    </View>
-                  ) : (
-                    capsulesData.capsules.map((cap, idx) => (
-                      <View key={cap.id} style={[styles.milestoneCard, { backgroundColor: colors.card, borderColor: colors.border, borderLeftWidth: 3, borderLeftColor: colors.primary }]}>
-                        <View style={styles.milestoneHeader}>
-                          <View style={[styles.milestoneNum, { backgroundColor: colors.primary + "18", borderColor: colors.primary + "50" }]}>
-                            <Text style={[styles.milestoneMeta, { color: colors.primary, fontFamily: "Inter_700Bold" }]}>W{cap.weekNumber}</Text>
+                  {/* Capsules timeline — real or mock demo data */}
+                  {(() => {
+                    const hasCapsules = (capsulesData?.capsules?.length ?? 0) > 0;
+                    const displayList = hasCapsules ? capsulesData!.capsules : MOCK_CAPSULES;
+                    const isMockData = !hasCapsules;
+                    return (
+                      <>
+                        {isMockData && !isFounder && (
+                          <View style={{ backgroundColor: colors.primary + "12", borderRadius: 12, borderWidth: 1, borderColor: colors.primary + "30", padding: 12, marginBottom: 12, flexDirection: "row", gap: 10, alignItems: "center" }}>
+                            <Feather name="info" size={13} color={colors.primary} />
+                            <Text style={[styles.milestoneMeta, { color: colors.primary, flex: 1 }]}>Sample capsules — founder hasn't shipped real updates yet.</Text>
                           </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={[styles.milestoneTitle, { color: colors.foreground }]}>{cap.title}</Text>
-                            <Text style={[styles.milestoneMeta, { color: colors.mutedForeground }]}>{timeAgo(cap.createdAt)}</Text>
+                        )}
+                        {isFounder && isMockData && (
+                          <View style={[styles.emptyBox, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: 16, borderWidth: 1, marginBottom: 8 }]}>
+                            <Feather name="package" size={28} color={colors.mutedForeground} />
+                            <Text style={[styles.emptyText, { color: colors.mutedForeground, textAlign: "center" }]}>No capsules yet.{"\n"}Post your first build update above!</Text>
                           </View>
-                          {cap.videoUrl && (
-                            <Pressable onPress={() => Linking.openURL(cap.videoUrl!)} style={[styles.statusChip, { backgroundColor: "#8B5CF618", borderColor: "#8B5CF640" }]}>
-                              <Feather name="play-circle" size={12} color="#8B5CF6" />
-                              <Text style={[styles.statusChipText, { color: "#8B5CF6" }]}>Demo</Text>
-                            </Pressable>
+                        )}
+                        {(!isFounder || hasCapsules) && displayList.map((cap) => (
+                          <Pressable
+                            key={cap.id}
+                            onPress={() => setExpandedCapsule(expandedCapsule === cap.id ? null : cap.id)}
+                            style={({ pressed }) => [styles.milestoneCard, { backgroundColor: colors.card, borderColor: colors.border, borderLeftWidth: 3, borderLeftColor: colors.primary, opacity: pressed ? 0.95 : 1 }]}
+                          >
+                            <View style={styles.milestoneHeader}>
+                              <View style={[styles.milestoneNum, { backgroundColor: colors.primary + "18", borderColor: colors.primary + "50" }]}>
+                                <Text style={[styles.milestoneMeta, { color: colors.primary, fontFamily: "Inter_700Bold" }]}>W{cap.weekNumber}</Text>
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={[styles.milestoneTitle, { color: colors.foreground }]}>{cap.title}</Text>
+                                <Text style={[styles.milestoneMeta, { color: colors.mutedForeground }]}>{timeAgo(cap.createdAt)}{isMockData ? " · demo" : ""}</Text>
+                              </View>
+                              {cap.videoUrl && (
+                                <Pressable onPress={() => Linking.openURL(cap.videoUrl!)} style={[styles.statusChip, { backgroundColor: "#8B5CF618", borderColor: "#8B5CF640" }]}>
+                                  <Feather name="play-circle" size={12} color="#8B5CF6" />
+                                  <Text style={[styles.statusChipText, { color: "#8B5CF6" }]}>Demo</Text>
+                                </Pressable>
+                              )}
+                              <Feather name={expandedCapsule === cap.id ? "chevron-up" : "chevron-down"} size={14} color={colors.mutedForeground} />
+                            </View>
+                            <Text style={[styles.milestoneDesc, { color: colors.mutedForeground, lineHeight: 20 }]} numberOfLines={expandedCapsule === cap.id ? undefined : 2}>{cap.body}</Text>
+                            {expandedCapsule === cap.id && !isMockData && (
+                              <Pressable
+                                onPress={() => { setTipCapsuleId(cap.id); setTipAmount("1"); setTipSuccess(false); }}
+                                style={({ pressed }) => ({ flexDirection: "row" as const, alignItems: "center" as const, gap: 6, alignSelf: "flex-start" as const, marginTop: 10, backgroundColor: "#F59E0B18", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: "#F59E0B40", opacity: pressed ? 0.8 : 1 })}
+                              >
+                                <Feather name="zap" size={12} color="#F59E0B" />
+                                <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: "#F59E0B" }}>Micro-Tip</Text>
+                              </Pressable>
+                            )}
+                          </Pressable>
+                        ))}
+                      </>
+                    );
+                  })()}
+
+                  {/* Micro-Tip Modal */}
+                  <Modal visible={!!tipCapsuleId} transparent animationType="slide" onRequestClose={() => { setTipCapsuleId(null); setTipSuccess(false); }}>
+                    <View style={styles.modalOverlay}>
+                      <View style={[styles.escrowCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                        <View style={[styles.escrowHeader, { borderBottomColor: colors.border }]}>
+                          <Text style={[styles.escrowTitle, { color: colors.foreground, fontSize: 17 }]}>{tipSuccess ? "Tip Sent! ⚡" : "Micro-Tip the Founder"}</Text>
+                          <Pressable onPress={() => { setTipCapsuleId(null); setTipSuccess(false); }} hitSlop={10}>
+                            <Feather name="x" size={20} color={colors.mutedForeground} />
+                          </Pressable>
+                        </View>
+                        <View style={{ padding: 20, gap: 14 }}>
+                          {tipSuccess ? (
+                            <>
+                              <View style={{ alignItems: "center", gap: 12 }}>
+                                <View style={{ backgroundColor: "#F59E0B20", borderRadius: 50, padding: 18 }}>
+                                  <Feather name="zap" size={36} color="#F59E0B" />
+                                </View>
+                                <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: colors.foreground }}>π {tipAmount} sent to the founder!</Text>
+                                <Text style={[styles.milestoneMeta, { color: colors.mutedForeground, textAlign: "center" }]}>Your tip fuels the builder's momentum. Keep shipping! 🚀</Text>
+                              </View>
+                              <Pressable onPress={() => { setTipCapsuleId(null); setTipSuccess(false); }} style={[styles.verifyBtn, { backgroundColor: "#F59E0B" }]}>
+                                <Text style={[styles.verifyBtnText, { color: "#fff" }]}>Done</Text>
+                              </Pressable>
+                            </>
+                          ) : (
+                            <>
+                              <View style={{ backgroundColor: "#F59E0B10", borderRadius: 12, borderWidth: 1, borderColor: "#F59E0B30", padding: 12, flexDirection: "row", gap: 10, alignItems: "center" }}>
+                                <Feather name="zap" size={14} color="#F59E0B" />
+                                <Text style={[styles.milestoneMeta, { color: "#F59E0B", flex: 1 }]}>Fuel the builder directly. No escrow, no contract — pure momentum.</Text>
+                              </View>
+                              <Text style={[styles.milestoneMeta, { color: colors.mutedForeground }]}>Choose amount (π)</Text>
+                              <View style={{ flexDirection: "row", gap: 8 }}>
+                                {["1", "5", "10", "25"].map((v) => (
+                                  <Pressable key={v} onPress={() => setTipAmount(v)} style={{ flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: tipAmount === v ? "#F59E0B" : colors.border, backgroundColor: tipAmount === v ? "#F59E0B18" : colors.background }}>
+                                    <Text style={{ fontFamily: "Inter_700Bold", fontSize: 13, color: tipAmount === v ? "#F59E0B" : colors.foreground }}>π {v}</Text>
+                                  </Pressable>
+                                ))}
+                              </View>
+                              <Pressable onPress={handleTipCapsule} disabled={tipping} style={[styles.verifyBtn, { backgroundColor: "#F59E0B", opacity: tipping ? 0.7 : 1, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center" }]}>
+                                {tipping ? <ActivityIndicator size="small" color="#fff" /> : <><Feather name="zap" size={14} color="#fff" /><Text style={[styles.verifyBtnText, { color: "#fff" }]}>Send π {tipAmount} Tip</Text></>}
+                              </Pressable>
+                            </>
                           )}
                         </View>
-                        <Text style={[styles.milestoneDesc, { color: colors.mutedForeground, lineHeight: 20 }]}>{cap.body}</Text>
                       </View>
-                    ))
-                  )}
+                    </View>
+                  </Modal>
                 </>
               )}
             </View>

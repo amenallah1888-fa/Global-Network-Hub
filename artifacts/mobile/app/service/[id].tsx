@@ -572,7 +572,7 @@ export default function ServiceDetailScreen() {
               </Pressable>
               <Pressable onPress={() => setEscrowOpen(true)} style={({ pressed }) => [styles.hireBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}>
                 <Feather name="lock" size={14} color="#fff" />
-                <Text style={styles.hireBtnText}>Hire</Text>
+                <Text style={styles.hireBtnText}>{service.pricePi > 0 ? `Apply · π ${service.pricePi}` : "Apply"}</Text>
               </Pressable>
             </View>
           </View>

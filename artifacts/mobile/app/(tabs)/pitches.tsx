@@ -617,7 +617,7 @@ export default function PitchesScreen() {
                   <Text style={[styles.heroValue, { color: colors.foreground }]}>{(totalRaising / 1_000_000).toFixed(1)}M π</Text>
                   <Text style={[styles.heroSub, { color: colors.mutedForeground }]}>across {visiblePitches.length} live {visiblePitches.length === 1 ? "round" : "rounds"}</Text>
                 </View>
-                <Pressable onPress={() => requireKyc(() => setComposerOpen(true))} style={({ pressed }) => [styles.heroBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}>
+                <Pressable onPress={() => setComposerOpen(true)} style={({ pressed }) => [styles.heroBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}>
                   <Feather name="plus" size={14} color={colors.primaryForeground} />
                   <Text style={[styles.heroBtnText, { color: colors.primaryForeground }]}>Pitch</Text>
                 </Pressable>
@@ -674,7 +674,7 @@ export default function PitchesScreen() {
                   <Text style={[styles.heroValue, { color: colors.foreground }]}>{serviceList.length}</Text>
                   <Text style={[styles.heroSub, { color: colors.mutedForeground }]}>providers accepting Pi</Text>
                 </View>
-                <Pressable onPress={() => requireKyc(() => setServiceComposerOpen(true))} style={({ pressed }) => [styles.heroBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}>
+                <Pressable onPress={() => setServiceComposerOpen(true)} style={({ pressed }) => [styles.heroBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}>
                   <Feather name="plus" size={14} color="#fff" />
                   <Text style={[styles.heroBtnText, { color: "#fff" }]}>Offer</Text>
                 </Pressable>

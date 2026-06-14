@@ -55,6 +55,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
   const [twitter, setTwitter] = useState((me as any).twitter ?? "");
   const [saving, setSaving] = useState(false);
   const [notifications, setNotifications] = useState(true);
+  const [validatorLockVisible, setValidatorLockVisible] = useState(false);
 
   const handleSave = async () => {
     setSaving(true);
@@ -211,26 +212,93 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
 
               <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <Text style={[sm.sectionTitle, { color: colors.foreground }]}>Community</Text>
-                <Pressable
-                  onPress={() => { onClose(); router.push("/admin"); }}
-                  style={[sm.toggleRow, { borderTopColor: colors.border }]}
-                >
-                  <View style={[sm.walletIcon, { backgroundColor: "#22C55E18", marginRight: 12 }]}>
-                    <Feather name="shield" size={16} color="#22C55E" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[sm.toggleLabel, { color: colors.foreground }]}>Validator Portal</Text>
-                    <Text style={[sm.toggleSub, { color: colors.mutedForeground }]}>Review projects, docs & earn reputation</Text>
-                  </View>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    {(me.role === "validator" || me.role === "admin") && (
-                      <View style={{ backgroundColor: "#22C55E18", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3 }}>
-                        <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: "#22C55E" }}>ACTIVE</Text>
-                      </View>
-                    )}
-                    <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-                  </View>
-                </Pressable>
+                {(() => {
+                  const isValidator = me.role === "validator" || me.role === "admin";
+                  const repScore = (me as any).reputationScore ?? 0;
+                  const meetsRep = repScore >= 85;
+                  const isLocked = !isValidator && !meetsRep;
+                  return (
+                    <>
+                      <Pressable
+                        onPress={() => { if (isLocked) { setValidatorLockVisible(true); } else { onClose(); router.push("/admin"); } }}
+                        style={[sm.toggleRow, { borderTopColor: colors.border }]}
+                      >
+                        <View style={[sm.walletIcon, { backgroundColor: isLocked ? "#6B728018" : "#22C55E18", marginRight: 12 }]}>
+                          <Feather name={isLocked ? "lock" : "shield"} size={16} color={isLocked ? "#6B7280" : "#22C55E"} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[sm.toggleLabel, { color: colors.foreground }]}>Validator Portal</Text>
+                          <Text style={[sm.toggleSub, { color: colors.mutedForeground }]}>
+                            {isLocked ? `Locked — ${repScore}/100 rep · need 85+` : "Review projects, docs & earn reputation"}
+                          </Text>
+                        </View>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                          {isValidator && (
+                            <View style={{ backgroundColor: "#22C55E18", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3 }}>
+                              <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: "#22C55E" }}>ACTIVE</Text>
+                            </View>
+                          )}
+                          {isLocked && (
+                            <View style={{ backgroundColor: "#6B728018", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3 }}>
+                              <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: "#6B7280" }}>LOCKED</Text>
+                            </View>
+                          )}
+                          <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                        </View>
+                      </Pressable>
+
+                      {/* Validator Lock Criteria Modal */}
+                      <Modal visible={validatorLockVisible} transparent animationType="fade" onRequestClose={() => setValidatorLockVisible(false)}>
+                        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 }} onPress={() => setValidatorLockVisible(false)}>
+                          <Pressable onPress={() => {}} style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: 20, margin: 0, padding: 0, overflow: "hidden", width: "100%" }]}>
+                            <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", alignItems: "center", gap: 12 }}>
+                              <View style={{ backgroundColor: "#F59E0B18", borderRadius: 12, padding: 8 }}>
+                                <Feather name="lock" size={20} color="#F59E0B" />
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: colors.foreground }}>Validator Portal</Text>
+                                <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginTop: 2 }}>Unlock requirements</Text>
+                              </View>
+                              <Pressable onPress={() => setValidatorLockVisible(false)} hitSlop={10}>
+                                <Feather name="x" size={20} color={colors.mutedForeground} />
+                              </Pressable>
+                            </View>
+                            <View style={{ padding: 20, gap: 14 }}>
+                              <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 20 }}>
+                                Validators review pitches, verify documents, and protect the ecosystem from fraud. To become a Validator, meet all requirements below.
+                              </Text>
+                              {[
+                                { label: "Reputation Score", current: repScore, required: 85, unit: "/ 100", icon: "star" as const, met: meetsRep },
+                                { label: "Account Standing", current: "Active", required: "In good standing", unit: "", icon: "check-circle" as const, met: true },
+                                { label: "Identity Verified", current: (me as any).kycStatus === "verified" ? "Verified" : "Pending", required: "KYC Verified", unit: "", icon: "user-check" as const, met: (me as any).kycStatus === "verified" },
+                              ].map((req) => (
+                                <View key={req.label} style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: req.met ? "#22C55E40" : colors.border, backgroundColor: req.met ? "#22C55E08" : colors.background }}>
+                                  <View style={{ backgroundColor: req.met ? "#22C55E18" : "#6B728018", borderRadius: 10, padding: 8 }}>
+                                    <Feather name={req.icon} size={16} color={req.met ? "#22C55E" : "#6B7280"} />
+                                  </View>
+                                  <View style={{ flex: 1 }}>
+                                    <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>{req.label}</Text>
+                                    <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 2 }}>
+                                      Current: <Text style={{ fontFamily: "Inter_700Bold", color: req.met ? "#22C55E" : colors.foreground }}>{req.current}{req.unit}</Text>
+                                      {"  "}Required: <Text style={{ fontFamily: "Inter_700Bold", color: colors.mutedForeground }}>{req.required}{req.unit}</Text>
+                                    </Text>
+                                  </View>
+                                  <Feather name={req.met ? "check-circle" : "circle"} size={18} color={req.met ? "#22C55E" : "#6B7280"} />
+                                </View>
+                              ))}
+                              <View style={{ backgroundColor: colors.primary + "10", borderRadius: 12, borderWidth: 1, borderColor: colors.primary + "30", padding: 12, flexDirection: "row", gap: 10, alignItems: "center" }}>
+                                <Feather name="info" size={13} color={colors.primary} />
+                                <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.primary, flex: 1 }}>
+                                  Earn reputation by backing projects, submitting capsules, and completing verified actions across the ecosystem.
+                                </Text>
+                              </View>
+                            </View>
+                          </Pressable>
+                        </Pressable>
+                      </Modal>
+                    </>
+                  );
+                })()}
               </View>
 
               <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>

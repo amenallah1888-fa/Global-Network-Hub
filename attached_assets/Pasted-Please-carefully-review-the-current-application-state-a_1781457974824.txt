@@ -1,0 +1,19 @@
+Please carefully review the current application state and execute the following behavioral fixes and data updates to standardise user flows.
+​1. Fix Broken Buttons & Navigation Actions
+​Fix Apply for π 49/mo Button & Modal:
+​The main "Apply" and the modal confirm button Apply for π 49/mo are currently unresponsive.
+​Ensure clicking this button properly triggers the application submittal logic, updates the user state to "Pending Review", and smoothly closes the modal with a toast success feedback.
+​Restore + Pitch Button Modal Form:
+​The + Pitch button on the Investment Hub header has stopped working.
+​Restore its original function so that clicking it opens the complete "Publish to the Hub" drawer/overlay from the bottom, fully exposing fields like Title, Summary, Funding Goal (USD), Stage selection chips, and the final Publish to Hub action button.
+​2. Standardise "Express Interest" Flow
+​Currently, clicking "Express Interest" on a Hub card opens the "Send an Offer" action layout.
+​New Flow Constraint: Users should only be allowed to successfully trigger or finish an "Express Interest" cycle after executing a Donation or an Investment action (such as locking funds via the Smart Escrow Agreement modal).
+​Post-Action Redirection:
+​Once the donation/investment goes through, automatically flag this project as "Saved/Followed" in the user's data state so they can track its updates locally.
+​Then, immediately redirect the user back to the main Project Details / Atlas interface view, ensuring a seamless contextual return.
+​3. Add Project Capsule Management & Mock Preview
+​Capsule Issuance Control: Ensure that when viewing a project as its authorized Founder, a functional "Issue Capsule" button is visible and active within the workspace.
+​Inject Mock Capsule Content: To verify the dynamic layout of the Capsules tab:
+​Inside the Project Details view, programmatically inject exactly one live Mock Capsule entry (e.g., for the active project).
+​This should render a beautifully styled, dynamic timeline card complete with a title, locked/unlocked state visuals, milestone links, and an expand/collapse toggle interaction to prevent the empty state from appearing when the tab is populated.

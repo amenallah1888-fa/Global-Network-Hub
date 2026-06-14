@@ -1,0 +1,36 @@
+​CONTEXT & EXECUTION CONSTRAINT: You are directed to connect the existing background architecture, database layers, and simulated engines (Avatar progression, AI disputes, Validator portal, and Reputation scoring) into the active React Native/Expo frontend. All visual elements must strictly follow the principle of "Progressive Disclosure" to ensure a high-end, clean, future-proof, and non-cluttered application preview. Do NOT modify the theme or alter the core database schemas. Run all edits in parallel across the active screens. Ensure zero TypeScript or bundling errors, clean asset rendering, and a flawless mobile-first UX layout.
+​PART 1: CORE BUG FIXES & WORKFLOW STANDARDISATION
+​1. Fix Broken Buttons & Navigation Actions
+​Fix Apply for π 49/mo Button & Modal:
+​The main "Apply" and the modal confirm button Apply for π 49/mo must be fully responsive.
+​Ensure clicking this button properly triggers the application submittal logic, updates the user state to "Pending Review", and smoothly closes the modal with a toast success feedback.
+​Restore + Pitch Button Modal Form:
+​Restore the original function of the + Pitch button on the Investment Hub header so that clicking it opens the complete "Publish to the Hub" drawer/overlay from the bottom, fully exposing fields like Title, Summary, Funding Goal (USD), Stage selection chips, and the final Publish to Hub action button.
+​2. Standardise "Express Interest" Flow
+​New Flow Constraint: Users should only be allowed to successfully trigger or finish an "Express Interest" cycle after executing a Donation or an Investment action (such as locking funds via the Smart Escrow Agreement modal).
+​Post-Action Redirection: Once the donation/investment goes through, automatically flag this project as "Saved/Followed" in the user's data state so they can track its updates locally, then immediately redirect the user back to the main Project Details / Atlas interface view, ensuring a seamless contextual return.
+​PART 2: ADVANCED UI/UX PROGRESSIVE DISCLOSURE INTEGRATION
+​1. THE AVATAR & SKINS PROGRESSION HUB (SCREEN: PROFILE)
+​Ensure the entry point to the Progression Hub is directly tied to the interactive profile Avatar component. Tapping it must trigger a sleek modal/sliding bottom sheet exposing the user's complete professional status:
+​Dynamic Avatar Frame & XP Bar: Render the user's progression path visually based on their role (Founder, Freelancer, Investor). Include a dynamic XP progress bar displaying (Current XP / Next Level XP) alongside a dynamic Fire Streak activity badge.
+​Status Decay Indicator: Show a subtle, elegant visual warning if the user's activity has dropped, noting that XP and Legendary skin luster are subject to decay.
+​Categorized Skins Gallery: Implement an achievement-based grid filtering skins from Common to Legendary. Each skin tier must strictly lock/unlock based on real ecosystem milestones:
+​Common/Rare: Tied to account activation and completing standard Escrow contracts.
+​Legendary (Achievement-Based Perks): Locked behind high Reputation Scores or being an active Angel Investor/Top Validator. Equipping a Legendary skin must dynamically grant designated visual flair in chats and priority entries for high-budget disputes.
+​2. THE CHRONOLOGICAL PROJECT CAPSULES (SCREEN: PITCHES / DETAILS)
+​Inside the active project detail or updates section, introduce a modern, high-end "Project Capsules" nested tab to display the project's live history ("Building in Public"):
+​Expandable Vertical Timeline Cards: Replace any basic text lists with a sleek, vertical chronological timeline. Each capsule must render as an "Expandable Visual Card".
+​Collapsed State (Clean UI): Show only the Week/Milestone badge, the concise update title, timestamp, and a blurred micro-preview of the attached media (image/video demo url).
+​Expanded State (Smooth Animation): Upon tapping a card, it must expand inline with a smooth native animation to fully expose:
+​The full-width video/demo element playing smoothly.
+​The comprehensive description text provided by the Founder.
+​An integrated "Micro-Funding Tip" button allowing investors to directly stream Pi to that specific capsule milestone.
+​Management Controls: Ensure that when viewing a project as its authorized Founder, a functional "Issue Capsule" button is visible and active within the workspace. Inject exactly one live Mock Capsule entry inside the view to preview this dynamic layout seamlessly.
+​3. THE VALIDATOR PORTAL & REAL-TIME REPUTATION BADGES (SCREEN: PROFILE / GLOBAL SYSTEM)
+​Expose the decentralized governance and AI infrastructure transparently to user profiles based on their weight, investments, and trustworthiness:
+​Global Reputation Score Badge: Inject a permanent 'Reputation Score %' badge right next to the user's display name inside profiles, marketplace listings, and chat components. This score must reflect their real-time accuracy, escrow completion history, and project milestones success rate.
+​The Validator Portal Entry: For users who meet the required Level and Reputation thresholds, expose a dedicated, non-obtrusive entry point in settings/profile named "Validator Portal".
+​Dispute Room UI Simulation: Clicking the portal opens a dark-themed "Dispute Room" layout that aggregates active commerce conflicts, showcasing:
+​High-level automated AI text summaries of the conflict and contract analysis.
+​Accessible links to both parties' project capsules and escrow evidence.
+​A native React Native voting interface where authorized validators can cast their votes using Pi, driving up their XP and unlocking exclusive guardian skins upon correct consensus alignment.
