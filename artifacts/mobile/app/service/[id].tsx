@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
+import { Toast } from "@/components/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -50,10 +51,11 @@ const CAT_COLORS: Record<string, string> = {
 
 type EscrowStage = "review" | "amount" | "confirm" | "success";
 
-function EscrowModal({ service, visible, onClose }: {
+function EscrowModal({ service, visible, onClose, onSuccess }: {
   service: ServiceDetail;
   visible: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
 }) {
   const colors = useColors();
   const { token } = useAuth();
@@ -90,6 +92,7 @@ function EscrowModal({ service, visible, onClose }: {
         headers: { Authorization: `Bearer ${token}` },
       });
       setStage("success");
+      onSuccess?.();
     } catch {
       setError("Network error. Please try again.");
     } finally {
@@ -382,6 +385,17 @@ export default function ServiceDetailScreen() {
   const [escrowOpen, setEscrowOpen] = useState(false);
   const [donateOpen, setDonateOpen] = useState(false);
   const [offerOpen, setOfferOpen] = useState(false);
+  const [applicationStatus, setApplicationStatus] = useState<"idle" | "pending">("idle");
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMsg, setToastMsg] = useState("");
+  const [toastType, setToastType] = useState<"success" | "error">("success");
+
+  const handleApplicationSuccess = () => {
+    setApplicationStatus("pending");
+    setToastMsg("Application Submitted Successfully");
+    setToastType("success");
+    setToastVisible(true);
+  };
 
   const { data: service, isLoading, isError } = useQuery<ServiceDetail>({
     queryKey: [`/api/services/${id}`],
@@ -400,6 +414,7 @@ export default function ServiceDetailScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <Toast message={toastMsg} type={toastType} visible={toastVisible} onHide={() => setToastVisible(false)} />
       <View style={[styles.topBar, { paddingTop: insets.top + 8, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <Pressable onPress={() => router.back()} hitSlop={10} style={[styles.backBtn, { backgroundColor: colors.cardElevated }]}>
           <Feather name="arrow-left" size={18} color={colors.foreground} />
@@ -570,14 +585,25 @@ export default function ServiceDetailScreen() {
                 <Feather name="heart" size={14} color="#EF4444" />
                 <Text style={[styles.actionBtnSmText, { color: "#EF4444" }]}>Donate</Text>
               </Pressable>
-              <Pressable onPress={() => setEscrowOpen(true)} style={({ pressed }) => [styles.hireBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}>
-                <Feather name="lock" size={14} color="#fff" />
-                <Text style={styles.hireBtnText}>{service.pricePi > 0 ? `Apply · π ${service.pricePi}` : "Apply"}</Text>
+              <Pressable
+                onPress={() => { if (applicationStatus !== "pending") setEscrowOpen(true); }}
+                disabled={applicationStatus === "pending"}
+                style={({ pressed }) => [styles.hireBtn, {
+                  backgroundColor: applicationStatus === "pending" ? "#22C55E" : colors.primary,
+                  opacity: pressed || applicationStatus === "pending" ? 0.85 : 1,
+                }]}
+              >
+                <Feather name={applicationStatus === "pending" ? "check-circle" : "lock"} size={14} color="#fff" />
+                <Text style={styles.hireBtnText}>
+                  {applicationStatus === "pending"
+                    ? "Application Pending · Under Review"
+                    : service.pricePi > 0 ? `Apply · π ${service.pricePi}` : "Apply"}
+                </Text>
               </Pressable>
             </View>
           </View>
 
-          <EscrowModal service={service} visible={escrowOpen} onClose={() => setEscrowOpen(false)} />
+          <EscrowModal service={service} visible={escrowOpen} onClose={() => setEscrowOpen(false)} onSuccess={handleApplicationSuccess} />
           <DonateModal service={service} visible={donateOpen} onClose={() => setDonateOpen(false)} />
           <SendOfferModal service={service} visible={offerOpen} onClose={() => setOfferOpen(false)} />
         </>

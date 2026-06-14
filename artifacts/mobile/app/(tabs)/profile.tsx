@@ -602,6 +602,12 @@ export default function ProfileScreen() {
             color="#8B5CF6"
             onPress={() => router.push("/admin")}
           />
+          <ActionTile
+            icon="package"
+            label="Wardrobe"
+            color="#F59E0B"
+            onPress={() => router.push("/nft-marketplace")}
+          />
         </View>
       </View>
 

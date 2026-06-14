@@ -18,6 +18,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
+import { Toast } from "@/components/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import type { Pitch, User } from "@workspace/api-client-react";
@@ -93,6 +94,9 @@ export default function PitchDetailScreen() {
   const [tipAmount, setTipAmount] = useState("1");
   const [tipping, setTipping] = useState(false);
   const [tipSuccess, setTipSuccess] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMsg, setToastMsg] = useState("");
+  const [toastType, setToastType] = useState<"success" | "error" | "info" | "warning">("success");
 
   const { data: pitch, isLoading, isError } = useQuery<PitchDetail>({
     queryKey: [`/api/pitches/${id}`],
@@ -174,6 +178,9 @@ export default function PitchDetailScreen() {
       qc.invalidateQueries({ queryKey: ["/api/pitches"] });
       refetchMilestones();
       setEscrowStep("active");
+      setToastMsg("Interest Expressed! Project saved to your portfolio.");
+      setToastType("success");
+      setToastVisible(true);
     } catch (err: any) {
       setEscrowStep("idle");
       Alert.alert("Error", err.message ?? "Failed to create agreement");
@@ -314,6 +321,7 @@ export default function PitchDetailScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <Toast message={toastMsg} type={toastType} visible={toastVisible} onHide={() => setToastVisible(false)} />
       <View style={[styles.topBar, { paddingTop: insets.top + 8, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <Pressable onPress={() => router.back()} hitSlop={10} style={({ pressed }) => [styles.backBtn, { backgroundColor: colors.cardElevated, opacity: pressed ? 0.7 : 1 }]}>
           <Feather name="arrow-left" size={18} color={colors.foreground} />
@@ -410,9 +418,32 @@ export default function PitchDetailScreen() {
                         <Feather name="heart" size={14} color="#EF4444" />
                         <Text style={[styles.actionBtnText, { color: "#EF4444" }]}>Donate</Text>
                       </Pressable>
-                      <Pressable onPress={handleInvest} style={({ pressed }) => [styles.actionBtn, { backgroundColor: stageColor, opacity: pressed ? 0.85 : 1, flex: 1.3 }]}>
-                        <Feather name={isServiceApp ? "tool" : "trending-up"} size={14} color="#fff" />
-                        <Text style={[styles.actionBtnText, { color: "#fff" }]}>{isServiceApp ? "Hire" : "Invest"}</Text>
+                      <Pressable
+                        onPress={() => {
+                          if (!donateSuccess) {
+                            Alert.alert("Donate First", "Support this project with a donation to unlock Express Interest via Escrow.");
+                            return;
+                          }
+                          handleInvest();
+                        }}
+                        style={({ pressed }) => [styles.actionBtn, {
+                          backgroundColor: donateSuccess ? stageColor : colors.cardElevated,
+                          borderWidth: donateSuccess ? 0 : 1,
+                          borderColor: colors.border,
+                          opacity: pressed ? 0.85 : 1,
+                          flex: 1.3,
+                        }]}
+                      >
+                        {donateSuccess
+                          ? <>
+                              <Feather name={isServiceApp ? "tool" : "trending-up"} size={14} color="#fff" />
+                              <Text style={[styles.actionBtnText, { color: "#fff" }]}>{isServiceApp ? "Hire" : "Invest"}</Text>
+                            </>
+                          : <>
+                              <Feather name="lock" size={13} color={colors.mutedForeground} />
+                              <Text style={[styles.actionBtnText, { color: colors.mutedForeground, fontSize: 12 }]}>Donate First</Text>
+                            </>
+                        }
                       </Pressable>
                     </View>
                   ) : (

@@ -64,6 +64,9 @@ export default function AdminScreen() {
   const isValidator = user?.role === "validator" || user?.role === "admin";
   const repScore = user?.reputationScore ?? 0;
   const repTier = REP_TIERS.find(t => repScore >= t.min && repScore <= t.max) ?? REP_TIERS[0];
+  const userLevel = repScore >= 100 ? 5 : repScore >= 50 ? 4 : repScore >= 25 ? 3 : repScore >= 10 ? 2 : 1;
+  const meetsValidatorCriteria = repScore >= 85 && userLevel >= 5;
+  const showLockedView = !isValidator && !meetsValidatorCriteria;
 
   const becomeValidator = async () => {
     setPromotingValidator(true);
@@ -151,17 +154,73 @@ export default function AdminScreen() {
         </Pressable>
       </View>
 
-      <View style={[styles.tabBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        {(["documents", "projects", "reputation"] as AdminTab[]).map(tab => (
-          <Pressable key={tab} onPress={() => setActiveTab(tab)} style={[styles.tabBtn, { borderBottomColor: activeTab === tab ? colors.primary : "transparent" }]}>
-            <Text style={[styles.tabText, { color: activeTab === tab ? colors.primary : colors.mutedForeground }]}>
-              {tab === "documents" ? `Docs${docs.length > 0 ? ` (${docs.length})` : ""}` : tab === "projects" ? `Projects${pitches.length > 0 ? ` (${pitches.length})` : ""}` : "Reputation"}
+      {showLockedView && (
+        <ScrollView contentContainerStyle={{ padding: 28, paddingTop: 52, gap: 18 }} showsVerticalScrollIndicator={false}>
+          <View style={{ alignItems: "center", gap: 14 }}>
+            <View style={{ width: 84, height: 84, borderRadius: 42, backgroundColor: "#F59E0B18", borderWidth: 2, borderColor: "#F59E0B50", alignItems: "center", justifyContent: "center" }}>
+              <Feather name="lock" size={38} color="#F59E0B" />
+            </View>
+            <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: colors.foreground, textAlign: "center" }}>Validator Portal Locked</Text>
+            <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: colors.mutedForeground, textAlign: "center", lineHeight: 22 }}>
+              Meet all three requirements below to unlock the Active Dispute Room and full Validator tools.
             </Text>
-          </Pressable>
-        ))}
-      </View>
+          </View>
 
-      {isLoading ? (
+          {[
+            { label: "Reputation Score", icon: "star" as const,       current: `${repScore} pts`, required: "≥ 85 pts",  met: repScore >= 85 },
+            { label: "Ecosystem Level",  icon: "trending-up" as const, current: `Level ${userLevel}`,  required: "≥ Level 5", met: userLevel >= 5 },
+            { label: "KYC Identity",     icon: "user-check" as const,  current: user?.kycStatus === "verified" ? "Verified" : "Pending", required: "Verified", met: user?.kycStatus === "verified" },
+          ].map(req => (
+            <View key={req.label} style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: req.met ? "#22C55E40" : colors.border, backgroundColor: req.met ? "#22C55E08" : colors.card }}>
+              <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: req.met ? "#22C55E18" : "#6B728018", alignItems: "center", justifyContent: "center" }}>
+                <Feather name={req.icon} size={18} color={req.met ? "#22C55E" : "#6B7280"} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>{req.label}</Text>
+                <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 2 }}>
+                  Now: <Text style={{ fontFamily: "Inter_700Bold", color: req.met ? "#22C55E" : colors.foreground }}>{req.current}</Text>
+                  {"  ·  "}Need: <Text style={{ fontFamily: "Inter_700Bold" }}>{req.required}</Text>
+                </Text>
+              </View>
+              <Feather name={req.met ? "check-circle" : "circle"} size={22} color={req.met ? "#22C55E" : "#4B5563"} />
+            </View>
+          ))}
+
+          <View style={{ backgroundColor: colors.primary + "10", borderRadius: 14, borderWidth: 1, borderColor: colors.primary + "30", padding: 16, gap: 8 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Feather name="info" size={14} color={colors.primary} />
+              <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: colors.primary }}>How to earn reputation</Text>
+            </View>
+            <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 20 }}>
+              Back projects · Complete escrow agreements · Deliver milestones · Receive 5-star reviews · Post Project Capsules
+            </Text>
+          </View>
+
+          <Pressable
+            onPress={becomeValidator}
+            disabled={promotingValidator}
+            style={({ pressed }) => ({ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, backgroundColor: colors.primary + "18", borderRadius: 12, paddingVertical: 14, borderWidth: 1, borderColor: colors.primary, opacity: pressed || promotingValidator ? 0.7 : 1 })}
+          >
+            {promotingValidator
+              ? <ActivityIndicator size="small" color={colors.primary} />
+              : <><Feather name="shield" size={15} color={colors.primary} /><Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: colors.primary }}>Demo: Activate Validator Mode</Text></>}
+          </Pressable>
+        </ScrollView>
+      )}
+
+      {!showLockedView && (
+        <View style={[styles.tabBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+          {(["documents", "projects", "reputation"] as AdminTab[]).map(tab => (
+            <Pressable key={tab} onPress={() => setActiveTab(tab)} style={[styles.tabBtn, { borderBottomColor: activeTab === tab ? colors.primary : "transparent" }]}>
+              <Text style={[styles.tabText, { color: activeTab === tab ? colors.primary : colors.mutedForeground }]}>
+                {tab === "documents" ? `Docs${docs.length > 0 ? ` (${docs.length})` : ""}` : tab === "projects" ? `Projects${pitches.length > 0 ? ` (${pitches.length})` : ""}` : "Reputation"}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
+      {!showLockedView && (isLoading ? (
         <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
       ) : (
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} showsVerticalScrollIndicator={false}>
@@ -376,7 +435,7 @@ export default function AdminScreen() {
             </>
           )}
         </ScrollView>
-      )}
+      ))}
     </View>
   );
 }

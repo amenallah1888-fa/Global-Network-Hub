@@ -58,6 +58,7 @@ function RootLayoutNav() {
         <Stack.Screen name="service/[id]" options={{ headerShown: false, animation: "slide_from_right" }} />
         <Stack.Screen name="my-campaigns" options={{ headerShown: false, animation: "slide_from_right" }} />
         <Stack.Screen name="admin" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="nft-marketplace" options={{ headerShown: false, animation: "slide_from_right" }} />
       </Stack>
       {token ? <AIAssistant /> : null}
     </View>
