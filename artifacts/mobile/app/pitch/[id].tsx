@@ -80,6 +80,7 @@ export default function PitchDetailScreen() {
   const [donateAmount, setDonateAmount] = useState("5");
   const [donating, setDonating] = useState(false);
   const [donateSuccess, setDonateSuccess] = useState(false);
+  const [isExpressedInterest, setIsExpressedInterest] = useState(false);
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [offerAmount, setOfferAmount] = useState("");
   const [offerNote, setOfferNote] = useState("");
@@ -408,42 +409,26 @@ export default function PitchDetailScreen() {
                     {pitch.portfolioUrl ? <Pressable onPress={() => Linking.openURL(pitch.portfolioUrl!)} style={({ pressed }) => [styles.proofBtn, { backgroundColor: colors.accent + "18", borderColor: colors.accent, opacity: pressed ? 0.8 : 1 }]}><Feather name="briefcase" size={14} color={colors.accent} /><Text style={[styles.proofBtnText, { color: colors.accent }]}>Portfolio</Text></Pressable> : null}
                   </View>
 
-                  {!pitch.backed ? (
+                  {!pitch.backed && !isExpressedInterest ? (
                     <View style={styles.actionRow}>
-                      <Pressable onPress={() => { setOfferSent(false); setOfferAmount(""); setOfferNote(""); setShowOfferModal(true); }} style={({ pressed }) => [styles.actionBtn, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, opacity: pressed ? 0.8 : 1 }]}>
-                        <Feather name="send" size={14} color={colors.primary} />
-                        <Text style={[styles.actionBtnText, { color: colors.primary }]}>Send Offer</Text>
-                      </Pressable>
-                      <Pressable onPress={() => { setDonateSuccess(false); setDonateAmount("5"); setShowDonateModal(true); }} style={({ pressed }) => [styles.actionBtn, { backgroundColor: "#EF444418", borderColor: "#EF4444", borderWidth: 1, opacity: pressed ? 0.8 : 1 }]}>
-                        <Feather name="heart" size={14} color="#EF4444" />
-                        <Text style={[styles.actionBtnText, { color: "#EF4444" }]}>Donate</Text>
-                      </Pressable>
                       <Pressable
-                        onPress={() => {
-                          if (!donateSuccess) {
-                            Alert.alert("Donate First", "Support this project with a donation to unlock Express Interest via Escrow.");
-                            return;
-                          }
-                          handleInvest();
-                        }}
+                        onPress={handleInvest}
                         style={({ pressed }) => [styles.actionBtn, {
-                          backgroundColor: donateSuccess ? stageColor : colors.cardElevated,
-                          borderWidth: donateSuccess ? 0 : 1,
-                          borderColor: colors.border,
+                          backgroundColor: stageColor,
+                          flex: 1.2,
                           opacity: pressed ? 0.85 : 1,
-                          flex: 1.3,
                         }]}
                       >
-                        {donateSuccess
-                          ? <>
-                              <Feather name={isServiceApp ? "tool" : "trending-up"} size={14} color="#fff" />
-                              <Text style={[styles.actionBtnText, { color: "#fff" }]}>{isServiceApp ? "Hire" : "Invest"}</Text>
-                            </>
-                          : <>
-                              <Feather name="lock" size={13} color={colors.mutedForeground} />
-                              <Text style={[styles.actionBtnText, { color: colors.mutedForeground, fontSize: 12 }]}>Donate First</Text>
-                            </>
-                        }
+                        <Feather name={isServiceApp ? "tool" : "trending-up"} size={14} color="#fff" />
+                        <Text style={[styles.actionBtnText, { color: "#fff", fontFamily: "Inter_700Bold" }]}>
+                          {isServiceApp ? "Hire" : "Invest"}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => { setDonateSuccess(false); setDonateAmount("5"); setShowDonateModal(true); }}
+                        style={({ pressed }) => [styles.actionBtn, { backgroundColor: "#EF444418", borderColor: "#EF4444", borderWidth: 1, flex: 1, opacity: pressed ? 0.8 : 1 }]}
+                      >
+                        <Text style={[styles.actionBtnText, { color: "#EF4444" }]}>❤️ Donate</Text>
                       </Pressable>
                     </View>
                   ) : (
@@ -916,7 +901,7 @@ export default function PitchDetailScreen() {
         </>
       )}
 
-      <Modal visible={showEscrowModal} transparent animationType="slide" onRequestClose={() => { if (escrowStep !== "initiating" && escrowStep !== "locking") setShowEscrowModal(false); }}>
+      <Modal visible={showEscrowModal} transparent animationType="slide" onRequestClose={() => { if (escrowStep !== "initiating" && escrowStep !== "locking") { if (escrowStep === "active") { setIsExpressedInterest(true); setShowEscrowModal(false); } else { setShowEscrowModal(false); } } }}>
         <View style={styles.modalOverlay}>
           <View style={[styles.escrowCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {escrowStep === "active" ? (
@@ -934,8 +919,25 @@ export default function PitchDetailScreen() {
                     <Text style={[styles.hashValue, { color: colors.foreground }]}>{shortHash(escrowResult.termsHash)}</Text>
                   </View>
                 )}
-                <Pressable onPress={() => { setShowEscrowModal(false); setActiveTab("milestones"); }} style={({ pressed }) => [styles.escrowConfirmBtn, { backgroundColor: "#22C55E", opacity: pressed ? 0.85 : 1 }]}>
+                <Pressable
+                  onPress={() => {
+                    setIsExpressedInterest(true);
+                    setShowEscrowModal(false);
+                    setActiveTab("milestones");
+                  }}
+                  style={({ pressed }) => [styles.escrowConfirmBtn, { backgroundColor: "#22C55E", opacity: pressed ? 0.85 : 1 }]}
+                >
+                  <Feather name="layers" size={15} color="#fff" />
                   <Text style={styles.escrowConfirmBtnText}>View Milestones</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    setIsExpressedInterest(true);
+                    setShowEscrowModal(false);
+                  }}
+                  style={({ pressed }) => [styles.escrowConfirmBtn, { backgroundColor: "transparent", borderWidth: 1, borderColor: "#22C55E40", marginTop: 0, opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <Text style={[styles.escrowConfirmBtnText, { color: "#22C55E" }]}>Back to Project</Text>
                 </Pressable>
               </>
             ) : escrowStep === "initiating" || escrowStep === "locking" ? (
