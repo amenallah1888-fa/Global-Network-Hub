@@ -1,0 +1,26 @@
+### 1. Separate Identity Documents from LinkedIn (Verify Screen)
+- **UI Refactor:** In the project verification grid, completely separate "Identity Documents" from "LinkedIn". 
+- **Logic:** Move the "Identity Documents" (Passport, National ID) verification entirely OUT of this project-level block. Tie it strictly to a dedicated Account-Level KYC system.
+- **Result:** The "Verify" tab block should now only focus on the professional proof (like LinkedIn or professional profile verification), keeping high-level legal documents hidden and secured elsewhere.
+
+### 2. Implement Account-Level KYC UI & Developer Bypass
+- **KYC Section:** Create a clean, dedicated "Identity Verification (KYC)" section inside User Settings.
+- **Developer Bypass Button:** Add a secure, conditional "Developer Bypass" button/toggle that is ONLY visible during local development (`localhost`) or when an admin flag is active for the current developer account (`@amen`).
+- **Functionality:** Clicking this bypass button must instantly set the user's status to "KYC Verified" on the backend. This must immediately clear the red warning text stating that KYC verification is required to publish a pitch, unlocking full access to the Creator Flow, upload buttons, modals, and publishing features for testing.
+
+### 3. Strict Validator Portal Logic Fix
+- **Fix the Bug:** Remove the vulnerability where any user can instantly become a validator by simply clicking the "Validator" quick action button in the Profile.
+- **Access Control:** Enforce a strict programmatic check: a user can ONLY access the validator portal and see the approval buttons (`Approve +25%` / `Reject`) if they meet the core criteria (e.g., Level 5 and 85% Reputation Score).
+- **Core Principle:** Maintain the rule that Validators act only as "visual auditors" to boost or lower the public Trust Score; they do not dictate or freeze escrow funding directly.
+
+### 4. Backers & Milestones Escrow Integration
+- **Backers Definition:** Ensure the system defines "Backers" strictly as users who have committed funds to the Smart Escrow by using the "Invest" flow.
+- **Milestone Release Flow:** When a project founder updates a milestone phase with a "Proof of Work" (e.g., GitHub link, official document), the system must notify the project's Backers. The release of funds from the Smart Escrow (30% ➡️ 40% ➡️ 30%) must be triggered strictly based on data verification and approval from these committed Backers, removing any public or random voting noise.
+
+### 5. Fix Investment UX & Add Investor Dashboard
+- **Instant Feedback:** When a user fills the investment/offer form and clicks "Send Investment", show an immediate Toast Notification stating: *"Your request has been sent to the Escrow, awaiting the founder's approval."*
+- **Investor Dashboard:** Implement a "Transaction History" or "Investor Dashboard" component inside the user profile. This view must cleanly display all active investments/donations made by the user, showing the Project Name, Amount of Pi (π), Date, and the Live Status (e.g., `Pending`, `Success`, `Active in Escrow`).
+
+### 6. Quick Actions UI Grid & Spacing Overhaul (Profile Screen)
+- **UI Bug Fix:** On the Profile Screen under the "Quick actions" section, the action buttons (`Compose`, `Pi Wallet`, `My Campaigns`, `Messages`, `My pitch`, `Validator`, `Wardrobe`) are too cramped and crowded.
+- **Styling Update:** Increase the grid spacing, add proper horizontal padding (`gap` / `margin`), and optimize the layout. The buttons must have breathing room for a comfortable visual experience (UX/UI), ensuring text labels do not overlap and the touch targets are perfectly distinct and readable.

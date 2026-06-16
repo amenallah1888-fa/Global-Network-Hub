@@ -56,6 +56,25 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
   const [saving, setSaving] = useState(false);
   const [notifications, setNotifications] = useState(true);
   const [validatorLockVisible, setValidatorLockVisible] = useState(false);
+  const [kycBypassing, setKycBypassing] = useState(false);
+
+  const handleKycBypass = async () => {
+    setKycBypassing(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/promote-kyc`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed");
+      qc.invalidateQueries({ queryKey: ["/api/me"] });
+      qc.invalidateQueries({ queryKey: ["/api/users"] });
+      Alert.alert("KYC Verified ✓", "Your account is now KYC Verified. All features unlocked — you can publish pitches and access the Creator Flow.");
+    } catch {
+      Alert.alert("Error", "Could not update KYC status.");
+    } finally {
+      setKycBypassing(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -171,10 +190,52 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                       <Text style={[sm.roleText, { color: "#22C55E" }]}>Verified</Text>
                     </View>
                   )}
-                  <View style={[sm.roleBadge, { backgroundColor: colors.cardElevated, borderColor: colors.border }]}>
-                    <Feather name="award" size={13} color={colors.mutedForeground} />
-                    <Text style={[sm.roleText, { color: colors.mutedForeground }]}>KYC Pending</Text>
+                  <View style={[sm.roleBadge, { backgroundColor: (me as any).kycStatus === "verified" ? "#22C55E20" : colors.cardElevated, borderColor: (me as any).kycStatus === "verified" ? "#22C55E50" : colors.border }]}>
+                    <Feather name={(me as any).kycStatus === "verified" ? "check-circle" : "shield"} size={13} color={(me as any).kycStatus === "verified" ? "#22C55E" : colors.mutedForeground} />
+                    <Text style={[sm.roleText, { color: (me as any).kycStatus === "verified" ? "#22C55E" : colors.mutedForeground }]}>
+                      {(me as any).kycStatus === "verified" ? "KYC Verified" : "KYC Pending"}
+                    </Text>
                   </View>
+                </View>
+              </View>
+
+              <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[sm.sectionTitle, { color: colors.foreground }]}>Identity Verification (KYC)</Text>
+                <View style={{ padding: 16, gap: 12 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: (me as any).kycStatus === "verified" ? "#22C55E18" : "#F59E0B18", alignItems: "center", justifyContent: "center" }}>
+                      <Feather name={(me as any).kycStatus === "verified" ? "check-circle" : "shield"} size={20} color={(me as any).kycStatus === "verified" ? "#22C55E" : "#F59E0B"} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>
+                        {(me as any).kycStatus === "verified" ? "KYC Verified" : "Verification Pending"}
+                      </Text>
+                      <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 2 }}>
+                        {(me as any).kycStatus === "verified"
+                          ? "Identity confirmed. All features unlocked."
+                          : "Passport or National ID required to publish pitches."}
+                      </Text>
+                    </View>
+                  </View>
+                  {(me as any).kycStatus !== "verified" && (
+                    <View style={{ backgroundColor: "#EF444412", borderRadius: 10, borderWidth: 1, borderColor: "#EF444430", padding: 10, flexDirection: "row", gap: 8, alignItems: "center" }}>
+                      <Feather name="alert-triangle" size={13} color="#EF4444" />
+                      <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: "#EF4444", flex: 1 }}>
+                        KYC required to publish a pitch, access the Creator Flow, and use upload features.
+                      </Text>
+                    </View>
+                  )}
+                  {(me.handle === "amen" || Platform.OS === "web") && (me as any).kycStatus !== "verified" && (
+                    <Pressable
+                      onPress={handleKycBypass}
+                      disabled={kycBypassing}
+                      style={({ pressed }) => ({ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, backgroundColor: "#8B5CF618", borderRadius: 10, paddingVertical: 12, borderWidth: 1, borderColor: "#8B5CF640", opacity: pressed || kycBypassing ? 0.7 : 1 })}
+                    >
+                      {kycBypassing
+                        ? <ActivityIndicator size="small" color="#8B5CF6" />
+                        : <><Feather name="cpu" size={13} color="#8B5CF6" /><Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: "#8B5CF6" }}>Developer Bypass — Set KYC Verified</Text></>}
+                    </Pressable>
+                  )}
                 </View>
               </View>
 
@@ -340,6 +401,58 @@ function Field({ label, value, onChange, placeholder, multiline, colors }: {
           ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : {}),
         }]}
       />
+    </View>
+  );
+}
+
+function InvestorDashboard({ colors }: { colors: ReturnType<typeof useColors> }) {
+  const { token } = useAuth();
+  const { data: txs, isLoading } = useQuery<any[]>({
+    queryKey: ["/api/transactions/me"],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/transactions/me`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!token,
+    staleTime: 20_000,
+  });
+
+  const STATUS_COLOR: Record<string, string> = { pending: "#F59E0B", success: "#22C55E", active: "#3B82F6", invest: "#22C55E", donate: "#EF4444", hire: "#8B5CF6" };
+  const STATUS_LABEL: Record<string, string> = { pending: "Pending", success: "Success", active: "Active in Escrow", invest: "Active in Escrow", donate: "Donation Sent", hire: "Hired" };
+
+  if (isLoading) return null;
+  const list = txs ?? [];
+  if (list.length === 0) return null;
+
+  return (
+    <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <Text style={[sm.sectionTitle, { color: colors.foreground }]}>Transaction History</Text>
+      {list.slice(0, 8).map((tx: any, i: number) => {
+        const col = STATUS_COLOR[tx.type] ?? STATUS_COLOR[tx.status] ?? "#6B7280";
+        const label = STATUS_LABEL[tx.type] ?? STATUS_LABEL[tx.status] ?? "Processed";
+        return (
+          <View key={tx.id} style={[sm.assetRow, { borderTopColor: colors.border, borderTopWidth: i === 0 ? 1 : StyleSheet.hairlineWidth }]}>
+            <View style={[sm.assetIcon, { backgroundColor: col + "18" }]}>
+              <Feather name={tx.type === "donate" ? "heart" : tx.type === "hire" ? "tool" : "trending-up"} size={14} color={col} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: colors.foreground }} numberOfLines={1}>
+                {tx.pitchId ?? "Transaction"}
+              </Text>
+              <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>
+                {tx.createdAt ? new Date(tx.createdAt).toLocaleDateString() : "—"}
+              </Text>
+            </View>
+            <View style={{ alignItems: "flex-end", gap: 3 }}>
+              <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: col }}>{tx.amount} π</Text>
+              <View style={{ backgroundColor: col + "18", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 }}>
+                <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: col, letterSpacing: 0.3 }}>{label.toUpperCase()}</Text>
+              </View>
+            </View>
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -600,7 +713,18 @@ export default function ProfileScreen() {
             icon="shield"
             label="Validator"
             color="#8B5CF6"
-            onPress={() => router.push("/admin")}
+            onPress={() => {
+              const rep = (me as any).reputationScore ?? 0;
+              const isVal = me.role === "validator" || me.role === "admin";
+              if (isVal || rep >= 85) {
+                router.push("/admin");
+              } else {
+                Alert.alert(
+                  "Validator Portal Locked",
+                  `You need 85+ reputation to access the Validator Portal.\n\nYour current score: ${rep}/100.\n\nEarn rep by backing projects, delivering milestones, and completing escrow agreements.`
+                );
+              }
+            }}
           />
           <ActionTile
             icon="package"
@@ -609,6 +733,10 @@ export default function ProfileScreen() {
             onPress={() => router.push("/nft-marketplace")}
           />
         </View>
+      </View>
+
+      <View style={[styles.section, { paddingHorizontal: 16 }]}>
+        <InvestorDashboard colors={colors} />
       </View>
 
       <View style={styles.section}>
@@ -748,10 +876,10 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
   sectionTitle: { fontSize: 16, fontFamily: "Inter_700Bold", letterSpacing: -0.2, marginBottom: 12 },
   sectionAction: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  actionGrid: { flexDirection: "row", gap: 10 },
-  actionTile: { flex: 1, paddingVertical: 14, paddingHorizontal: 8, borderRadius: 16, borderWidth: 1, alignItems: "center", gap: 6 },
-  actionIcon: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  actionLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", textAlign: "center" },
+  actionGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  actionTile: { width: "21.5%", paddingVertical: 14, paddingHorizontal: 4, borderRadius: 16, borderWidth: 1, alignItems: "center", gap: 6 },
+  actionIcon: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  actionLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", textAlign: "center", lineHeight: 14 },
   actionSub: { fontSize: 10, fontFamily: "Inter_500Medium" },
   userRow: { flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 16, borderWidth: 1, marginBottom: 8 },
   userName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },

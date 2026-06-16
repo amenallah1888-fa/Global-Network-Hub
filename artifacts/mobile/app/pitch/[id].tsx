@@ -26,7 +26,7 @@ import type { Pitch, User } from "@workspace/api-client-react";
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : "";
 
 const VALIDATOR_BLOCKS = [
-  { key: "identity", label: "Identity / LinkedIn", description: "Verified LinkedIn profile or official identity document confirming the founder's real-world identity.", icon: "user-check", points: 25 },
+  { key: "identity", label: "Professional Verification", description: "Verified LinkedIn profile or professional network presence confirming the founder's real-world professional standing. (Legal identity documents are managed separately via account-level KYC.)", icon: "user-check", points: 25 },
   { key: "reality", label: "Proof of Reality", description: "Video demo, live product, or working prototype proving the project is real and functional.", icon: "play-circle", points: 25 },
   { key: "roadmap", label: "Roadmap / Vision", description: "Published roadmap, timeline, or development plan showing a credible path to completion.", icon: "map", points: 25 },
   { key: "portfolio", label: "Portfolio / Experience", description: "Past work, references, or team credentials demonstrating the ability to deliver.", icon: "briefcase", points: 25 },
@@ -179,7 +179,7 @@ export default function PitchDetailScreen() {
       qc.invalidateQueries({ queryKey: ["/api/pitches"] });
       refetchMilestones();
       setEscrowStep("active");
-      setToastMsg("Interest Expressed! Project saved to your portfolio.");
+      setToastMsg("π locked in Escrow. Awaiting the founder's milestone delivery.");
       setToastType("success");
       setToastVisible(true);
     } catch (err: any) {
@@ -523,7 +523,7 @@ export default function PitchDetailScreen() {
                   <View style={[styles.infoCard, { backgroundColor: colors.primary + "12", borderColor: colors.primary + "40" }]}>
                     <Feather name="info" size={13} color={colors.primary} />
                     <Text style={[styles.infoText, { color: colors.primary }]}>
-                      Funds are released phase-by-phase as milestones are completed and verified by backers.
+                      Funds release phase-by-phase (30% → 40% → 30%) and are verified exclusively by committed Backers — users who locked π via Smart Escrow.
                     </Text>
                   </View>
 
@@ -574,11 +574,17 @@ export default function PitchDetailScreen() {
                             </View>
                           )}
 
-                          {!isFounder && m.status === "pending_proof" && (
+                          {!isFounder && (pitch.backed || isExpressedInterest) && m.status === "pending_proof" && (
                             <Pressable onPress={() => handleVerifyMilestone(m.id)} style={({ pressed }) => [styles.verifyBtn, { backgroundColor: "#22C55E", opacity: pressed ? 0.8 : 1 }]}>
                               <Feather name="check" size={14} color="#fff" />
                               <Text style={styles.verifyBtnText}>Verify Milestone & Release Funds</Text>
                             </Pressable>
+                          )}
+                          {!isFounder && !(pitch.backed || isExpressedInterest) && m.status === "pending_proof" && (
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, backgroundColor: "#6B728012", borderRadius: 8, padding: 8 }}>
+                              <Feather name="lock" size={12} color="#6B7280" />
+                              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#6B7280", flex: 1 }}>Only Backers (escrow investors) can verify this milestone.</Text>
+                            </View>
                           )}
 
                           {m.completedAt && (

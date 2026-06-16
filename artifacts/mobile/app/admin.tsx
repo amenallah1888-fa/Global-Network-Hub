@@ -196,15 +196,12 @@ export default function AdminScreen() {
             </Text>
           </View>
 
-          <Pressable
-            onPress={becomeValidator}
-            disabled={promotingValidator}
-            style={({ pressed }) => ({ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, backgroundColor: colors.primary + "18", borderRadius: 12, paddingVertical: 14, borderWidth: 1, borderColor: colors.primary, opacity: pressed || promotingValidator ? 0.7 : 1 })}
-          >
-            {promotingValidator
-              ? <ActivityIndicator size="small" color={colors.primary} />
-              : <><Feather name="shield" size={15} color={colors.primary} /><Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: colors.primary }}>Demo: Activate Validator Mode</Text></>}
-          </Pressable>
+          <View style={{ backgroundColor: colors.primary + "10", borderRadius: 12, borderWidth: 1, borderColor: colors.primary + "30", padding: 14, flexDirection: "row", gap: 10, alignItems: "center" }}>
+            <Feather name="info" size={14} color={colors.primary} />
+            <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.primary, flex: 1, lineHeight: 18 }}>
+              Validator access is granted automatically when all three criteria are met. Keep earning reputation across the ecosystem.
+            </Text>
+          </View>
         </ScrollView>
       )}
 
