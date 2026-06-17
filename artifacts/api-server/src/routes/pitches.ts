@@ -170,6 +170,25 @@ router.patch("/pitches/:id/requirements", async (req, res): Promise<void> => {
   res.json({ requirements });
 });
 
+router.patch("/pitches/:id/proof-links", async (req, res): Promise<void> => {
+  const meId = currentUserId(req);
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const [pitch] = await db.select().from(pitchesTable).where(eq(pitchesTable.id, id));
+  if (!pitch) { res.status(404).json({ error: "Not found" }); return; }
+  if (pitch.founderId !== meId) { res.status(403).json({ error: "Only the project founder can update proof links" }); return; }
+
+  const updates: Record<string, string | null> = {};
+  if (typeof req.body?.founderLinkedin === "string") updates.founderLinkedin = req.body.founderLinkedin.trim() || null;
+  if (typeof req.body?.proofOfRealityUrl === "string") updates.proofOfRealityUrl = req.body.proofOfRealityUrl.trim() || null;
+  if (typeof req.body?.roadmapUrl === "string") updates.roadmapUrl = req.body.roadmapUrl.trim() || null;
+  if (typeof req.body?.portfolioUrl === "string") updates.portfolioUrl = req.body.portfolioUrl.trim() || null;
+
+  if (Object.keys(updates).length === 0) { res.status(400).json({ error: "No valid fields provided" }); return; }
+  await db.update(pitchesTable).set(updates as any).where(eq(pitchesTable.id, id));
+  const [updated] = await db.select().from(pitchesTable).where(eq(pitchesTable.id, id));
+  res.json(decoratePitch(updated, true));
+});
+
 router.post("/pitches/:id/back", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
@@ -256,6 +275,10 @@ router.post("/pitches/:id/validate-block", async (req, res): Promise<void> => {
 
   const [pitch] = await db.select().from(pitchesTable).where(eq(pitchesTable.id, id));
   if (!pitch) { res.status(404).json({ error: "Project not found" }); return; }
+
+  if (pitch.founderId === meId) {
+    res.status(403).json({ error: "Conflict of interest: founders cannot approve or reject their own project's verification blocks" }); return;
+  }
 
   const approvals = parseValidatorApprovals(pitch.validatorApprovals);
   approvals[block] = action;

@@ -390,7 +390,10 @@ export function PitchCard({ pitch }: { pitch: Pitch }) {
   const [memoOpen, setMemoOpen] = useState(false);
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <Pressable
+      onPress={() => router.push(`/pitch/${pitch.id}`)}
+      style={({ pressed }) => [styles.card, { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.95 : 1 }]}
+    >
       <View style={styles.topRow}>
         <View style={styles.headerLeft}>
           <Avatar avatarKey={founder.avatarKey} size={36} />
@@ -487,7 +490,7 @@ export function PitchCard({ pitch }: { pitch: Pitch }) {
         pitchTitle={pitch.title}
         onClose={() => setMemoOpen(false)}
       />
-    </View>
+    </Pressable>
   );
 }
 

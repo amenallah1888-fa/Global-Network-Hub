@@ -98,6 +98,9 @@ export default function PitchDetailScreen() {
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
   const [toastType, setToastType] = useState<"success" | "error" | "info" | "warning">("success");
+  const [proofSubmitBlock, setProofSubmitBlock] = useState<{ field: string; label: string; placeholder: string } | null>(null);
+  const [proofSubmitUrl, setProofSubmitUrl] = useState("");
+  const [savingProofUrl, setSavingProofUrl] = useState(false);
 
   const { data: pitch, isLoading, isError } = useQuery<PitchDetail>({
     queryKey: [`/api/pitches/${id}`],
@@ -308,6 +311,32 @@ export default function PitchDetailScreen() {
       qc.invalidateQueries({ queryKey: [`/api/pitches/${id}`] });
       setOfferSent(true);
     } catch { Alert.alert("Error", "Could not send offer. Please try again."); } finally { setSendingOffer(false); }
+  };
+
+  const handleSaveProofUrl = async () => {
+    if (!proofSubmitBlock) return;
+    const url = proofSubmitUrl.trim();
+    if (!url) { Alert.alert("Required", "Paste a public URL for this proof block"); return; }
+    setSavingProofUrl(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/pitches/${id}/proof-links`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ [proofSubmitBlock.field]: url }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? "Failed"); }
+      qc.invalidateQueries({ queryKey: [`/api/pitches/${id}`] });
+      qc.invalidateQueries({ queryKey: ["/api/pitches"] });
+      setProofSubmitBlock(null);
+      setProofSubmitUrl("");
+      setToastMsg("Proof submitted! A Validator will now review this block.");
+      setToastType("success");
+      setToastVisible(true);
+    } catch (err: any) {
+      Alert.alert("Error", err.message ?? "Could not save proof link");
+    } finally {
+      setSavingProofUrl(false);
+    }
   };
 
   const handleAddDocument = async () => {
@@ -600,43 +629,51 @@ export default function PitchDetailScreen() {
               {activeTab === "verification" && (
                 <>
                   {/* Proof of Intent */}
-                  <View style={[styles.proofIntentCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <View style={styles.proofIntentHeader}>
-                      <Feather name="shield" size={16} color={colors.primary} />
-                      <Text style={[styles.proofIntentTitle, { color: colors.foreground }]}>Proof of Intent</Text>
-                      <Text style={[styles.proofIntentSub, { color: colors.mutedForeground }]}>Founder-submitted evidence</Text>
-                    </View>
-                    <View style={styles.proofIntentGrid}>
-                      <View style={[styles.proofIntentItem, { backgroundColor: pitch.founderLinkedin ? "#22C55E12" : colors.background, borderColor: pitch.founderLinkedin ? "#22C55E40" : colors.border }]}>
-                        <Feather name="user-check" size={16} color={pitch.founderLinkedin ? "#22C55E" : colors.mutedForeground} />
-                        <Text style={[styles.proofIntentLabel, { color: pitch.founderLinkedin ? "#22C55E" : colors.mutedForeground }]}>Identity</Text>
-                        {pitch.founderLinkedin
-                          ? <Pressable onPress={() => Linking.openURL(pitch.founderLinkedin!)}><Text style={[styles.proofIntentLink, { color: "#22C55E" }]}>View LinkedIn →</Text></Pressable>
-                          : <Text style={[styles.proofIntentLink, { color: colors.mutedForeground }]}>Not submitted</Text>}
+                  {(() => {
+                    const PROOF_FIELDS = [
+                      { field: "founderLinkedin", label: "Identity", icon: "user-check" as const, placeholder: "https://linkedin.com/in/yourprofile", value: pitch.founderLinkedin, linkText: "View LinkedIn →" },
+                      { field: "proofOfRealityUrl", label: "Reality Proof", icon: "play-circle" as const, placeholder: "https://youtube.com/watch?v=...", value: pitch.proofOfRealityUrl, linkText: "View Demo →" },
+                      { field: "roadmapUrl", label: "Roadmap", icon: "map" as const, placeholder: "https://notion.so/your-roadmap", value: pitch.roadmapUrl, linkText: "View Plan →" },
+                      { field: "portfolioUrl", label: "Portfolio", icon: "briefcase" as const, placeholder: "https://yourportfolio.com", value: pitch.portfolioUrl, linkText: "View Work →" },
+                    ];
+                    return (
+                      <View style={[styles.proofIntentCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                        <View style={styles.proofIntentHeader}>
+                          <Feather name="shield" size={16} color={colors.primary} />
+                          <Text style={[styles.proofIntentTitle, { color: colors.foreground }]}>Proof of Intent</Text>
+                          <Text style={[styles.proofIntentSub, { color: colors.mutedForeground }]}>Founder-submitted evidence</Text>
+                        </View>
+                        {isFounder && (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginHorizontal: 12, marginBottom: 8, backgroundColor: colors.primary + "12", borderRadius: 8, padding: 8 }}>
+                            <Feather name="edit-2" size={11} color={colors.primary} />
+                            <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.primary }}>Tap any unsubmitted block to add your proof link.</Text>
+                          </View>
+                        )}
+                        <View style={styles.proofIntentGrid}>
+                          {PROOF_FIELDS.map((pf) => {
+                            const hasValue = !!pf.value;
+                            const canSubmit = isFounder && !hasValue;
+                            const Item = canSubmit ? Pressable : View;
+                            return (
+                              <Item
+                                key={pf.field}
+                                onPress={canSubmit ? () => { setProofSubmitBlock({ field: pf.field, label: pf.label, placeholder: pf.placeholder }); setProofSubmitUrl(""); } : undefined}
+                                style={canSubmit
+                                  ? ({ pressed }: any) => [styles.proofIntentItem, { backgroundColor: colors.background, borderColor: colors.primary + "60", borderStyle: "dashed", opacity: pressed ? 0.75 : 1 }]
+                                  : [styles.proofIntentItem, { backgroundColor: hasValue ? "#22C55E12" : colors.background, borderColor: hasValue ? "#22C55E40" : colors.border }]}
+                              >
+                                <Feather name={pf.icon} size={16} color={hasValue ? "#22C55E" : canSubmit ? colors.primary : colors.mutedForeground} />
+                                <Text style={[styles.proofIntentLabel, { color: hasValue ? "#22C55E" : canSubmit ? colors.primary : colors.mutedForeground }]}>{pf.label}</Text>
+                                {hasValue
+                                  ? <Pressable onPress={() => Linking.openURL(pf.value!)}><Text style={[styles.proofIntentLink, { color: "#22C55E" }]}>{pf.linkText}</Text></Pressable>
+                                  : <Text style={[styles.proofIntentLink, { color: canSubmit ? colors.primary : colors.mutedForeground, fontFamily: canSubmit ? "Inter_600SemiBold" : "Inter_400Regular" }]}>{canSubmit ? "+ Add proof" : "Not submitted"}</Text>}
+                              </Item>
+                            );
+                          })}
+                        </View>
                       </View>
-                      <View style={[styles.proofIntentItem, { backgroundColor: pitch.proofOfRealityUrl ? "#22C55E12" : colors.background, borderColor: pitch.proofOfRealityUrl ? "#22C55E40" : colors.border }]}>
-                        <Feather name="play-circle" size={16} color={pitch.proofOfRealityUrl ? "#22C55E" : colors.mutedForeground} />
-                        <Text style={[styles.proofIntentLabel, { color: pitch.proofOfRealityUrl ? "#22C55E" : colors.mutedForeground }]}>Reality Proof</Text>
-                        {pitch.proofOfRealityUrl
-                          ? <Pressable onPress={() => Linking.openURL(pitch.proofOfRealityUrl!)}><Text style={[styles.proofIntentLink, { color: "#22C55E" }]}>View Demo →</Text></Pressable>
-                          : <Text style={[styles.proofIntentLink, { color: colors.mutedForeground }]}>Not submitted</Text>}
-                      </View>
-                      <View style={[styles.proofIntentItem, { backgroundColor: pitch.roadmapUrl ? "#22C55E12" : colors.background, borderColor: pitch.roadmapUrl ? "#22C55E40" : colors.border }]}>
-                        <Feather name="map" size={16} color={pitch.roadmapUrl ? "#22C55E" : colors.mutedForeground} />
-                        <Text style={[styles.proofIntentLabel, { color: pitch.roadmapUrl ? "#22C55E" : colors.mutedForeground }]}>Roadmap</Text>
-                        {pitch.roadmapUrl
-                          ? <Pressable onPress={() => Linking.openURL(pitch.roadmapUrl!)}><Text style={[styles.proofIntentLink, { color: "#22C55E" }]}>View Plan →</Text></Pressable>
-                          : <Text style={[styles.proofIntentLink, { color: colors.mutedForeground }]}>Not submitted</Text>}
-                      </View>
-                      <View style={[styles.proofIntentItem, { backgroundColor: pitch.portfolioUrl ? "#22C55E12" : colors.background, borderColor: pitch.portfolioUrl ? "#22C55E40" : colors.border }]}>
-                        <Feather name="briefcase" size={16} color={pitch.portfolioUrl ? "#22C55E" : colors.mutedForeground} />
-                        <Text style={[styles.proofIntentLabel, { color: pitch.portfolioUrl ? "#22C55E" : colors.mutedForeground }]}>Portfolio</Text>
-                        {pitch.portfolioUrl
-                          ? <Pressable onPress={() => Linking.openURL(pitch.portfolioUrl!)}><Text style={[styles.proofIntentLink, { color: "#22C55E" }]}>View Work →</Text></Pressable>
-                          : <Text style={[styles.proofIntentLink, { color: colors.mutedForeground }]}>Not submitted</Text>}
-                      </View>
-                    </View>
-                  </View>
+                    );
+                  })()}
 
                   <View style={[styles.verificationBadge, { backgroundColor: isVerified ? "#22C55E18" : colors.cardElevated, borderColor: isVerified ? "#22C55E" : colors.border }]}>
                     <Feather name={isVerified ? "check-circle" : "clock"} size={28} color={isVerified ? "#22C55E" : colors.mutedForeground} />
@@ -693,7 +730,7 @@ export default function PitchDetailScreen() {
                           </View>
                         </View>
                         <Text style={[styles.milestoneDesc, { color: colors.mutedForeground }]}>{block.description}</Text>
-                        {isValidator && !approved && (
+                        {isValidator && !isFounder && !approved && (
                           <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
                             <Pressable
                               onPress={() => handleValidateBlock(block.key, "reject")}
@@ -711,7 +748,13 @@ export default function PitchDetailScreen() {
                             </Pressable>
                           </View>
                         )}
-                        {!isValidator && !approved && !rejected && (
+                        {isFounder && (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, backgroundColor: "#F59E0B12", borderRadius: 8, padding: 8 }}>
+                            <Feather name="alert-circle" size={12} color="#F59E0B" />
+                            <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#F59E0B", flex: 1 }}>Founders cannot approve or reject their own project's verification blocks.</Text>
+                          </View>
+                        )}
+                        {!isValidator && !isFounder && !approved && !rejected && (
                           <Text style={[styles.milestoneDesc, { color: colors.mutedForeground, fontStyle: "italic", marginTop: 6 }]}>Awaiting Validator review</Text>
                         )}
                       </View>
@@ -1080,6 +1123,57 @@ export default function PitchDetailScreen() {
                 </Pressable>
               </>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Proof Submission Modal — founder submits proof URL for a validation block */}
+      <Modal visible={!!proofSubmitBlock} transparent animationType="fade" onRequestClose={() => setProofSubmitBlock(null)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.62)", justifyContent: "center", padding: 24 }}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setProofSubmitBlock(null)} />
+          <View style={{ backgroundColor: colors.card, borderRadius: 22, borderWidth: 1, borderColor: colors.border, padding: 22, gap: 18 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primary + "18", alignItems: "center", justifyContent: "center" }}>
+                <Feather name="link" size={17} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: colors.foreground }}>Submit Proof</Text>
+                <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginTop: 1 }}>{proofSubmitBlock?.label}</Text>
+              </View>
+              <Pressable onPress={() => setProofSubmitBlock(null)} hitSlop={10}>
+                <Feather name="x" size={20} color={colors.mutedForeground} />
+              </Pressable>
+            </View>
+            <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 18 }}>
+              Paste a public, verifiable URL (LinkedIn, YouTube, Notion, GitHub, etc.). Once submitted, a Network Validator will review and approve this block (+25% trust score).
+            </Text>
+            <TextInput
+              value={proofSubmitUrl}
+              onChangeText={setProofSubmitUrl}
+              placeholder={proofSubmitBlock?.placeholder ?? "https://..."}
+              placeholderTextColor={colors.mutedForeground}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              style={[{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 14, fontSize: 13, fontFamily: "Inter_400Regular", color: colors.foreground, backgroundColor: colors.background }, Platform.OS === "web" ? { outlineStyle: "none" as any } : {}]}
+            />
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <Pressable
+                onPress={() => setProofSubmitBlock(null)}
+                style={({ pressed }) => ({ flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingVertical: 13, alignItems: "center" as const, opacity: pressed ? 0.7 : 1 })}
+              >
+                <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleSaveProofUrl}
+                disabled={savingProofUrl || !proofSubmitUrl.trim()}
+                style={({ pressed }) => ({ flex: 2, backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 13, alignItems: "center" as const, opacity: pressed || savingProofUrl || !proofSubmitUrl.trim() ? 0.55 : 1 })}
+              >
+                {savingProofUrl
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" }}>Submit for Review</Text>}
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
