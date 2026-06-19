@@ -1,0 +1,27 @@
+### Fix Inactive/Duplicate Modal Data for the 4 Verification Blocks
+The current implementation utilizes a single generic modal that always asks for a LinkedIn profile link regardless of which block is clicked (as seen in the copy-paste placeholder bug). Each of the 4 blocks must represent a completely distinct domain with its own description, tailored field label, and dynamic placeholder context.
+
+Please update the dynamic state of the "Submit Proof" Modal based on the selected block type:
+
+1. **Identity / Professional Verification Block:**
+   - **Subtitle/Label:** "Professional Profile URL"
+   - **Placeholder:** "https://linkedin.com/in/yourprofile"
+   - **Description:** "Paste your verifiable professional network profile (LinkedIn) to verify your real-world identity."
+
+2. **Reality Proof Block:**
+   - **Subtitle/Label:** "Video Demo or Working MVP URL"
+   - **Placeholder:** "https://youtube.com/watch?... or https://github.com/... or live link"
+   - **Description:** "Provide a public link to a video demo, live product prototype, or functional repository proving the product actually exists."
+
+3. **Roadmap / Vision Block:**
+   - **Subtitle/Label:** "Interactive Roadmap or Project Documentation URL"
+   - **Placeholder:** "https://notion.so/... or https://trello.com/... or deck link"
+   - **Description:** "Submit a link to your public timeline, whitepaper, or product requirements document detailing the long-term milestones."
+
+4. **Portfolio / Experience Block:**
+   - **Subtitle/Label:** "Past Work or Team Credentials URL"
+   - **Placeholder:** "https://behance.net/... or https://github.com/your-org or portfolio link"
+   - **Description:** "Provide references, case studies, or a portfolio linking to high-quality past work that proves your execution capabilities."
+
+### Technical Requirement:
+Ensure that when a user inputs data and clicks "Submit for Review", the frontend sends the payload mapped strictly to the specific DB field or separate block entry associated with that validation category (not overriding the same field).

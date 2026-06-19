@@ -55,6 +55,11 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
   const [twitter, setTwitter] = useState((me as any).twitter ?? "");
   const [saving, setSaving] = useState(false);
   const [notifications, setNotifications] = useState(true);
+  const [biometrics, setBiometrics] = useState(false);
+  const [profileVisible, setProfileVisible] = useState(true);
+  const [pitchAlerts, setPitchAlerts] = useState(true);
+  const [milestoneNotifs, setMilestoneNotifs] = useState(true);
+  const [validatorVoting, setValidatorVoting] = useState(false);
   const [validatorLockVisible, setValidatorLockVisible] = useState(false);
   const [kycBypassing, setKycBypassing] = useState(false);
 
@@ -175,10 +180,11 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
 
           {tab === "account" && (
             <>
+              {/* ── 1. Account & Identity ── */}
+              <SectionLabel label="ACCOUNT & IDENTITY" colors={colors} />
               <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[sm.sectionTitle, { color: colors.foreground }]}>Identity & Role</Text>
                 <View style={[sm.roleRow, { borderTopColor: colors.border }]}>
-                  <View style={[sm.roleBadge, { backgroundColor: me.role === "validator" ? colors.primary + "20" : me.role === "admin" ? "#EF4444" + "20" : colors.cardElevated, borderColor: me.role === "validator" ? colors.primary : me.role === "admin" ? "#EF4444" : colors.border }]}>
+                  <View style={[sm.roleBadge, { backgroundColor: me.role === "validator" ? colors.primary + "20" : me.role === "admin" ? "#EF444420" : colors.cardElevated, borderColor: me.role === "validator" ? colors.primary : me.role === "admin" ? "#EF4444" : colors.border }]}>
                     <Feather name={me.role === "admin" ? "shield" : me.role === "validator" ? "check-circle" : "user"} size={13} color={me.role === "admin" ? "#EF4444" : me.role === "validator" ? colors.primary : colors.mutedForeground} />
                     <Text style={[sm.roleText, { color: me.role === "admin" ? "#EF4444" : me.role === "validator" ? colors.primary : colors.mutedForeground }]}>
                       {me.role === "admin" ? "Admin" : me.role === "validator" ? "Validator" : "Member"}
@@ -197,82 +203,154 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                     </Text>
                   </View>
                 </View>
+                <SettingsRow
+                  icon={(me as any).kycStatus === "verified" ? "check-circle" : "shield"}
+                  iconBg={(me as any).kycStatus === "verified" ? "#22C55E" : "#F59E0B"}
+                  title="Identity Verification (KYC)"
+                  sub={(me as any).kycStatus === "verified" ? "Identity confirmed. All high-tier features are unlocked." : "Verify your legal identity (Passport/ID) to unlock Validator status and high-tier investment limits."}
+                  trailing={
+                    <View style={[sm.roleBadge, { backgroundColor: (me as any).kycStatus === "verified" ? "#22C55E20" : "#F59E0B20", borderColor: (me as any).kycStatus === "verified" ? "#22C55E50" : "#F59E0B50" }]}>
+                      <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: (me as any).kycStatus === "verified" ? "#22C55E" : "#F59E0B" }}>
+                        {(me as any).kycStatus === "verified" ? "VERIFIED" : "PENDING"}
+                      </Text>
+                    </View>
+                  }
+                  onPress={(me as any).kycStatus !== "verified" ? () => Alert.alert("KYC Verification", "Submit your government-issued ID via the secure portal. Approval typically takes 24-48 hours.") : undefined}
+                  colors={colors}
+                />
+                {(me.handle === "amen" || Platform.OS === "web") && (me as any).kycStatus !== "verified" && (
+                  <Pressable
+                    onPress={handleKycBypass}
+                    disabled={kycBypassing}
+                    style={({ pressed }) => ({ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, backgroundColor: "#8B5CF618", margin: 12, marginTop: 0, borderRadius: 10, paddingVertical: 11, borderWidth: 1, borderColor: "#8B5CF640", opacity: pressed || kycBypassing ? 0.7 : 1 })}
+                  >
+                    {kycBypassing ? <ActivityIndicator size="small" color="#8B5CF6" /> : <><Feather name="cpu" size={13} color="#8B5CF6" /><Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: "#8B5CF6" }}>Developer Bypass — Set KYC Verified</Text></>}
+                  </Pressable>
+                )}
+                <SettingsRow
+                  icon="edit"
+                  iconBg={colors.primary}
+                  title="Edit Profile"
+                  sub="Update your display name, bio, profile picture, title, and location."
+                  trailing={<Feather name="chevron-right" size={16} color={colors.mutedForeground} />}
+                  onPress={() => setTab("profile")}
+                  colors={colors}
+                />
               </View>
 
+              {/* ── 2. Wallet & Economy ── */}
+              <SectionLabel label="WALLET & ECONOMY" colors={colors} />
               <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[sm.sectionTitle, { color: colors.foreground }]}>Identity Verification (KYC)</Text>
+                <SettingsRow
+                  icon="credit-card"
+                  iconBg="#6366F1"
+                  title="Pi Wallet Configuration"
+                  sub="Your linked wallet address for receiving milestone payouts and securing escrow deposits."
+                  trailing={<Feather name="chevron-right" size={16} color={colors.mutedForeground} />}
+                  onPress={() => Alert.alert("Pi Wallet", "Wallet linking is managed via the Pi SDK. Connect your Pi Browser to automatically link your wallet address.")}
+                  colors={colors}
+                />
+                <SettingsRow
+                  icon={biometrics ? "lock" : "unlock"}
+                  iconBg="#8B5CF6"
+                  title="Transaction Passcode / Biometrics"
+                  sub="Adds an extra layer of security before committing funds to Smart Escrow."
+                  trailing={<Toggle active={biometrics} onToggle={() => setBiometrics((v) => !v)} colors={colors} />}
+                  colors={colors}
+                />
+              </View>
+
+              {/* ── 3. Privacy & Security ── */}
+              <SectionLabel label="PRIVACY & SECURITY" colors={colors} />
+              <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <SettingsRow
+                  icon="eye"
+                  iconBg="#0EA5E9"
+                  title="Profile Visibility"
+                  sub="When disabled, other users can only see your name and level, hiding your portfolio and transaction details."
+                  trailing={<Toggle active={profileVisible} onToggle={() => setProfileVisible((v) => !v)} colors={colors} />}
+                  colors={colors}
+                />
+                <SettingsRow
+                  icon="monitor"
+                  iconBg="#EF4444"
+                  title="Active Sessions"
+                  sub="View all devices where your account is signed in and revoke access remotely."
+                  trailing={<Feather name="chevron-right" size={16} color={colors.mutedForeground} />}
+                  onPress={() => Alert.alert("Active Sessions", "You are currently signed in on 1 device.\n\nTo sign out from all devices, use Sign Out below.", [{ text: "Sign Out All", style: "destructive", onPress: signOut }, { text: "Cancel", style: "cancel" }])}
+                  colors={colors}
+                />
+              </View>
+
+              {/* ── 4. Notifications ── */}
+              <SectionLabel label="NOTIFICATIONS" colors={colors} />
+              <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <SettingsRow
+                  icon="zap"
+                  iconBg="#F59E0B"
+                  title="New Pitch Alerts"
+                  sub="Receive a notification whenever a new project matching your investor profile is published."
+                  trailing={<Toggle active={pitchAlerts} onToggle={() => setPitchAlerts((v) => !v)} colors={colors} />}
+                  colors={colors}
+                />
+                <SettingsRow
+                  icon="trending-up"
+                  iconBg="#22C55E"
+                  title="Milestone Updates"
+                  sub="Stay updated in real-time when a project you backed delivers a milestone or requires a vote."
+                  trailing={<Toggle active={milestoneNotifs} onToggle={() => setMilestoneNotifs((v) => !v)} colors={colors} />}
+                  colors={colors}
+                />
+                <SettingsRow
+                  icon="check-square"
+                  iconBg="#8B5CF6"
+                  title="Validator Voting Rounds"
+                  sub="Get alerted when a new project block is ready for your validation and approval vote."
+                  trailing={<Toggle active={validatorVoting} onToggle={() => setValidatorVoting((v) => !v)} colors={colors} />}
+                  colors={colors}
+                />
+              </View>
+
+              {/* ── 5. Gamification & Reputation ── */}
+              <SectionLabel label="GAMIFICATION & REPUTATION" colors={colors} />
+              <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                {/* Live reputation visual */}
                 <View style={{ padding: 16, gap: 12 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                    <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: (me as any).kycStatus === "verified" ? "#22C55E18" : "#F59E0B18", alignItems: "center", justifyContent: "center" }}>
-                      <Feather name={(me as any).kycStatus === "verified" ? "check-circle" : "shield"} size={20} color={(me as any).kycStatus === "verified" ? "#22C55E" : "#F59E0B"} />
-                    </View>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>
-                        {(me as any).kycStatus === "verified" ? "KYC Verified" : "Verification Pending"}
-                      </Text>
-                      <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 2 }}>
-                        {(me as any).kycStatus === "verified"
-                          ? "Identity confirmed. All features unlocked."
-                          : "Passport or National ID required to publish pitches."}
-                      </Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                        <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: colors.foreground }}>Reputation Score</Text>
+                        <View style={{ backgroundColor: colors.primary + "20", borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, borderWidth: 1, borderColor: colors.primary + "40" }}>
+                          <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: colors.primary }}>LVL {(me as any).level ?? 1}</Text>
+                        </View>
+                      </View>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        <View style={{ flex: 1, height: 7, borderRadius: 4, backgroundColor: colors.border, overflow: "hidden" }}>
+                          <View style={{ width: `${(me as any).reputationScore ?? 0}%` as any, height: "100%", borderRadius: 4, backgroundColor: ((me as any).reputationScore ?? 0) >= 85 ? "#22C55E" : ((me as any).reputationScore ?? 0) >= 50 ? "#F59E0B" : "#EF4444" }} />
+                        </View>
+                        <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: colors.foreground }}>{(me as any).reputationScore ?? 0}/100</Text>
+                      </View>
                     </View>
                   </View>
-                  {(me as any).kycStatus !== "verified" && (
-                    <View style={{ backgroundColor: "#EF444412", borderRadius: 10, borderWidth: 1, borderColor: "#EF444430", padding: 10, flexDirection: "row", gap: 8, alignItems: "center" }}>
-                      <Feather name="alert-triangle" size={13} color="#EF4444" />
-                      <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: "#EF4444", flex: 1 }}>
-                        KYC required to publish a pitch, access the Creator Flow, and use upload features.
-                      </Text>
+                  {/* XP explanation */}
+                  <View style={{ backgroundColor: colors.cardElevated, borderRadius: 12, padding: 14, gap: 6 }}>
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: colors.foreground }}>Reputation & XP Calculator</Text>
+                    <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 17 }}>
+                      Your <Text style={{ fontFamily: "Inter_600SemiBold", color: colors.foreground }}>Level</Text> increases with XP (gained from app activity, completing profiles, and discussions). Your <Text style={{ fontFamily: "Inter_600SemiBold", color: colors.foreground }}>Reputation Score</Text> is your trust metric — it rises when you deliver milestones on time and falls during escrow refunds or violations. Reaching <Text style={{ fontFamily: "Inter_700Bold", color: colors.primary }}>Level 5 + 85% Reputation</Text> unlocks Validator status.
+                    </Text>
+                  </View>
+                  {/* Smart Escrow guide */}
+                  <View style={{ backgroundColor: colors.primary + "08", borderRadius: 12, borderWidth: 1, borderColor: colors.primary + "25", padding: 14, gap: 8 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Feather name="lock" size={13} color={colors.primary} />
+                      <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: colors.primary }}>Smart Escrow & Milestones Guide</Text>
                     </View>
-                  )}
-                  {(me.handle === "amen" || Platform.OS === "web") && (me as any).kycStatus !== "verified" && (
-                    <Pressable
-                      onPress={handleKycBypass}
-                      disabled={kycBypassing}
-                      style={({ pressed }) => ({ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, backgroundColor: "#8B5CF618", borderRadius: 10, paddingVertical: 12, borderWidth: 1, borderColor: "#8B5CF640", opacity: pressed || kycBypassing ? 0.7 : 1 })}
-                    >
-                      {kycBypassing
-                        ? <ActivityIndicator size="small" color="#8B5CF6" />
-                        : <><Feather name="cpu" size={13} color="#8B5CF6" /><Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: "#8B5CF6" }}>Developer Bypass — Set KYC Verified</Text></>}
-                    </Pressable>
-                  )}
+                    <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 17 }}>
+                      Funds committed to a project are safely locked in a decentralized Smart Escrow. They are automatically split into 3 milestones (<Text style={{ fontFamily: "Inter_600SemiBold", color: colors.foreground }}>30% ➡ 40% ➡ 30%</Text>) and are only released when the founder submits verifiable Proof of Work and backers approve it.
+                    </Text>
+                  </View>
                 </View>
-              </View>
-
-              <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[sm.sectionTitle, { color: colors.foreground }]}>Pi Wallet</Text>
-                <View style={[sm.walletCard, { backgroundColor: colors.primary + "12", borderColor: colors.primary + "40" }]}>
-                  <View style={[sm.walletIcon, { backgroundColor: colors.primary + "20" }]}>
-                    <Text style={[sm.walletIconText, { color: colors.primary }]}>π</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[sm.walletLabel, { color: colors.primary }]}>Pi Network Wallet</Text>
-                    <Text style={[sm.walletSub, { color: colors.mutedForeground }]}>Wallet linking via Pi SDK coming soon</Text>
-                  </View>
-                  <Feather name="external-link" size={16} color={colors.primary} />
-                </View>
-              </View>
-
-              <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[sm.sectionTitle, { color: colors.foreground }]}>Notifications</Text>
-                <Pressable
-                  onPress={() => setNotifications((v) => !v)}
-                  style={[sm.toggleRow, { borderTopColor: colors.border }]}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={[sm.toggleLabel, { color: colors.foreground }]}>Push notifications</Text>
-                    <Text style={[sm.toggleSub, { color: colors.mutedForeground }]}>Likes, comments, offers</Text>
-                  </View>
-                  <View style={[sm.toggle, { backgroundColor: notifications ? colors.primary : colors.cardElevated }]}>
-                    <View style={[sm.toggleThumb, { transform: [{ translateX: notifications ? 20 : 2 }] }]} />
-                  </View>
-                </Pressable>
-              </View>
-
-              <MyAssetsSection colors={colors} />
-
-              <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[sm.sectionTitle, { color: colors.foreground }]}>Community</Text>
+                {/* Validator Portal row */}
                 {(() => {
                   const isValidator = me.role === "validator" || me.role === "admin";
                   const repScore = (me as any).reputationScore ?? 0;
@@ -280,49 +358,31 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                   const isLocked = !isValidator && !meetsRep;
                   return (
                     <>
-                      <Pressable
+                      <SettingsRow
+                        icon={isLocked ? "lock" : "shield"}
+                        iconBg={isLocked ? "#6B7280" : "#22C55E"}
+                        title="Validator Portal"
+                        sub={isLocked ? `Locked — ${repScore}/100 rep · need 85+ to unlock. Validators act as auditors reviewing project reality and boosting or lowering public Trust Scores. You cannot vote on your own projects.` : "Review projects, verify documents & earn reputation. You are strictly forbidden from voting on your own projects (conflict of interest)."}
+                        trailing={
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                            {isValidator && <View style={{ backgroundColor: "#22C55E18", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3 }}><Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#22C55E" }}>ACTIVE</Text></View>}
+                            {isLocked && <View style={{ backgroundColor: "#6B728018", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3 }}><Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#6B7280" }}>LOCKED</Text></View>}
+                            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                          </View>
+                        }
                         onPress={() => { if (isLocked) { setValidatorLockVisible(true); } else { onClose(); router.push("/admin"); } }}
-                        style={[sm.toggleRow, { borderTopColor: colors.border }]}
-                      >
-                        <View style={[sm.walletIcon, { backgroundColor: isLocked ? "#6B728018" : "#22C55E18", marginRight: 12 }]}>
-                          <Feather name={isLocked ? "lock" : "shield"} size={16} color={isLocked ? "#6B7280" : "#22C55E"} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[sm.toggleLabel, { color: colors.foreground }]}>Validator Portal</Text>
-                          <Text style={[sm.toggleSub, { color: colors.mutedForeground }]}>
-                            {isLocked ? `Locked — ${repScore}/100 rep · need 85+` : "Review projects, docs & earn reputation"}
-                          </Text>
-                        </View>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                          {isValidator && (
-                            <View style={{ backgroundColor: "#22C55E18", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3 }}>
-                              <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: "#22C55E" }}>ACTIVE</Text>
-                            </View>
-                          )}
-                          {isLocked && (
-                            <View style={{ backgroundColor: "#6B728018", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3 }}>
-                              <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: "#6B7280" }}>LOCKED</Text>
-                            </View>
-                          )}
-                          <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
-                        </View>
-                      </Pressable>
-
-                      {/* Validator Lock Criteria Modal */}
+                        colors={colors}
+                      />
                       <Modal visible={validatorLockVisible} transparent animationType="fade" onRequestClose={() => setValidatorLockVisible(false)}>
                         <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 }} onPress={() => setValidatorLockVisible(false)}>
                           <Pressable onPress={() => {}} style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: 20, margin: 0, padding: 0, overflow: "hidden", width: "100%" }]}>
                             <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", alignItems: "center", gap: 12 }}>
-                              <View style={{ backgroundColor: "#F59E0B18", borderRadius: 12, padding: 8 }}>
-                                <Feather name="lock" size={20} color="#F59E0B" />
-                              </View>
+                              <View style={{ backgroundColor: "#F59E0B18", borderRadius: 12, padding: 8 }}><Feather name="lock" size={20} color="#F59E0B" /></View>
                               <View style={{ flex: 1 }}>
                                 <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: colors.foreground }}>Validator Portal</Text>
                                 <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginTop: 2 }}>Unlock requirements</Text>
                               </View>
-                              <Pressable onPress={() => setValidatorLockVisible(false)} hitSlop={10}>
-                                <Feather name="x" size={20} color={colors.mutedForeground} />
-                              </Pressable>
+                              <Pressable onPress={() => setValidatorLockVisible(false)} hitSlop={10}><Feather name="x" size={20} color={colors.mutedForeground} /></Pressable>
                             </View>
                             <View style={{ padding: 20, gap: 14 }}>
                               <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 20 }}>
@@ -334,14 +394,11 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                                 { label: "Identity Verified", current: (me as any).kycStatus === "verified" ? "Verified" : "Pending", required: "KYC Verified", unit: "", icon: "user-check" as const, met: (me as any).kycStatus === "verified" },
                               ].map((req) => (
                                 <View key={req.label} style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: req.met ? "#22C55E40" : colors.border, backgroundColor: req.met ? "#22C55E08" : colors.background }}>
-                                  <View style={{ backgroundColor: req.met ? "#22C55E18" : "#6B728018", borderRadius: 10, padding: 8 }}>
-                                    <Feather name={req.icon} size={16} color={req.met ? "#22C55E" : "#6B7280"} />
-                                  </View>
+                                  <View style={{ backgroundColor: req.met ? "#22C55E18" : "#6B728018", borderRadius: 10, padding: 8 }}><Feather name={req.icon} size={16} color={req.met ? "#22C55E" : "#6B7280"} /></View>
                                   <View style={{ flex: 1 }}>
                                     <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>{req.label}</Text>
                                     <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 2 }}>
-                                      Current: <Text style={{ fontFamily: "Inter_700Bold", color: req.met ? "#22C55E" : colors.foreground }}>{req.current}{req.unit}</Text>
-                                      {"  "}Required: <Text style={{ fontFamily: "Inter_700Bold", color: colors.mutedForeground }}>{req.required}{req.unit}</Text>
+                                      Current: <Text style={{ fontFamily: "Inter_700Bold", color: req.met ? "#22C55E" : colors.foreground }}>{req.current}{req.unit}</Text>{"  "}Required: <Text style={{ fontFamily: "Inter_700Bold", color: colors.mutedForeground }}>{req.required}{req.unit}</Text>
                                     </Text>
                                   </View>
                                   <Feather name={req.met ? "check-circle" : "circle"} size={18} color={req.met ? "#22C55E" : "#6B7280"} />
@@ -349,9 +406,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                               ))}
                               <View style={{ backgroundColor: colors.primary + "10", borderRadius: 12, borderWidth: 1, borderColor: colors.primary + "30", padding: 12, flexDirection: "row", gap: 10, alignItems: "center" }}>
                                 <Feather name="info" size={13} color={colors.primary} />
-                                <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.primary, flex: 1 }}>
-                                  Earn reputation by backing projects, submitting capsules, and completing verified actions across the ecosystem.
-                                </Text>
+                                <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.primary, flex: 1 }}>Earn reputation by backing projects, submitting capsules, and completing verified actions across the ecosystem.</Text>
                               </View>
                             </View>
                           </Pressable>
@@ -362,13 +417,48 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                 })()}
               </View>
 
+              <MyAssetsSection colors={colors} />
+
+              {/* ── 6. Support & Legal ── */}
+              <SectionLabel label="SUPPORT & LEGAL" colors={colors} />
               <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[sm.sectionTitle, { color: colors.foreground }]}>Account</Text>
-                <Pressable onPress={signOut} style={[sm.dangerRow, { borderTopColor: colors.border }]}>
-                  <Feather name="log-out" size={16} color="#EF4444" />
-                  <Text style={sm.dangerText}>Sign out</Text>
-                </Pressable>
+                <SettingsRow
+                  icon="help-circle"
+                  iconBg="#0EA5E9"
+                  title="Help Center / Report a Bug"
+                  sub="Contact the Nexus team with questions or submit a bug report to help improve the platform."
+                  trailing={<Feather name="chevron-right" size={16} color={colors.mutedForeground} />}
+                  onPress={() => Alert.alert("Help Center", "Send your feedback to: support@nexuspi.app\n\nOr visit our community forum for help and feature requests.")}
+                  colors={colors}
+                />
+                <SettingsRow
+                  icon="file-text"
+                  iconBg="#6366F1"
+                  title="Terms of Service"
+                  sub="Read the full terms governing your use of the Nexus platform and Pi Network integrations."
+                  trailing={<Feather name="chevron-right" size={16} color={colors.mutedForeground} />}
+                  onPress={() => Alert.alert("Terms of Service", "Full terms available at nexuspi.app/terms")}
+                  colors={colors}
+                />
+                <SettingsRow
+                  icon="lock"
+                  iconBg="#8B5CF6"
+                  title="Privacy Policy"
+                  sub="Learn how Nexus collects, uses, and protects your personal data and Pi wallet information."
+                  trailing={<Feather name="chevron-right" size={16} color={colors.mutedForeground} />}
+                  onPress={() => Alert.alert("Privacy Policy", "Full policy available at nexuspi.app/privacy")}
+                  colors={colors}
+                />
               </View>
+
+              <Pressable
+                onPress={signOut}
+                style={({ pressed }) => ({ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 12, backgroundColor: "#EF444415", borderRadius: 16, marginTop: 8, paddingVertical: 16, borderWidth: 1, borderColor: "#EF444440", opacity: pressed ? 0.7 : 1 })}
+              >
+                <Feather name="log-out" size={18} color="#EF4444" />
+                <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#EF4444" }}>Sign Out</Text>
+              </Pressable>
+              <Text style={{ textAlign: "center" as const, fontSize: 11, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 12, marginBottom: 4 }}>Nexus for Pi Network · v1.0.0</Text>
             </>
           )}
         </ScrollView>
@@ -405,6 +495,49 @@ function Field({ label, value, onChange, placeholder, multiline, colors }: {
   );
 }
 
+function Toggle({ active, onToggle, colors }: { active: boolean; onToggle: () => void; colors: ReturnType<typeof useColors> }) {
+  return (
+    <Pressable onPress={onToggle}>
+      <View style={[sm.toggle, { backgroundColor: active ? colors.primary : colors.cardElevated }]}>
+        <View style={[sm.toggleThumb, { transform: [{ translateX: active ? 20 : 2 }] }]} />
+      </View>
+    </Pressable>
+  );
+}
+
+function SettingsRow({ icon, iconBg, title, sub, trailing, onPress, colors }: {
+  icon: string; iconBg: string; title: string; sub: string; trailing?: any; onPress?: () => void; colors: ReturnType<typeof useColors>;
+}) {
+  const body = (
+    <>
+      <View style={[sm.walletIcon, { backgroundColor: iconBg + "22", marginRight: 12 }]}>
+        <Feather name={icon as any} size={16} color={iconBg} />
+      </View>
+      <View style={{ flex: 1, paddingRight: 8 }}>
+        <Text style={[sm.toggleLabel, { color: colors.foreground }]}>{title}</Text>
+        <Text style={[sm.toggleSub, { color: colors.mutedForeground }]}>{sub}</Text>
+      </View>
+      {trailing ?? null}
+    </>
+  );
+  if (onPress) {
+    return (
+      <Pressable onPress={onPress} style={({ pressed }: any) => [sm.toggleRow, { borderTopColor: colors.border, opacity: pressed ? 0.7 : 1 }]}>
+        {body}
+      </Pressable>
+    );
+  }
+  return <View style={[sm.toggleRow, { borderTopColor: colors.border }]}>{body}</View>;
+}
+
+function SectionLabel({ label, colors }: { label: string; colors: ReturnType<typeof useColors> }) {
+  return (
+    <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: colors.mutedForeground, letterSpacing: 0.9, marginBottom: 8, marginTop: 20 }}>
+      {label}
+    </Text>
+  );
+}
+
 function InvestorDashboard({ colors }: { colors: ReturnType<typeof useColors> }) {
   const { token } = useAuth();
   const { data: txs, isLoading } = useQuery<any[]>({
@@ -432,16 +565,20 @@ function InvestorDashboard({ colors }: { colors: ReturnType<typeof useColors> })
         const col = STATUS_COLOR[tx.type] ?? STATUS_COLOR[tx.status] ?? "#6B7280";
         const label = STATUS_LABEL[tx.type] ?? STATUS_LABEL[tx.status] ?? "Processed";
         return (
-          <View key={tx.id} style={[sm.assetRow, { borderTopColor: colors.border, borderTopWidth: i === 0 ? 1 : StyleSheet.hairlineWidth }]}>
+          <Pressable
+            key={tx.id}
+            onPress={tx.pitchId ? () => router.push(`/pitch/${tx.pitchId}`) : undefined}
+            style={({ pressed }: any) => [sm.assetRow, { borderTopColor: colors.border, borderTopWidth: i === 0 ? 1 : StyleSheet.hairlineWidth, opacity: pressed ? 0.75 : 1 }]}
+          >
             <View style={[sm.assetIcon, { backgroundColor: col + "18" }]}>
               <Feather name={tx.type === "donate" ? "heart" : tx.type === "hire" ? "tool" : "trending-up"} size={14} color={col} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: colors.foreground }} numberOfLines={1}>
-                {tx.pitchId ?? "Transaction"}
+                {tx.pitchId ? `Project · ${tx.pitchId.slice(0, 10)}…` : "Transaction"}
               </Text>
               <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>
-                {tx.createdAt ? new Date(tx.createdAt).toLocaleDateString() : "—"}
+                {tx.createdAt ? new Date(tx.createdAt).toLocaleDateString() : "—"}{tx.pitchId ? " · Tap to view →" : ""}
               </Text>
             </View>
             <View style={{ alignItems: "flex-end", gap: 3 }}>
@@ -450,7 +587,7 @@ function InvestorDashboard({ colors }: { colors: ReturnType<typeof useColors> })
                 <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: col, letterSpacing: 0.3 }}>{label.toUpperCase()}</Text>
               </View>
             </View>
-          </View>
+          </Pressable>
         );
       })}
     </View>

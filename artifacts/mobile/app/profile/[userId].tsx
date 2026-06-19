@@ -170,6 +170,31 @@ export default function PublicProfileScreen() {
                     <Text style={[styles.name, { color: colors.foreground }]}>{profile.name}</Text>
                     {profile.verified && <Feather name="check-circle" size={15} color={colors.primary} />}
                   </View>
+                  {/* Reputation & Level badges */}
+                  {(() => {
+                    const rep = (profile as any).reputationScore ?? 0;
+                    const lvl = (profile as any).level ?? 1;
+                    const isElite = rep >= 85;
+                    const repColor = isElite ? "#22C55E" : rep >= 50 ? "#F59E0B" : "#6B7280";
+                    return (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 5, marginBottom: 2 }}>
+                        <View style={{ backgroundColor: colors.primary + "20", borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, borderWidth: 1, borderColor: colors.primary + "40" }}>
+                          <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: colors.primary, letterSpacing: 0.4 }}>LVL {lvl}</Text>
+                        </View>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
+                          <View style={{ flex: 1, maxWidth: 90, height: 5, borderRadius: 3, backgroundColor: colors.border, overflow: "hidden" }}>
+                            <View style={{ width: `${rep}%` as any, height: "100%", borderRadius: 3, backgroundColor: repColor }} />
+                          </View>
+                          <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: repColor }}>{rep}% Rep</Text>
+                          {isElite && (
+                            <View style={{ backgroundColor: "#22C55E18", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: "#22C55E40" }}>
+                              <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#22C55E", letterSpacing: 0.3 }}>ELITE ★</Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })()}
                   <Text style={[styles.handle, { color: colors.mutedForeground }]}>@{profile.handle}</Text>
                   <View style={styles.locationRow}>
                     <Feather name="map-pin" size={12} color={colors.mutedForeground} />

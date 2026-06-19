@@ -98,7 +98,7 @@ export default function PitchDetailScreen() {
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
   const [toastType, setToastType] = useState<"success" | "error" | "info" | "warning">("success");
-  const [proofSubmitBlock, setProofSubmitBlock] = useState<{ field: string; label: string; placeholder: string } | null>(null);
+  const [proofSubmitBlock, setProofSubmitBlock] = useState<{ field: string; label: string; sublabel: string; placeholder: string; description: string } | null>(null);
   const [proofSubmitUrl, setProofSubmitUrl] = useState("");
   const [savingProofUrl, setSavingProofUrl] = useState(false);
 
@@ -631,10 +631,34 @@ export default function PitchDetailScreen() {
                   {/* Proof of Intent */}
                   {(() => {
                     const PROOF_FIELDS = [
-                      { field: "founderLinkedin", label: "Identity", icon: "user-check" as const, placeholder: "https://linkedin.com/in/yourprofile", value: pitch.founderLinkedin, linkText: "View LinkedIn →" },
-                      { field: "proofOfRealityUrl", label: "Reality Proof", icon: "play-circle" as const, placeholder: "https://youtube.com/watch?v=...", value: pitch.proofOfRealityUrl, linkText: "View Demo →" },
-                      { field: "roadmapUrl", label: "Roadmap", icon: "map" as const, placeholder: "https://notion.so/your-roadmap", value: pitch.roadmapUrl, linkText: "View Plan →" },
-                      { field: "portfolioUrl", label: "Portfolio", icon: "briefcase" as const, placeholder: "https://yourportfolio.com", value: pitch.portfolioUrl, linkText: "View Work →" },
+                      {
+                        field: "founderLinkedin", label: "Identity", icon: "user-check" as const,
+                        sublabel: "Professional Profile URL",
+                        placeholder: "https://linkedin.com/in/yourprofile",
+                        description: "Paste your verifiable professional network profile (LinkedIn) to verify your real-world identity.",
+                        value: pitch.founderLinkedin, linkText: "View LinkedIn →",
+                      },
+                      {
+                        field: "proofOfRealityUrl", label: "Reality Proof", icon: "play-circle" as const,
+                        sublabel: "Video Demo or Working MVP URL",
+                        placeholder: "https://youtube.com/watch?v=... or https://github.com/... or live link",
+                        description: "Provide a public link to a video demo, live product prototype, or functional repository proving the product actually exists.",
+                        value: pitch.proofOfRealityUrl, linkText: "View Demo →",
+                      },
+                      {
+                        field: "roadmapUrl", label: "Roadmap", icon: "map" as const,
+                        sublabel: "Interactive Roadmap or Project Documentation URL",
+                        placeholder: "https://notion.so/... or https://trello.com/... or deck link",
+                        description: "Submit a link to your public timeline, whitepaper, or product requirements document detailing the long-term milestones.",
+                        value: pitch.roadmapUrl, linkText: "View Plan →",
+                      },
+                      {
+                        field: "portfolioUrl", label: "Portfolio", icon: "briefcase" as const,
+                        sublabel: "Past Work or Team Credentials URL",
+                        placeholder: "https://behance.net/... or https://github.com/your-org or portfolio link",
+                        description: "Provide references, case studies, or a portfolio linking to high-quality past work that proves your execution capabilities.",
+                        value: pitch.portfolioUrl, linkText: "View Work →",
+                      },
                     ];
                     return (
                       <View style={[styles.proofIntentCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -657,7 +681,7 @@ export default function PitchDetailScreen() {
                             return (
                               <Item
                                 key={pf.field}
-                                onPress={canSubmit ? () => { setProofSubmitBlock({ field: pf.field, label: pf.label, placeholder: pf.placeholder }); setProofSubmitUrl(""); } : undefined}
+                                onPress={canSubmit ? () => { setProofSubmitBlock({ field: pf.field, label: pf.label, sublabel: pf.sublabel, placeholder: pf.placeholder, description: pf.description }); setProofSubmitUrl(""); } : undefined}
                                 style={canSubmit
                                   ? ({ pressed }: any) => [styles.proofIntentItem, { backgroundColor: colors.background, borderColor: colors.primary + "60", borderStyle: "dashed", opacity: pressed ? 0.75 : 1 }]
                                   : [styles.proofIntentItem, { backgroundColor: hasValue ? "#22C55E12" : colors.background, borderColor: hasValue ? "#22C55E40" : colors.border }]}
@@ -1138,15 +1162,19 @@ export default function PitchDetailScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: colors.foreground }}>Submit Proof</Text>
-                <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginTop: 1 }}>{proofSubmitBlock?.label}</Text>
+                <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: colors.mutedForeground, marginTop: 1 }}>{proofSubmitBlock?.sublabel}</Text>
               </View>
               <Pressable onPress={() => setProofSubmitBlock(null)} hitSlop={10}>
                 <Feather name="x" size={20} color={colors.mutedForeground} />
               </Pressable>
             </View>
             <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 18 }}>
-              Paste a public, verifiable URL (LinkedIn, YouTube, Notion, GitHub, etc.). Once submitted, a Network Validator will review and approve this block (+25% trust score).
+              {proofSubmitBlock?.description ?? "Paste a public, verifiable URL. Once submitted, a Network Validator will review and approve this block (+25% trust score)."}
             </Text>
+            <View style={{ backgroundColor: colors.primary + "10", borderRadius: 10, borderWidth: 1, borderColor: colors.primary + "25", padding: 10, flexDirection: "row", gap: 8, alignItems: "center" }}>
+              <Feather name="info" size={11} color={colors.primary} />
+              <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: colors.primary, flex: 1 }}>Once submitted, a Network Validator will review this block (+25% trust score per approval).</Text>
+            </View>
             <TextInput
               value={proofSubmitUrl}
               onChangeText={setProofSubmitUrl}
