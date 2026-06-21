@@ -422,6 +422,20 @@ export default function PitchDetailScreen() {
                         <MiniStat label="Stage" value={pitch.stage} colors={colors} />
                         <MiniStat label="Industry" value={pitch.industry} colors={colors} />
                       </View>
+                      {(pitch as any).founderCollateral > 0 && (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12, padding: 10, borderRadius: 10, backgroundColor: "#F59E0B12", borderWidth: 1, borderColor: "#F59E0B40" }}>
+                          <Feather name="lock" size={13} color="#F59E0B" />
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: "#F59E0B" }}>Collateral Secured</Text>
+                            <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 1 }}>
+                              {((pitch as any).founderCollateral ?? 0).toLocaleString()} π locked in escrow by founder (10% of raise target)
+                            </Text>
+                          </View>
+                          <View style={{ backgroundColor: "#F59E0B18", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3 }}>
+                            <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: "#F59E0B" }}>10%</Text>
+                          </View>
+                        </View>
+                      )}
                     </View>
                   )}
 

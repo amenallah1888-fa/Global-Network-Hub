@@ -34,7 +34,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
 
   const [user] = await db
     .insert(usersTable)
-    .values({ id, handle, name: String(name).trim().slice(0, 60), passwordHash, avatarKey })
+    .values({ id, handle, name: String(name).trim().slice(0, 60), passwordHash, avatarKey, reputationScore: 50 })
     .returning();
 
   const token = signToken(user.id);

@@ -20,6 +20,8 @@ export const usersTable = pgTable("users", {
   kycVerifiedAt: timestamp("kyc_verified_at", { withTimezone: true }),
   reputationScore: integer("reputation_score").notNull().default(0),
   locale: text("locale").notNull().default("en"),
+  piWalletAddress: text("pi_wallet_address"),
+  isProfilePublic: boolean("is_profile_public").notNull().default(true),
 });
 
 export type User = typeof usersTable.$inferSelect;

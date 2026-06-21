@@ -12,6 +12,7 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Appearance,
   Clipboard,
   Modal,
   Platform,
@@ -62,6 +63,13 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
   const [validatorVoting, setValidatorVoting] = useState(false);
   const [validatorLockVisible, setValidatorLockVisible] = useState(false);
   const [kycBypassing, setKycBypassing] = useState(false);
+  const [walletModalVisible, setWalletModalVisible] = useState(false);
+  const [walletAddress, setWalletAddress] = useState((me as any).piWalletAddress ?? "");
+  const [savingWallet, setSavingWallet] = useState(false);
+  const [themeModalVisible, setThemeModalVisible] = useState(false);
+  const [themeMode, setThemeMode] = useState<"system" | "light" | "dark">("system");
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [savingVisibility, setSavingVisibility] = useState(false);
 
   const handleKycBypass = async () => {
     setKycBypassing(true);
@@ -117,9 +125,129 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
     ]);
   };
 
-  if (!visible) return null;
+  const handleSaveWallet = async () => {
+    setSavingWallet(true);
+    try {
+      await fetch(`${API_BASE}/api/me`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ piWalletAddress: walletAddress.trim() }),
+      });
+      qc.invalidateQueries({ queryKey: ["/api/me"] });
+      setWalletModalVisible(false);
+      Alert.alert("Saved", "Your Pi wallet address has been updated.");
+    } catch { Alert.alert("Error", "Could not save wallet address."); }
+    finally { setSavingWallet(false); }
+  };
+
+  const handleProfileVisibilityToggle = async (newVal: boolean) => {
+    setProfileVisible(newVal);
+    setSavingVisibility(true);
+    try {
+      await fetch(`${API_BASE}/api/me`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ isProfilePublic: newVal }),
+      });
+      qc.invalidateQueries({ queryKey: ["/api/me"] });
+    } catch { setProfileVisible(!newVal); Alert.alert("Error", "Could not update visibility."); }
+    finally { setSavingVisibility(false); }
+  };
+
+  const handleClearCache = () => {
+    qc.clear();
+    Alert.alert("✓ Cache Cleared", "Temporary data and cached network responses have been flushed. The app will refresh fresh data on next load.");
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete Account",
+      "Are you absolutely sure? This action is permanent and clears all your data, pitches, and transaction history from the network.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete Permanently",
+          style: "destructive",
+          onPress: async () => {
+            setDeletingAccount(true);
+            try {
+              await fetch(`${API_BASE}/api/me`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+              await clearSession();
+              onClose();
+              router.replace("/login");
+            } catch { Alert.alert("Error", "Could not delete account. Please try again."); }
+            finally { setDeletingAccount(false); }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleThemeChange = (mode: "system" | "light" | "dark") => {
+    setThemeMode(mode);
+    Appearance.setColorScheme(mode === "system" ? null : mode);
+    setThemeModalVisible(false);
+  };
 
   return (
+    <>
+    {/* Wallet address modal */}
+    <Modal visible={walletModalVisible} transparent animationType="slide" onRequestClose={() => setWalletModalVisible(false)}>
+      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
+        <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: insets.bottom + 24, gap: 16 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 4 }}>
+            <View style={{ backgroundColor: "#6366F120", borderRadius: 12, padding: 9 }}><Feather name="credit-card" size={20} color="#6366F1" /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: colors.foreground }}>Pi Wallet Address</Text>
+              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 2 }}>Your public wallet key for receiving payouts</Text>
+            </View>
+            <Pressable onPress={() => setWalletModalVisible(false)} hitSlop={10}><Feather name="x" size={20} color={colors.mutedForeground} /></Pressable>
+          </View>
+          <TextInput
+            value={walletAddress}
+            onChangeText={setWalletAddress}
+            placeholder="Paste your Pi wallet address here…"
+            placeholderTextColor={colors.mutedForeground}
+            style={{ backgroundColor: colors.background, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14, fontFamily: "Inter_400Regular", fontSize: 13, color: colors.foreground, ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : {}) }}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 17 }}>
+            Your wallet address is stored securely and used only for milestone payouts and escrow settlements. Never share your private key.
+          </Text>
+          <Pressable onPress={handleSaveWallet} disabled={savingWallet} style={({ pressed }) => ({ backgroundColor: "#6366F1", borderRadius: 14, paddingVertical: 14, alignItems: "center" as const, opacity: pressed || savingWallet ? 0.7 : 1 })}>
+            {savingWallet ? <ActivityIndicator color="#fff" /> : <Text style={{ fontFamily: "Inter_700Bold", fontSize: 15, color: "#fff" }}>Save Wallet Address</Text>}
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+
+    {/* Theme selector modal */}
+    <Modal visible={themeModalVisible} transparent animationType="fade" onRequestClose={() => setThemeModalVisible(false)}>
+      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", alignItems: "center", padding: 24 }} onPress={() => setThemeModalVisible(false)}>
+        <Pressable onPress={() => {}} style={{ backgroundColor: colors.card, borderRadius: 24, width: "100%", overflow: "hidden", borderWidth: 1, borderColor: colors.border }}>
+          <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <View style={{ backgroundColor: "#F59E0B20", borderRadius: 12, padding: 8 }}><Feather name="sun" size={20} color="#F59E0B" /></View>
+            <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: colors.foreground }}>Appearance</Text>
+          </View>
+          {([
+            { mode: "system" as const, label: "System Default", sub: "Matches your device's light/dark setting automatically", icon: "monitor" as const },
+            { mode: "light" as const, label: "Light Mode", sub: "Always use the light colour palette", icon: "sun" as const },
+            { mode: "dark" as const, label: "Dark Mode", sub: "Always use the dark colour palette", icon: "moon" as const },
+          ] as const).map((opt) => (
+            <Pressable key={opt.mode} onPress={() => handleThemeChange(opt.mode)} style={({ pressed }) => ({ flexDirection: "row" as const, alignItems: "center" as const, padding: 18, gap: 14, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: themeMode === opt.mode ? colors.primary + "10" : "transparent", opacity: pressed ? 0.7 : 1 })}>
+              <Feather name={opt.icon} size={18} color={themeMode === opt.mode ? colors.primary : colors.mutedForeground} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: themeMode === opt.mode ? colors.primary : colors.foreground }}>{opt.label}</Text>
+                <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 2 }}>{opt.sub}</Text>
+              </View>
+              {themeMode === opt.mode && <Feather name="check-circle" size={18} color={colors.primary} />}
+            </Pressable>
+          ))}
+        </Pressable>
+      </Pressable>
+    </Modal>
+
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={[sm.root, { backgroundColor: colors.background, paddingTop: insets.top + 8 }]}>
         <View style={[sm.header, { borderBottomColor: colors.border }]}>
@@ -245,9 +373,9 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                   icon="credit-card"
                   iconBg="#6366F1"
                   title="Pi Wallet Configuration"
-                  sub="Your linked wallet address for receiving milestone payouts and securing escrow deposits."
+                  sub={(me as any).piWalletAddress ? `Linked: ${String((me as any).piWalletAddress).slice(0, 16)}…` : "Link your Pi wallet address for milestone payouts and escrow deposits."}
                   trailing={<Feather name="chevron-right" size={16} color={colors.mutedForeground} />}
-                  onPress={() => Alert.alert("Pi Wallet", "Wallet linking is managed via the Pi SDK. Connect your Pi Browser to automatically link your wallet address.")}
+                  onPress={() => setWalletModalVisible(true)}
                   colors={colors}
                 />
                 <SettingsRow
@@ -267,8 +395,8 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                   icon="eye"
                   iconBg="#0EA5E9"
                   title="Profile Visibility"
-                  sub="When disabled, other users can only see your name and level, hiding your portfolio and transaction details."
-                  trailing={<Toggle active={profileVisible} onToggle={() => setProfileVisible((v) => !v)} colors={colors} />}
+                  sub={savingVisibility ? "Saving…" : "When disabled, only your name and level are visible to others."}
+                  trailing={<Toggle active={profileVisible} onToggle={() => handleProfileVisibilityToggle(!profileVisible)} colors={colors} />}
                   colors={colors}
                 />
                 <SettingsRow
@@ -451,6 +579,41 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                 />
               </View>
 
+              {/* ── Appearance ── */}
+              <SectionLabel label="APPEARANCE" colors={colors} />
+              <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <SettingsRow
+                  icon="sun"
+                  iconBg="#F59E0B"
+                  title="Theme"
+                  sub={themeMode === "system" ? "System Default — follows your device setting." : themeMode === "dark" ? "Dark Mode active." : "Light Mode active."}
+                  trailing={
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <View style={{ backgroundColor: colors.cardElevated, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 }}>
+                        <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: colors.mutedForeground }}>{themeMode === "system" ? "SYSTEM" : themeMode.toUpperCase()}</Text>
+                      </View>
+                      <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                    </View>
+                  }
+                  onPress={() => setThemeModalVisible(true)}
+                  colors={colors}
+                />
+              </View>
+
+              {/* ── Storage ── */}
+              <SectionLabel label="STORAGE & PERFORMANCE" colors={colors} />
+              <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <SettingsRow
+                  icon="trash-2"
+                  iconBg="#6B7280"
+                  title="Clear Cache"
+                  sub="Free up space and refresh app performance by clearing temporary cached data."
+                  trailing={<Feather name="chevron-right" size={16} color={colors.mutedForeground} />}
+                  onPress={handleClearCache}
+                  colors={colors}
+                />
+              </View>
+
               <Pressable
                 onPress={signOut}
                 style={({ pressed }) => ({ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 12, backgroundColor: "#EF444415", borderRadius: 16, marginTop: 8, paddingVertical: 16, borderWidth: 1, borderColor: "#EF444440", opacity: pressed ? 0.7 : 1 })}
@@ -458,12 +621,25 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                 <Feather name="log-out" size={18} color="#EF4444" />
                 <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#EF4444" }}>Sign Out</Text>
               </Pressable>
+
+              {/* ── Account Deletion ── */}
+              <Pressable
+                onPress={handleDeleteAccount}
+                disabled={deletingAccount}
+                style={({ pressed }) => ({ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 10, borderRadius: 16, marginTop: 6, paddingVertical: 14, opacity: pressed || deletingAccount ? 0.5 : 1 })}
+              >
+                {deletingAccount ? <ActivityIndicator size="small" color="#9F1239" /> : <Feather name="user-x" size={14} color="#9F1239" />}
+                <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#9F1239" }}>Delete Account Permanently</Text>
+              </Pressable>
+              <Text style={{ textAlign: "center" as const, fontSize: 10, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginHorizontal: 24, marginBottom: 4 }}>Permanently erase your account, active pitches, and personal data from the network.</Text>
+
               <Text style={{ textAlign: "center" as const, fontSize: 11, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 12, marginBottom: 4 }}>Nexus for Pi Network · v1.0.0</Text>
             </>
           )}
         </ScrollView>
       </View>
     </Modal>
+    </>
   );
 }
 

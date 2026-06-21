@@ -89,6 +89,20 @@ export default function AdminScreen() {
     staleTime: 10_000,
   });
 
+  const [randomPitchData, setRandomPitchData] = useState<PendingPitch & { trustScore?: number; founderCollateral?: number; stage?: string } | null | "none">(null);
+  const [loadingRandom, setLoadingRandom] = useState(false);
+
+  const fetchRandomPitch = async () => {
+    setLoadingRandom(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/validator/random-pitch`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.status === 404) { setRandomPitchData("none"); return; }
+      if (!res.ok) throw new Error("Failed");
+      const json = await res.json();
+      setRandomPitchData(json);
+    } catch { Alert.alert("Error", "Could not fetch assigned project"); } finally { setLoadingRandom(false); }
+  };
+
   const approveDoc = async (docId: string) => {
     setProcessing(docId);
     try {
@@ -303,56 +317,116 @@ export default function AdminScreen() {
           )}
 
           {activeTab === "projects" && (
-            pitches.length === 0 ? (
-              <View style={styles.emptyBox}>
-                <Feather name="check-circle" size={40} color="#22C55E" />
-                <Text style={[styles.emptyTitle, { color: colors.foreground }]}>All Caught Up</Text>
-                <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>No projects pending verification.</Text>
-              </View>
-            ) : (
-              pitches.map(pitch => (
-                <View key={pitch.id} style={[styles.pitchCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <View style={styles.pitchHeader}>
-                    <View style={[styles.pitchIcon, { backgroundColor: colors.accent + "18" }]}>
-                      <Feather name="zap" size={16} color={colors.accent} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.pitchTitle, { color: colors.foreground }]}>{pitch.title}</Text>
-                      <Text style={[styles.pitchMeta, { color: colors.mutedForeground }]}>{pitch.stage} · {pitch.industry} · {pitch.city}</Text>
-                    </View>
-                    <View style={[styles.pendingChip, { backgroundColor: "#6B728018", borderColor: "#6B7280" }]}>
-                      <Text style={[styles.pendingChipText, { color: "#6B7280" }]}>IDEA</Text>
-                    </View>
-                  </View>
-
-                  <Text style={[styles.pitchSummary, { color: colors.mutedForeground }]} numberOfLines={2}>{pitch.summary}</Text>
-
-                  <View style={styles.pitchStats}>
-                    <View style={styles.pitchStat}>
-                      <Feather name="users" size={12} color={colors.mutedForeground} />
-                      <Text style={[styles.pitchStatText, { color: colors.mutedForeground }]}>{pitch.backersCount} backers</Text>
-                    </View>
-                    <View style={styles.pitchStat}>
-                      <Text style={[styles.pitchStatText, { color: colors.mutedForeground }]}>{pitch.raised.toLocaleString()} π raised</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.pitchActions}>
-                    <Pressable onPress={() => router.push(`/pitch/${pitch.id}`)} style={({ pressed }) => [styles.docActionBtn, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}>
-                      <Feather name="eye" size={13} color={colors.foreground} />
-                      <Text style={[styles.docActionText, { color: colors.foreground }]}>Review</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => verifyPitch(pitch.id, pitch.title)}
-                      disabled={processing === pitch.id}
-                      style={({ pressed }) => [styles.docActionBtn, { backgroundColor: "#22C55E18", borderColor: "#22C55E", flex: 1.5, opacity: pressed || processing === pitch.id ? 0.7 : 1 }]}
-                    >
-                      {processing === pitch.id ? <ActivityIndicator size="small" color="#22C55E" /> : <><Feather name="check-circle" size={14} color="#22C55E" /><Text style={[styles.docActionText, { color: "#22C55E" }]}>Verify → IN_PROGRESS</Text></>}
-                    </Pressable>
+            <>
+              {/* Anti-collusion random assignment header */}
+              <View style={{ backgroundColor: colors.primary + "10", borderRadius: 16, borderWidth: 1, borderColor: colors.primary + "30", padding: 16, gap: 10 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <View style={{ backgroundColor: colors.primary + "20", borderRadius: 10, padding: 8 }}><Feather name="shuffle" size={16} color={colors.primary} /></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: colors.foreground }}>Random Assignment</Text>
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 1 }}>Anti-collusion · you can't be assigned your own projects</Text>
                   </View>
                 </View>
-              ))
-            )
+                <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 18 }}>
+                  The system randomly assigns you an unverified project from the network (excluding your own submissions). Press "Get Project" to receive your next assignment.
+                </Text>
+                <Pressable
+                  onPress={fetchRandomPitch}
+                  disabled={loadingRandom}
+                  style={({ pressed }) => ({ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 12, opacity: pressed || loadingRandom ? 0.7 : 1 })}
+                >
+                  {loadingRandom ? <ActivityIndicator size="small" color="#fff" /> : <><Feather name="shuffle" size={14} color="#fff" /><Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" }}>Get Assigned Project</Text></>}
+                </Pressable>
+              </View>
+
+              {randomPitchData === null && (
+                <View style={styles.emptyBox}>
+                  <Feather name="inbox" size={40} color={colors.mutedForeground} />
+                  <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No Project Yet</Text>
+                  <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>Press "Get Assigned Project" above to receive a random project to review.</Text>
+                </View>
+              )}
+
+              {randomPitchData === "none" && (
+                <View style={styles.emptyBox}>
+                  <Feather name="check-circle" size={40} color="#22C55E" />
+                  <Text style={[styles.emptyTitle, { color: colors.foreground }]}>All Caught Up</Text>
+                  <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>No unverified projects in the network right now.</Text>
+                </View>
+              )}
+
+              {randomPitchData && randomPitchData !== "none" && (() => {
+                const pitch = randomPitchData as PendingPitch & { trustScore?: number; founderCollateral?: number };
+                return (
+                  <View style={[styles.pitchCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                      <View style={{ backgroundColor: "#22C55E18", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, flexDirection: "row", alignItems: "center", gap: 4 }}>
+                        <Feather name="shuffle" size={10} color="#22C55E" />
+                        <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: "#22C55E" }}>ASSIGNED TO YOU</Text>
+                      </View>
+                      {(pitch.founderCollateral ?? 0) > 0 && (
+                        <View style={{ backgroundColor: "#F59E0B18", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, flexDirection: "row", alignItems: "center", gap: 4 }}>
+                          <Feather name="lock" size={10} color="#F59E0B" />
+                          <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: "#F59E0B" }}>COLLATERAL SECURED</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={styles.pitchHeader}>
+                      <View style={[styles.pitchIcon, { backgroundColor: colors.accent + "18" }]}>
+                        <Feather name="zap" size={16} color={colors.accent} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.pitchTitle, { color: colors.foreground }]}>{pitch.title}</Text>
+                        <Text style={[styles.pitchMeta, { color: colors.mutedForeground }]}>{pitch.stage} · {pitch.industry} · {pitch.city}</Text>
+                      </View>
+                      <View style={{ alignItems: "flex-end", gap: 4 }}>
+                        {pitch.trustScore !== undefined && (
+                          <View style={{ backgroundColor: colors.primary + "18", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>
+                            <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: colors.primary }}>{pitch.trustScore}% Trust</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+
+                    <Text style={[styles.pitchSummary, { color: colors.mutedForeground }]} numberOfLines={3}>{pitch.summary}</Text>
+
+                    <View style={styles.pitchStats}>
+                      <View style={styles.pitchStat}>
+                        <Feather name="users" size={12} color={colors.mutedForeground} />
+                        <Text style={[styles.pitchStatText, { color: colors.mutedForeground }]}>{pitch.backersCount} backers</Text>
+                      </View>
+                      <View style={styles.pitchStat}>
+                        <Text style={[styles.pitchStatText, { color: colors.mutedForeground }]}>{pitch.raised.toLocaleString()} π raised</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.pitchActions}>
+                      <Pressable onPress={() => router.push(`/pitch/${pitch.id}`)} style={({ pressed }) => [styles.docActionBtn, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}>
+                        <Feather name="eye" size={13} color={colors.foreground} />
+                        <Text style={[styles.docActionText, { color: colors.foreground }]}>Full Review</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => verifyPitch(pitch.id, pitch.title)}
+                        disabled={processing === pitch.id}
+                        style={({ pressed }) => [styles.docActionBtn, { backgroundColor: "#22C55E18", borderColor: "#22C55E", flex: 1.5, opacity: pressed || processing === pitch.id ? 0.7 : 1 }]}
+                      >
+                        {processing === pitch.id ? <ActivityIndicator size="small" color="#22C55E" /> : <><Feather name="check-circle" size={14} color="#22C55E" /><Text style={[styles.docActionText, { color: "#22C55E" }]}>Verify → IN_PROGRESS</Text></>}
+                      </Pressable>
+                    </View>
+
+                    <Pressable
+                      onPress={fetchRandomPitch}
+                      disabled={loadingRandom}
+                      style={({ pressed }) => ({ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 6, marginTop: 10, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.cardElevated, opacity: pressed || loadingRandom ? 0.7 : 1 })}
+                    >
+                      <Feather name="skip-forward" size={13} color={colors.mutedForeground} />
+                      <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: colors.mutedForeground }}>Next Project</Text>
+                    </Pressable>
+                  </View>
+                );
+              })()}
+            </>
           )}
 
           {activeTab === "reputation" && (

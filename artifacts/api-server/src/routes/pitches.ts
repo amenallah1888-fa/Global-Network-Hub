@@ -52,9 +52,40 @@ function decoratePitch(p: typeof pitchesTable.$inferSelect, backed: boolean) {
   };
 }
 
+router.get("/validator/random-pitch", async (req, res): Promise<void> => {
+  const meId = currentUserId(req);
+  const [me] = await db.select().from(usersTable).where(eq(usersTable.id, meId));
+  if (!me || (me.role !== "validator" && me.role !== "admin")) {
+    res.status(403).json({ error: "Validator or Admin role required" }); return;
+  }
+  const candidates = await db.select().from(pitchesTable)
+    .where(sql`${pitchesTable.founderId} != ${meId} AND ${pitchesTable.trustScore} < 100`)
+    .orderBy(desc(pitchesTable.createdAt));
+  const eligible = candidates.filter(p => {
+    const approvals = parseValidatorApprovals(p.validatorApprovals);
+    const votedBlocks = Object.keys(approvals).length;
+    return votedBlocks < 4;
+  });
+  if (eligible.length === 0) { res.json(null); return; }
+  const random = eligible[Math.floor(Math.random() * eligible.length)];
+  res.json(decoratePitch(random, false));
+});
+
 router.get("/pitches", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
-  const all = await db.select().from(pitchesTable).orderBy(desc(pitchesTable.trending), desc(pitchesTable.createdAt));
+  const sort = String(req.query.sort ?? "trending");
+  const category = typeof req.query.category === "string" && req.query.category.length > 0 ? req.query.category : null;
+
+  let all: typeof pitchesTable.$inferSelect[];
+  if (sort === "trustScore") {
+    all = await db.select().from(pitchesTable).orderBy(desc(pitchesTable.trustScore), desc(pitchesTable.createdAt));
+  } else if (sort === "newest") {
+    all = await db.select().from(pitchesTable).orderBy(desc(pitchesTable.createdAt));
+  } else {
+    all = await db.select().from(pitchesTable).orderBy(desc(pitchesTable.trending), desc(pitchesTable.createdAt));
+  }
+
+  if (category) all = all.filter(p => p.industry === category);
   const mine = await db.select().from(pitchBackersTable).where(eq(pitchBackersTable.userId, meId));
   const set = new Set(mine.map((m) => m.pitchId));
   res.json(all.map((p) => decoratePitch(p, set.has(p.id))));
@@ -92,11 +123,12 @@ router.post("/pitches", async (req, res): Promise<void> => {
   }
 
   const id = uid("pi");
+  const founderCollateral = Math.floor(raising * 0.1);
   await db.insert(pitchesTable).values({
     id, founderId: meId, title, stage, industry, raising, raised: 0, city, summary,
     coverKey, backersCount: 0, trending: false, entityType, serviceCategory,
     roadmapUrl, founderLinkedin, proofOfRealityUrl, portfolioUrl, experienceDescription,
-    requirements: requirementsRaw,
+    requirements: requirementsRaw, founderCollateral,
   });
 
   const markerType = entityType === "service_app" ? "service"

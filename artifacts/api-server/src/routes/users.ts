@@ -26,13 +26,15 @@ router.patch("/me", async (req, res): Promise<void> => {
 
   const allowed = ["name", "bio", "city", "country", "title", "company", "avatarKey", "linkedin", "twitter"] as const;
   type AllowedKey = typeof allowed[number];
-  const updates: Partial<Record<AllowedKey, string>> = {};
+  const updates: Record<string, any> = {};
   for (const key of allowed) {
     if (typeof body[key] === "string") {
       const val = body[key].trim();
       if (val !== undefined) updates[key] = val;
     }
   }
+  if (typeof body.piWalletAddress === "string") updates.piWalletAddress = body.piWalletAddress.trim() || null;
+  if (typeof body.isProfilePublic === "boolean") updates.isProfilePublic = body.isProfilePublic;
 
   if (Object.keys(updates).length === 0) {
     res.status(400).json({ error: "No valid fields to update" }); return;
@@ -41,6 +43,12 @@ router.patch("/me", async (req, res): Promise<void> => {
   await db.update(usersTable).set(updates).where(eq(usersTable.id, meId));
   const [u] = await db.select().from(usersTable).where(eq(usersTable.id, meId));
   res.json({ ...u, following: false });
+});
+
+router.delete("/me", async (req, res): Promise<void> => {
+  const meId = currentUserId(req);
+  await db.delete(usersTable).where(eq(usersTable.id, meId));
+  res.json({ success: true });
 });
 
 router.get("/users", async (req, res): Promise<void> => {

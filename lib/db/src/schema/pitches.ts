@@ -37,6 +37,7 @@ export const pitchesTable = pgTable("pitches", {
   requirements: text("requirements"),
   trustScore: integer("trust_score").notNull().default(0),
   validatorApprovals: text("validator_approvals").notNull().default("{}"),
+  founderCollateral: integer("founder_collateral").notNull().default(0),
 });
 
 export const pitchBackersTable = pgTable(

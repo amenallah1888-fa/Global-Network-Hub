@@ -33,6 +33,7 @@ export async function seedIfEmpty(): Promise<void> {
       followersCount: 12480,
       bio: "Building autonomous wet labs. Synthetic biology operator. SF.",
       passwordHash: demoHash,
+      reputationScore: 50,
     },
     {
       id: "u_amelia",
@@ -46,6 +47,7 @@ export async function seedIfEmpty(): Promise<void> {
       verified: true,
       followersCount: 38210,
       bio: "Series B+ vertical AI. Backing operators with shipped product.",
+      reputationScore: 50,
     },
     {
       id: "u_marcus",
@@ -59,6 +61,7 @@ export async function seedIfEmpty(): Promise<void> {
       verified: false,
       followersCount: 4870,
       bio: "Heirloom-grade product design. Studio in Mitte.",
+      reputationScore: 50,
     },
     {
       id: "u_priya",
@@ -72,6 +75,7 @@ export async function seedIfEmpty(): Promise<void> {
       verified: true,
       followersCount: 9210,
       bio: "Replacing legacy ERPs. Hiring infra PMs.",
+      reputationScore: 50,
     },
     {
       id: "u_jonas",
@@ -85,6 +89,7 @@ export async function seedIfEmpty(): Promise<void> {
       verified: false,
       followersCount: 1390,
       bio: "Warehouse-scale robotics. We retrofit, not replace.",
+      reputationScore: 50,
     },
   ]);
 

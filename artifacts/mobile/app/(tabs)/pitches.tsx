@@ -500,6 +500,8 @@ export default function PitchesScreen() {
   const [composerOpen, setComposerOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<HubFilters>(EMPTY_FILTERS);
+  const [sortOrder, setSortOrder] = useState<"trending" | "trustScore" | "newest">("trending");
+  const [visibleCount, setVisibleCount] = useState(10);
   const [dappSubmitOpen, setDappSubmitOpen] = useState(false);
   const [serviceComposerOpen, setServiceComposerOpen] = useState(false);
 
@@ -554,8 +556,8 @@ export default function PitchesScreen() {
   const serviceList = services ?? [];
   const appList = apps ?? [];
 
-  const visiblePitches = useMemo(() => {
-    return list.filter((p) => {
+  const allVisiblePitches = useMemo(() => {
+    const filtered = list.filter((p) => {
       if ((p as any).entityType === "service_app") return false;
       if (stage !== "All" && p.stage !== stage) return false;
       if (filters.industries.length > 0 && !filters.industries.includes(p.industry)) return false;
@@ -563,18 +565,24 @@ export default function PitchesScreen() {
       if (!fundingBandMatches(p.raising, filters.funding)) return false;
       return true;
     });
-  }, [list, stage, filters]);
+    if (sortOrder === "trustScore") return [...filtered].sort((a, b) => ((b as any).trustScore ?? 0) - ((a as any).trustScore ?? 0));
+    if (sortOrder === "newest") return [...filtered].sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+    return filtered;
+  }, [list, stage, filters, sortOrder]);
+
+  const visiblePitches = useMemo(() => allVisiblePitches.slice(0, visibleCount), [allVisiblePitches, visibleCount]);
 
   const visibleServices = useMemo(() => {
     if (serviceCategory === "All") return serviceList;
     return serviceList.filter((s) => s.category === serviceCategory);
   }, [serviceList, serviceCategory]);
 
-  const totalRaising = visiblePitches.reduce((s, p) => s + (p.raising - p.raised), 0);
+  const totalRaising = allVisiblePitches.reduce((s, p) => s + (p.raising - p.raised), 0);
   const filterCount = activeFilterCount(filters);
+  const hasMore = visibleCount < allVisiblePitches.length;
 
   const HUB_TABS: { key: HubTab; label: string; icon: keyof typeof Feather.glyphMap; count?: number }[] = [
-    { key: "pitches", label: "Pitches", icon: "zap", count: visiblePitches.length },
+    { key: "pitches", label: "Pitches", icon: "zap", count: allVisiblePitches.length },
     { key: "services", label: "Services", icon: "grid", count: serviceList.length },
     { key: "apps", label: "Apps", icon: "cpu", count: appList.length },
   ];
@@ -627,14 +635,49 @@ export default function PitchesScreen() {
                 <SegmentControl options={STAGES} value={stage} onChange={setStage} scrollable />
               </View>
 
+              {/* Sort + Filter bar */}
+              <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 10, gap: 8 }}>
+                <View style={{ flexDirection: "row", gap: 6, flex: 1 }}>
+                  {(["trending", "trustScore", "newest"] as const).map((s) => (
+                    <Pressable
+                      key={s}
+                      onPress={() => { setSortOrder(s); setVisibleCount(10); }}
+                      style={({ pressed }) => ({
+                        flexDirection: "row" as const,
+                        alignItems: "center" as const,
+                        gap: 4,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: sortOrder === s ? colors.primary : colors.border,
+                        backgroundColor: sortOrder === s ? colors.primary + "15" : colors.card,
+                        opacity: pressed ? 0.8 : 1,
+                      })}
+                    >
+                      <Feather
+                        name={s === "trending" ? "zap" : s === "trustScore" ? "shield" : "clock"}
+                        size={11}
+                        color={sortOrder === s ? colors.primary : colors.mutedForeground}
+                      />
+                      <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: sortOrder === s ? colors.primary : colors.mutedForeground }}>
+                        {s === "trending" ? "Trending" : s === "trustScore" ? "Trust Score" : "Newest"}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                {filterCount > 0 && (
+                  <Pressable onPress={() => setFilters(EMPTY_FILTERS)} hitSlop={6}>
+                    <Text style={[styles.clearText, { color: colors.mutedForeground }]}>Clear</Text>
+                  </Pressable>
+                )}
+              </View>
+
               {filterCount > 0 && (
-                <View style={styles.activeFilterRow}>
+                <View style={[styles.activeFilterRow, { paddingTop: 0 }]}>
                   <Pressable onPress={() => setFiltersOpen(true)} style={[styles.activeFilterChip, { backgroundColor: colors.primary + "15", borderColor: colors.primary }]}>
                     <Feather name="sliders" size={12} color={colors.primary} />
                     <Text style={[styles.activeFilterText, { color: colors.primary }]}>{filterCount} filter{filterCount === 1 ? "" : "s"} active</Text>
-                  </Pressable>
-                  <Pressable onPress={() => setFilters(EMPTY_FILTERS)} hitSlop={6}>
-                    <Text style={[styles.clearText, { color: colors.mutedForeground }]}>Clear</Text>
                   </Pressable>
                 </View>
               )}
@@ -657,6 +700,19 @@ export default function PitchesScreen() {
           }
           contentContainerStyle={{ paddingBottom: 140 }}
           showsVerticalScrollIndicator={false}
+          onEndReached={() => { if (hasMore) setVisibleCount(c => c + 10); }}
+          onEndReachedThreshold={0.3}
+          ListFooterComponent={
+            hasMore ? (
+              <Pressable
+                onPress={() => setVisibleCount(c => c + 10)}
+                style={({ pressed }) => ({ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, margin: 16, marginBottom: 8, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, opacity: pressed ? 0.7 : 1 })}
+              >
+                <Feather name="chevron-down" size={15} color={colors.mutedForeground} />
+                <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.mutedForeground }}>Load More ({allVisiblePitches.length - visibleCount} remaining)</Text>
+              </Pressable>
+            ) : null
+          }
         />
       )}
 
