@@ -33,7 +33,7 @@ export async function seedIfEmpty(): Promise<void> {
       followersCount: 12480,
       bio: "Building autonomous wet labs. Synthetic biology operator. SF.",
       passwordHash: demoHash,
-      reputationScore: 50,
+      reputationScore: 90,
     },
     {
       id: "u_amelia",
