@@ -12,7 +12,6 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Appearance,
   Clipboard,
   Modal,
   Platform,
@@ -28,6 +27,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/context/AuthContext";
+import { useTheme } from "@/context/ThemeContext";
 import { useColors } from "@/hooks/useColors";
 import { useAvatarData } from "@/lib/useAvatarData";
 import { useCurrentUser, useCurrentUserId } from "@/lib/userCache";
@@ -67,7 +67,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
   const [walletAddress, setWalletAddress] = useState((me as any).piWalletAddress ?? "");
   const [savingWallet, setSavingWallet] = useState(false);
   const [themeModalVisible, setThemeModalVisible] = useState(false);
-  const [themeMode, setThemeMode] = useState<"system" | "light" | "dark">("system");
+  const { themeMode, setThemeMode } = useTheme();
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [savingVisibility, setSavingVisibility] = useState(false);
 
@@ -185,69 +185,11 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
 
   const handleThemeChange = (mode: "system" | "light" | "dark") => {
     setThemeMode(mode);
-    Appearance.setColorScheme(mode === "system" ? null : mode);
     setThemeModalVisible(false);
   };
 
   return (
     <>
-    {/* Wallet address modal */}
-    <Modal visible={walletModalVisible} transparent animationType="slide" onRequestClose={() => setWalletModalVisible(false)}>
-      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
-        <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: insets.bottom + 24, gap: 16 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 4 }}>
-            <View style={{ backgroundColor: "#6366F120", borderRadius: 12, padding: 9 }}><Feather name="credit-card" size={20} color="#6366F1" /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: colors.foreground }}>Pi Wallet Address</Text>
-              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 2 }}>Your public wallet key for receiving payouts</Text>
-            </View>
-            <Pressable onPress={() => setWalletModalVisible(false)} hitSlop={10}><Feather name="x" size={20} color={colors.mutedForeground} /></Pressable>
-          </View>
-          <TextInput
-            value={walletAddress}
-            onChangeText={setWalletAddress}
-            placeholder="Paste your Pi wallet address here…"
-            placeholderTextColor={colors.mutedForeground}
-            style={{ backgroundColor: colors.background, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14, fontFamily: "Inter_400Regular", fontSize: 13, color: colors.foreground, ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : {}) }}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 17 }}>
-            Your wallet address is stored securely and used only for milestone payouts and escrow settlements. Never share your private key.
-          </Text>
-          <Pressable onPress={handleSaveWallet} disabled={savingWallet} style={({ pressed }) => ({ backgroundColor: "#6366F1", borderRadius: 14, paddingVertical: 14, alignItems: "center" as const, opacity: pressed || savingWallet ? 0.7 : 1 })}>
-            {savingWallet ? <ActivityIndicator color="#fff" /> : <Text style={{ fontFamily: "Inter_700Bold", fontSize: 15, color: "#fff" }}>Save Wallet Address</Text>}
-          </Pressable>
-        </View>
-      </View>
-    </Modal>
-
-    {/* Theme selector modal */}
-    <Modal visible={themeModalVisible} transparent animationType="fade" onRequestClose={() => setThemeModalVisible(false)}>
-      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", alignItems: "center", padding: 24 }} onPress={() => setThemeModalVisible(false)}>
-        <Pressable onPress={() => {}} style={{ backgroundColor: colors.card, borderRadius: 24, width: "100%", overflow: "hidden", borderWidth: 1, borderColor: colors.border }}>
-          <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", alignItems: "center", gap: 12 }}>
-            <View style={{ backgroundColor: "#F59E0B20", borderRadius: 12, padding: 8 }}><Feather name="sun" size={20} color="#F59E0B" /></View>
-            <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: colors.foreground }}>Appearance</Text>
-          </View>
-          {([
-            { mode: "system" as const, label: "System Default", sub: "Matches your device's light/dark setting automatically", icon: "monitor" as const },
-            { mode: "light" as const, label: "Light Mode", sub: "Always use the light colour palette", icon: "sun" as const },
-            { mode: "dark" as const, label: "Dark Mode", sub: "Always use the dark colour palette", icon: "moon" as const },
-          ] as const).map((opt) => (
-            <Pressable key={opt.mode} onPress={() => handleThemeChange(opt.mode)} style={({ pressed }) => ({ flexDirection: "row" as const, alignItems: "center" as const, padding: 18, gap: 14, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: themeMode === opt.mode ? colors.primary + "10" : "transparent", opacity: pressed ? 0.7 : 1 })}>
-              <Feather name={opt.icon} size={18} color={themeMode === opt.mode ? colors.primary : colors.mutedForeground} />
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: themeMode === opt.mode ? colors.primary : colors.foreground }}>{opt.label}</Text>
-                <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 2 }}>{opt.sub}</Text>
-              </View>
-              {themeMode === opt.mode && <Feather name="check-circle" size={18} color={colors.primary} />}
-            </Pressable>
-          ))}
-        </Pressable>
-      </Pressable>
-    </Modal>
-
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={[sm.root, { backgroundColor: colors.background, paddingTop: insets.top + 8 }]}>
         <View style={[sm.header, { borderBottomColor: colors.border }]}>
@@ -638,6 +580,63 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
           )}
         </ScrollView>
       </View>
+    </Modal>
+
+    {/* Wallet address modal — rendered after the Settings modal so it stacks above it */}
+    <Modal visible={walletModalVisible} transparent animationType="slide" onRequestClose={() => setWalletModalVisible(false)}>
+      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
+        <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: insets.bottom + 24, gap: 16 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 4 }}>
+            <View style={{ backgroundColor: "#6366F120", borderRadius: 12, padding: 9 }}><Feather name="credit-card" size={20} color="#6366F1" /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: colors.foreground }}>Pi Wallet Address</Text>
+              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 2 }}>Your public wallet key for receiving payouts</Text>
+            </View>
+            <Pressable onPress={() => setWalletModalVisible(false)} hitSlop={10}><Feather name="x" size={20} color={colors.mutedForeground} /></Pressable>
+          </View>
+          <TextInput
+            value={walletAddress}
+            onChangeText={setWalletAddress}
+            placeholder="Paste your Pi wallet address here…"
+            placeholderTextColor={colors.mutedForeground}
+            style={{ backgroundColor: colors.background, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14, fontFamily: "Inter_400Regular", fontSize: 13, color: colors.foreground, ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : {}) }}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 17 }}>
+            Your wallet address is stored securely and used only for milestone payouts and escrow settlements. Never share your private key.
+          </Text>
+          <Pressable onPress={handleSaveWallet} disabled={savingWallet} style={({ pressed }) => ({ backgroundColor: "#6366F1", borderRadius: 14, paddingVertical: 14, alignItems: "center" as const, opacity: pressed || savingWallet ? 0.7 : 1 })}>
+            {savingWallet ? <ActivityIndicator color="#fff" /> : <Text style={{ fontFamily: "Inter_700Bold", fontSize: 15, color: "#fff" }}>Save Wallet Address</Text>}
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+
+    {/* Theme selector modal — rendered after the Settings modal so it stacks above it */}
+    <Modal visible={themeModalVisible} transparent animationType="fade" onRequestClose={() => setThemeModalVisible(false)}>
+      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", alignItems: "center", padding: 24 }} onPress={() => setThemeModalVisible(false)}>
+        <Pressable onPress={() => {}} style={{ backgroundColor: colors.card, borderRadius: 24, width: "100%", overflow: "hidden", borderWidth: 1, borderColor: colors.border }}>
+          <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <View style={{ backgroundColor: "#F59E0B20", borderRadius: 12, padding: 8 }}><Feather name="sun" size={20} color="#F59E0B" /></View>
+            <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: colors.foreground }}>Appearance</Text>
+          </View>
+          {([
+            { mode: "system" as const, label: "System Default", sub: "Matches your device's light/dark setting automatically", icon: "monitor" as const },
+            { mode: "light" as const, label: "Light Mode", sub: "Always use the light colour palette", icon: "sun" as const },
+            { mode: "dark" as const, label: "Dark Mode", sub: "Always use the dark colour palette", icon: "moon" as const },
+          ] as const).map((opt) => (
+            <Pressable key={opt.mode} onPress={() => handleThemeChange(opt.mode)} style={({ pressed }) => ({ flexDirection: "row" as const, alignItems: "center" as const, padding: 18, gap: 14, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: themeMode === opt.mode ? colors.primary + "10" : "transparent", opacity: pressed ? 0.7 : 1 })}>
+              <Feather name={opt.icon} size={18} color={themeMode === opt.mode ? colors.primary : colors.mutedForeground} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: themeMode === opt.mode ? colors.primary : colors.foreground }}>{opt.label}</Text>
+                <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 2 }}>{opt.sub}</Text>
+              </View>
+              {themeMode === opt.mode && <Feather name="check-circle" size={18} color={colors.primary} />}
+            </Pressable>
+          ))}
+        </Pressable>
+      </Pressable>
     </Modal>
     </>
   );

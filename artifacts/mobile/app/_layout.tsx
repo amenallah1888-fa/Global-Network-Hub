@@ -18,6 +18,7 @@ import { View } from "react-native";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { configureApiClient } from "@/lib/apiClient";
 import { AIAssistant } from "@/components/AIAssistant";
 
@@ -36,6 +37,7 @@ const queryClient = new QueryClient({
 
 function RootLayoutNav() {
   const { token, isLoading } = useAuth();
+  const { resolvedScheme } = useTheme();
 
   useEffect(() => {
     if (!isLoading && !token) {
@@ -47,6 +49,7 @@ function RootLayoutNav() {
 
   return (
     <View style={{ flex: 1 }}>
+      <StatusBar style={resolvedScheme === "dark" ? "light" : "dark"} />
       <Stack screenOptions={{ headerBackTitle: "Back", headerShown: false }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false, animation: "fade" }} />
@@ -85,16 +88,17 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <AppProvider>
-              <GestureHandlerRootView style={{ flex: 1 }}>
-                <KeyboardProvider>
-                  <StatusBar style="auto" />
-                  <RootLayoutNav />
-                </KeyboardProvider>
-              </GestureHandlerRootView>
-            </AppProvider>
-          </AuthProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <AppProvider>
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                  <KeyboardProvider>
+                    <RootLayoutNav />
+                  </KeyboardProvider>
+                </GestureHandlerRootView>
+              </AppProvider>
+            </AuthProvider>
+          </ThemeProvider>
         </QueryClientProvider>
       </ErrorBoundary>
     </SafeAreaProvider>

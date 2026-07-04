@@ -5,3 +5,4 @@
 - [Pi Currency Convention](pi-currency.md) — All $ signs replaced with π throughout app; dollar-sign Feather icons replaced with "zap" or π Text nodes.
 - [Role System](role-system.md) — users.role ("user"/"validator"/"admin"); PATCH /auth/promote-validator for demo self-promotion; Admin screen has Become Validator card.
 - [Business Logic Modules](business-logic.md) — 5 core modules: SubmitApplication in service/[id], Express Interest gate (donateSuccess required) in pitch/[id], NFT Marketplace at /nft-marketplace, ValidatorPortal LockedView gate (rep<85||level<5) in admin, global Toast+ReputationBadge components.
+- [RN Web Modal stacking](rn-web-modal-stacking.md) — sibling `<Modal>`s mount in DOM order on web; declare sub-modals after the primary modal's closing tag so they stack on top.
