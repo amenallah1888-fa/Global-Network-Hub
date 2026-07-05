@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
+import { useDevMode } from "@/context/DevModeContext";
 import { useColors } from "@/hooks/useColors";
 
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : "";
@@ -56,6 +57,7 @@ export default function AdminScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { token, user, setSession } = useAuth();
+  const { devMode } = useDevMode();
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState<AdminTab>("documents");
   const [processing, setProcessing] = useState<string | null>(null);
@@ -66,7 +68,7 @@ export default function AdminScreen() {
   const repTier = REP_TIERS.find(t => repScore >= t.min && repScore <= t.max) ?? REP_TIERS[0];
   const userLevel = repScore >= 100 ? 5 : repScore >= 50 ? 4 : repScore >= 25 ? 3 : repScore >= 10 ? 2 : 1;
   const meetsValidatorCriteria = repScore >= 85 && userLevel >= 5;
-  const showLockedView = !isValidator && !meetsValidatorCriteria;
+  const showLockedView = !isValidator && !meetsValidatorCriteria && !devMode;
 
   const becomeValidator = async () => {
     setPromotingValidator(true);
@@ -160,7 +162,14 @@ export default function AdminScreen() {
           <Feather name="arrow-left" size={18} color={colors.foreground} />
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Validator Panel</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text style={[styles.headerTitle, { color: colors.foreground }]}>Validator Panel</Text>
+            {devMode && showLockedView === false && !isValidator && !meetsValidatorCriteria && (
+              <View style={{ backgroundColor: "#8B5CF618", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 }}>
+                <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#8B5CF6" }}>DEV BYPASS</Text>
+              </View>
+            )}
+          </View>
           <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>Review and approve submissions</Text>
         </View>
         <Pressable onPress={() => refetch()} hitSlop={10} style={({ pressed }) => [styles.refreshBtn, { backgroundColor: colors.cardElevated, opacity: pressed ? 0.7 : 1 }]}>

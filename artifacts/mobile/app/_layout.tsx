@@ -18,9 +18,11 @@ import { View } from "react-native";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { DevModeProvider } from "@/context/DevModeContext";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { configureApiClient } from "@/lib/apiClient";
 import { AIAssistant } from "@/components/AIAssistant";
+import { DevModeToggle } from "@/components/DevModeToggle";
 
 SplashScreen.preventAutoHideAsync();
 configureApiClient();
@@ -64,6 +66,7 @@ function RootLayoutNav() {
         <Stack.Screen name="nft-marketplace" options={{ headerShown: false, animation: "slide_from_right" }} />
       </Stack>
       {token ? <AIAssistant /> : null}
+      {token ? <DevModeToggle /> : null}
     </View>
   );
 }
@@ -90,13 +93,15 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
             <AuthProvider>
-              <AppProvider>
-                <GestureHandlerRootView style={{ flex: 1 }}>
-                  <KeyboardProvider>
-                    <RootLayoutNav />
-                  </KeyboardProvider>
-                </GestureHandlerRootView>
-              </AppProvider>
+              <DevModeProvider>
+                <AppProvider>
+                  <GestureHandlerRootView style={{ flex: 1 }}>
+                    <KeyboardProvider>
+                      <RootLayoutNav />
+                    </KeyboardProvider>
+                  </GestureHandlerRootView>
+                </AppProvider>
+              </DevModeProvider>
             </AuthProvider>
           </ThemeProvider>
         </QueryClientProvider>

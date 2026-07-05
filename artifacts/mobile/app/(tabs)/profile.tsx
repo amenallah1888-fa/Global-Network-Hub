@@ -27,6 +27,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/context/AuthContext";
+import { useDevMode } from "@/context/DevModeContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useColors } from "@/hooks/useColors";
 import { useAvatarData } from "@/lib/useAvatarData";
@@ -41,11 +42,8 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { token, clearSession } = useAuth();
-  const rawMe = useCurrentUser();
-  // TEMP DEBUG OVERRIDE — force admin/validator for local testing while AsyncStorage
-  // cache is being sorted out. Shadows the query result without mutating cache.
-  // REMOVE before shipping.
-  const me = { ...rawMe, role: "admin", reputationScore: 999 };
+  const { devMode } = useDevMode();
+  const me = useCurrentUser();
   const qc = useQueryClient();
 
   const [tab, setTab] = useState<"profile" | "account">("profile");
@@ -429,7 +427,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                   const isValidator = me.role === "validator" || me.role === "admin";
                   const repScore = (me as any).reputationScore ?? 0;
                   const meetsRep = repScore >= 85;
-                  const isLocked = !isValidator && !meetsRep;
+                  const isLocked = !isValidator && !meetsRep && !devMode;
                   return (
                     <>
                       <SettingsRow
@@ -872,12 +870,8 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
-  const rawMe = useCurrentUser();
-  // TEMP DEBUG OVERRIDE — force admin/validator for local testing while AsyncStorage
-  // cache is being sorted out. Shadows the query result without mutating cache.
-  // REMOVE before shipping.
-  const me = { ...rawMe, role: "admin", reputationScore: 999 };
-  const isValidator = true;
+  const me = useCurrentUser();
+  const { devMode } = useDevMode();
   const currentUserId = useCurrentUserId();
   const { data: users } = useListUsers();
   const { data: posts } = useListPosts();
