@@ -41,7 +41,11 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { token, clearSession } = useAuth();
-  const me = useCurrentUser();
+  const rawMe = useCurrentUser();
+  // TEMP DEBUG OVERRIDE — force admin/validator for local testing while AsyncStorage
+  // cache is being sorted out. Shadows the query result without mutating cache.
+  // REMOVE before shipping.
+  const me = { ...rawMe, role: "admin", reputationScore: 999 };
   const qc = useQueryClient();
 
   const [tab, setTab] = useState<"profile" | "account">("profile");
@@ -868,7 +872,12 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
-  const me = useCurrentUser();
+  const rawMe = useCurrentUser();
+  // TEMP DEBUG OVERRIDE — force admin/validator for local testing while AsyncStorage
+  // cache is being sorted out. Shadows the query result without mutating cache.
+  // REMOVE before shipping.
+  const me = { ...rawMe, role: "admin", reputationScore: 999 };
+  const isValidator = true;
   const currentUserId = useCurrentUserId();
   const { data: users } = useListUsers();
   const { data: posts } = useListPosts();
@@ -1027,7 +1036,7 @@ export default function ProfileScreen() {
             color="#8B5CF6"
             onPress={() => {
               const rep = (me as any).reputationScore ?? 0;
-              const isVal = me.role === "validator" || me.role === "admin";
+              const isVal = isValidator || me.role === "validator" || me.role === "admin";
               if (isVal || rep >= 85) {
                 router.push("/admin");
               } else {
