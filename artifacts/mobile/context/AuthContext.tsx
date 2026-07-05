@@ -47,6 +47,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (storedToken && storedUser) {
           setToken(storedToken);
           setUser(JSON.parse(storedUser));
+
+          // The cached user snapshot can go stale (e.g. role/reputation changed
+          // server-side). Re-fetch the live record from the API so the app
+          // always trusts the DB, not the last-cached copy.
+          try {
+            const API_BASE = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : "";
+            const res = await fetch(`${API_BASE}/api/me`, {
+              headers: { Authorization: `Bearer ${storedToken}` },
+            });
+            if (res.ok) {
+              const fresh = await res.json();
+              setUser(fresh);
+              await AsyncStorage.setItem(USER_KEY, JSON.stringify(fresh));
+            }
+          } catch {
+            // Network hiccup on boot — keep the cached user, non-fatal.
+          }
         }
       } finally {
         setIsLoading(false);
