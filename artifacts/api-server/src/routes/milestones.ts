@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, asc } from "drizzle-orm";
 import { db, milestonesTable, proposalsTable, auditLogsTable, pitchesTable } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
+import { runMilestoneAudit } from "./ai-agents";
 
 const router: IRouter = Router();
 
@@ -91,8 +92,28 @@ router.patch("/milestones/:id", async (req, res): Promise<void> => {
   await db.update(milestonesTable).set(updates).where(eq(milestonesTable.id, id));
   await writeAudit(meId, "milestone", id, `status_changed_to_${newStatus}`, { proofUrl });
 
+  let audit: { confidenceScore: number; summary: string; flags: string[] } | null = null;
+  if (newStatus === "pending_proof") {
+    try {
+      audit = await runMilestoneAudit({
+        milestoneId: milestone.id,
+        pitchId: milestone.pitchId,
+        title: milestone.title,
+        description: milestone.description,
+        proofUrl: proofUrl ?? null,
+      });
+    } catch {
+      audit = null;
+    }
+  }
+
   const [updated] = await db.select().from(milestonesTable).where(eq(milestonesTable.id, id));
-  res.json({ ...updated, createdAt: updated.createdAt.toISOString(), completedAt: updated.completedAt?.toISOString() ?? null });
+  res.json({
+    ...updated,
+    createdAt: updated.createdAt.toISOString(),
+    completedAt: updated.completedAt?.toISOString() ?? null,
+    audit,
+  });
 });
 
 export default router;
