@@ -25,6 +25,7 @@ import {
 } from "react-native";
 
 import { useAuth } from "@/context/AuthContext";
+import { CoFounderChatSheet, type CoFounderOptimizedState } from "@/components/CoFounderChatSheet";
 import { useColors } from "@/hooks/useColors";
 import { COVER_PRESETS, getImage } from "@/lib/imageMap";
 
@@ -92,6 +93,8 @@ export function PitchComposerSheet({ visible, onClose }: Props) {
   const [coverKey, setCoverKey] = useState<string | null>("post1");
   const [pickedUri, setPickedUri] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [coFounderOpen, setCoFounderOpen] = useState(false);
+  const [aiMilestones, setAiMilestones] = useState<CoFounderOptimizedState["milestones"] | null>(null);
 
   const slide = useRef(new Animated.Value(0)).current;
 
@@ -116,6 +119,15 @@ export function PitchComposerSheet({ visible, onClose }: Props) {
     setCoverKey("post1");
     setPickedUri(null);
     setError(null);
+    setAiMilestones(null);
+  };
+
+  const handleApplyCoFounder = (state: CoFounderOptimizedState) => {
+    setTitle(state.title);
+    setSummary(state.summary);
+    setRaisingStr(String(state.raising));
+    setAiMilestones(state.milestones);
+    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const handleClose = () => {
@@ -226,6 +238,7 @@ export function PitchComposerSheet({ visible, onClose }: Props) {
   };
 
   return (
+    <>
     <Modal
       visible={visible}
       animationType="fade"
@@ -270,6 +283,39 @@ export function PitchComposerSheet({ visible, onClose }: Props) {
                 <Feather name="x" size={18} color={colors.foreground} />
               </Pressable>
             </View>
+
+            <Pressable
+              onPress={() => setCoFounderOpen(true)}
+              style={({ pressed }) => [
+                styles.coFounderBtn,
+                { backgroundColor: colors.primary + "12", borderColor: colors.primary + "40", opacity: pressed ? 0.85 : 1 },
+              ]}
+            >
+              <Feather name="cpu" size={15} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.coFounderBtnTitle, { color: colors.primary }]}>Draft with AI Co-Founder</Text>
+                <Text style={[styles.coFounderBtnSub, { color: colors.mutedForeground }]}>
+                  Chat to refine your title, summary, raise & milestones
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={16} color={colors.primary} />
+            </Pressable>
+
+            {aiMilestones && aiMilestones.length > 0 && (
+              <View style={[styles.milestonesPreview, { backgroundColor: colors.cardElevated, borderColor: colors.border }]}>
+                <Text style={[styles.milestonesPreviewTitle, { color: colors.foreground }]}>
+                  AI-suggested milestone plan
+                </Text>
+                {aiMilestones.map((m, i) => (
+                  <Text key={i} style={[styles.milestonesPreviewLine, { color: colors.mutedForeground }]} numberOfLines={1}>
+                    {i + 1}. {m.title} — {m.percentageOfFunds}%
+                  </Text>
+                ))}
+                <Text style={[styles.milestonesPreviewHint, { color: colors.mutedForeground }]}>
+                  This plan will be available once a backer locks funds in escrow.
+                </Text>
+              </View>
+            )}
 
             <ScrollView
               showsVerticalScrollIndicator={false}
@@ -496,6 +542,14 @@ export function PitchComposerSheet({ visible, onClose }: Props) {
         </Animated.View>
       </View>
     </Modal>
+
+    <CoFounderChatSheet
+      visible={coFounderOpen}
+      onClose={() => setCoFounderOpen(false)}
+      draft={{ title, summary, industry, stage, raising }}
+      onApply={handleApplyCoFounder}
+    />
+    </>
   );
 }
 
@@ -609,6 +663,27 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 16,
   },
+  coFounderBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 14,
+  },
+  coFounderBtnTitle: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  coFounderBtnSub: { fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 1 },
+  milestonesPreview: {
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 14,
+    gap: 3,
+  },
+  milestonesPreviewTitle: { fontSize: 11, fontFamily: "Inter_700Bold", letterSpacing: 0.3, marginBottom: 4 },
+  milestonesPreviewLine: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  milestonesPreviewHint: { fontSize: 10, fontFamily: "Inter_400Regular", marginTop: 4, fontStyle: "italic" },
   eyebrow: {
     fontSize: 10,
     fontFamily: "Inter_700Bold",

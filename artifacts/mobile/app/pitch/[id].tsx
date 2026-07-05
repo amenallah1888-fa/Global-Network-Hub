@@ -139,6 +139,7 @@ export default function PitchDetailScreen() {
   });
 
   const isFounder = pitch?.founderId === user?.id;
+  const isValidator = user?.role === "validator" || user?.role === "admin";
   const isServiceApp = pitch?.entityType === "service_app";
   const stageColor = pitch ? isServiceApp ? "#F97316" : (STAGE_COLOR[pitch.stage] ?? colors.primary) : colors.primary;
   const progress = pitch ? pct(pitch.raised, pitch.raising) : 0;
@@ -615,6 +616,10 @@ export default function PitchDetailScreen() {
                                 {submittingProof === m.id ? <ActivityIndicator size="small" color="#fff" /> : <><Feather name="upload" size={14} color="#fff" /><Text style={styles.submitProofBtnText}>Submit Milestone Proof</Text></>}
                               </Pressable>
                             </View>
+                          )}
+
+                          {isValidator && m.status === "pending_proof" && (
+                            <MilestoneAuditCard milestoneId={m.id} token={token} colors={colors} />
                           )}
 
                           {!isFounder && (pitch.backed || isExpressedInterest) && m.status === "pending_proof" && (
@@ -1417,4 +1422,66 @@ const styles = StyleSheet.create({
   modalConfirm: { flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: "center" },
   modalConfirmText: { color: "#fff", fontSize: 14, fontFamily: "Inter_700Bold" },
   reportInput: { borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 13, fontFamily: "Inter_400Regular", minHeight: 80, textAlignVertical: "top" },
+  auditCard: { marginTop: 10, padding: 12, borderRadius: 12, borderWidth: 1, gap: 8 },
+  auditHeaderRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  auditTitle: { fontSize: 11, fontFamily: "Inter_700Bold", letterSpacing: 0.3, flex: 1 },
+  auditScoreRow: { flexDirection: "row", alignItems: "baseline", gap: 4 },
+  auditScoreValue: { fontSize: 24, fontFamily: "Inter_700Bold" },
+  auditScoreMax: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  auditSummary: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  auditFlagsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 2 },
+  auditFlagChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
+  auditFlagText: { fontSize: 10, fontFamily: "Inter_700Bold" },
 });
+
+type AuditData = { confidenceScore: number; summary: string; flags: string[] };
+
+function MilestoneAuditCard({ milestoneId, token, colors }: { milestoneId: string; token: string | null; colors: ReturnType<typeof useColors> }) {
+  const { data: audit, isLoading } = useQuery<AuditData | null>({
+    queryKey: [`/api/ai/audit/${milestoneId}`],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/ai/audit/${milestoneId}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!milestoneId && !!token,
+    staleTime: 30_000,
+  });
+
+  if (isLoading) {
+    return (
+      <View style={[styles.auditCard, { backgroundColor: colors.cardElevated, borderColor: colors.border, alignItems: "center" }]}>
+        <ActivityIndicator size="small" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (!audit) return null;
+
+  const score = audit.confidenceScore;
+  const scoreColor = score >= 70 ? "#22C55E" : score >= 40 ? "#F59E0B" : "#EF4444";
+
+  return (
+    <View style={[styles.auditCard, { backgroundColor: scoreColor + "0F", borderColor: scoreColor + "40" }]}>
+      <View style={styles.auditHeaderRow}>
+        <Feather name="shield" size={13} color={scoreColor} />
+        <Text style={[styles.auditTitle, { color: scoreColor }]}>AI AUDITOR — CONFIDENCE SCORE</Text>
+      </View>
+      <View style={styles.auditScoreRow}>
+        <Text style={[styles.auditScoreValue, { color: scoreColor }]}>{score}</Text>
+        <Text style={[styles.auditScoreMax, { color: colors.mutedForeground }]}>/ 100</Text>
+      </View>
+      <Text style={[styles.auditSummary, { color: colors.foreground }]}>{audit.summary}</Text>
+      {audit.flags.length > 0 && (
+        <View style={styles.auditFlagsRow}>
+          {audit.flags.map((f) => (
+            <View key={f} style={[styles.auditFlagChip, { backgroundColor: "#EF444418", borderWidth: 1, borderColor: "#EF444450" }]}>
+              <Feather name="alert-triangle" size={9} color="#EF4444" />
+              <Text style={[styles.auditFlagText, { color: "#EF4444" }]}>{f.replace(/_/g, " ")}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}

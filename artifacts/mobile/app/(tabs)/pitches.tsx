@@ -25,6 +25,7 @@ import {
   fundingBandMatches,
   type HubFilters,
 } from "@/components/HubFiltersSheet";
+import { MatchmakerCarousel } from "@/components/MatchmakerCarousel";
 import { PitchCard } from "@/components/PitchCard";
 import { PitchComposerSheet } from "@/components/PitchComposerSheet";
 import { SegmentControl } from "@/components/SegmentControl";
@@ -630,6 +631,8 @@ export default function PitchesScreen() {
                   <Text style={[styles.heroBtnText, { color: colors.primaryForeground }]}>Pitch</Text>
                 </Pressable>
               </View>
+
+              <MatchmakerCarousel />
 
               <View style={{ paddingVertical: 12 }}>
                 <SegmentControl options={STAGES} value={stage} onChange={setStage} scrollable />
