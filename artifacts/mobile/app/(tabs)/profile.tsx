@@ -1030,8 +1030,8 @@ export default function ProfileScreen() {
             color="#8B5CF6"
             onPress={() => {
               const rep = (me as any).reputationScore ?? 0;
-              const isVal = isValidator || me.role === "validator" || me.role === "admin";
-              if (isVal || rep >= 85) {
+              const isVal = me.role === "validator" || me.role === "admin";
+              if (isVal || rep >= 85 || devMode) {
                 router.push("/admin");
               } else {
                 Alert.alert(
