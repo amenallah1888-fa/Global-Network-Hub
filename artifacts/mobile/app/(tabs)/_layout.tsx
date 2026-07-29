@@ -28,6 +28,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "briefcase", selected: "briefcase.fill" }} />
         <Label>Hub</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="reels">
+        <Icon sf={{ default: "play.rectangle", selected: "play.rectangle.fill" }} />
+        <Label>Reels</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Icon sf={{ default: "person.crop.circle", selected: "person.crop.circle.fill" }} />
         <Label>Profile</Label>
@@ -86,11 +90,7 @@ function ClassicTabLayout() {
           title: "Feed",
           tabBarIcon: ({ color, focused }) =>
             isIOS ? (
-              <SymbolView
-                name={focused ? "house.fill" : "house"}
-                tintColor={color}
-                size={24}
-              />
+              <SymbolView name={focused ? "house.fill" : "house"} tintColor={color} size={24} />
             ) : (
               <Feather name="home" size={22} color={color} />
             ),
@@ -102,11 +102,7 @@ function ClassicTabLayout() {
           title: "Atlas",
           tabBarIcon: ({ color, focused }) =>
             isIOS ? (
-              <SymbolView
-                name={focused ? "globe.americas.fill" : "globe"}
-                tintColor={color}
-                size={24}
-              />
+              <SymbolView name={focused ? "globe.americas.fill" : "globe"} tintColor={color} size={24} />
             ) : (
               <Feather name="globe" size={22} color={color} />
             ),
@@ -118,11 +114,7 @@ function ClassicTabLayout() {
           title: "Circles",
           tabBarIcon: ({ color, focused }) =>
             isIOS ? (
-              <SymbolView
-                name={focused ? "person.2.fill" : "person.2"}
-                tintColor={color}
-                size={24}
-              />
+              <SymbolView name={focused ? "person.2.fill" : "person.2"} tintColor={color} size={24} />
             ) : (
               <Feather name="users" size={22} color={color} />
             ),
@@ -134,13 +126,25 @@ function ClassicTabLayout() {
           title: "Hub",
           tabBarIcon: ({ color, focused }) =>
             isIOS ? (
+              <SymbolView name={focused ? "briefcase.fill" : "briefcase"} tintColor={color} size={24} />
+            ) : (
+              <Feather name="briefcase" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="reels"
+        options={{
+          title: "Reels",
+          tabBarIcon: ({ color, focused }) =>
+            isIOS ? (
               <SymbolView
-                name={focused ? "briefcase.fill" : "briefcase"}
+                name={focused ? "play.rectangle.fill" : "play.rectangle"}
                 tintColor={color}
                 size={24}
               />
             ) : (
-              <Feather name="briefcase" size={22} color={color} />
+              <Feather name="play-circle" size={22} color={color} />
             ),
         }}
       />

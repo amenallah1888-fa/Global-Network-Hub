@@ -1,0 +1,33 @@
+Please perform a comprehensive core system audit and feature deployment, integrating essential security fixes, Pull-to-Refresh, and a complete Social Stories/Reels ecosystem:
+
+1. CORE SECURITY, RBAC & SYSTEM STABILITY:
+   - Enforce strict Role-Based Access Control (RBAC): restrict endpoints and sensitive actions strictly between Founders, Backers, and Validators.
+   - Secure Escrow logic and Pi Network transaction flows with server-side validation to prevent state tampering or unauthorized bypass.
+   - Implement robust Error Boundaries and graceful UI fallbacks for network or Pi SDK failures (eliminate all white/blank screen crashes).
+   - Enforce strict input validation (prevent negative budgets, zero values, or invalid media formats).
+   - Add clean Skeleton Loading Screens and engaging Empty States across all dynamic feeds.
+
+2. PULL-TO-REFRESH SYSTEM:
+   - Integrate a smooth Pull-to-Refresh gesture on the Main Feed and Investment Hub (Instagram-style swipe-down to trigger real-time data refetching).
+
+3. STORIES ECOSYSTEM (Top Home Feed):
+   - Position a horizontal Stories Bar at the very top of the Main Feed.
+   - First Circle (Leftmost): User's profile picture with a (+) badge to trigger the creation flow.
+   - Following Circles: User/Founder avatars with gradient active rings indicating unviewed stories.
+   - Full-Screen Story Viewer: 15-second auto-advancing media cards (images/short videos) with progress bars, bottom text reply field, and reaction buttons (Like, Heart, Fast Pi Coin Tip).
+
+4. IMMERSIVE REELS FEED & UI ARCHITECTURE:
+   - Dedicate a clear bottom navigation action/tab (or entry point) to a full-screen vertical Video Reels Feed (TikTok/Instagram Dark Immersive UI).
+   - Layout & Controls (Minimalist, semi-transparent overlays):
+     * Bottom-Right Vertical Stack: Creator Avatar + Mute/Unmute toggle -> Heart/Like button with counter -> Comment button (opens smooth bottom sheet without pausing) -> Share button -> Glowing Pi Support/Tip Button.
+     * Bottom-Left Overlay: @username, Caption, Hashtags, and an optional clickable Project Tag Card (routes directly to the project detail page if linked).
+
+5. UNIVERSAL CREATION & UPLOAD FLOW (Stories & Reels):
+   - Provide a seamless Creation Modal accessible via the Story (+) badge or main Create button.
+   - Step 1: Record live video/photo or select media from local gallery.
+   - Step 2: Select Target Destination: "Story" (24h ephemeral) OR "Reel" (permanent video feed).
+   - Step 3: Add Metadata (Caption, Hashtags, Optional Project Tag).
+   - Step 4: Uploading State: Display a clean, real-time progress bar ensuring successful client-to-server payload delivery.
+
+6. STRICT UI/UX CONSTRAINTS:
+   - Absolutely DO NOT redesign, alter color schemes, or shift existing core navigation layouts. Integrate all new components natively into the current architecture.

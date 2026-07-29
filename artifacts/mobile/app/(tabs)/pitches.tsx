@@ -531,8 +531,8 @@ export default function PitchesScreen() {
     action();
   };
 
-  const { data: pitches, isLoading: pitchesLoading } = useListPitches();
-  const { data: services, isLoading: servicesLoading, refetch: servicesRefetch } = useQuery<ServiceApp[]>({
+  const { data: pitches, isLoading: pitchesLoading, refetch: pitchesRefetch, isRefetching: pitchesRefetching } = useListPitches();
+  const { data: services, isLoading: servicesLoading, isRefetching: servicesRefetching, refetch: servicesRefetch } = useQuery<ServiceApp[]>({
     queryKey: ["/api/services"],
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/api/services`, { headers: { Authorization: `Bearer ${token}` } });
@@ -617,6 +617,8 @@ export default function PitchesScreen() {
         <FlatList
           data={visiblePitches}
           keyExtractor={(p) => p.id}
+          refreshing={pitchesRefetching}
+          onRefresh={() => pitchesRefetch()}
           renderItem={({ item }) => <PitchCard pitch={item} />}
           ListHeaderComponent={
             <View>
@@ -724,6 +726,8 @@ export default function PitchesScreen() {
         <FlatList
           data={visibleServices}
           keyExtractor={(s) => s.id}
+          refreshing={servicesRefetching}
+          onRefresh={() => servicesRefetch()}
           renderItem={({ item }) => <ServiceCard service={item} />}
           ListHeaderComponent={
             <View>

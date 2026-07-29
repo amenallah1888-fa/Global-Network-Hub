@@ -12,7 +12,15 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useColors } from "@/hooks/useColors";
+// ErrorFallback renders outside ThemeProvider, so we use hardcoded emergency colors.
+const DARK = {
+  background: "#0D0D0D", foreground: "#FAFAFA", primary: "#B58840",
+  primaryForeground: "#FFFFFF", mutedForeground: "#9CA3AF", card: "#1C1C1C", border: "#2C2C2C",
+};
+const LIGHT = {
+  background: "#FFFFFF", foreground: "#0A0A0A", primary: "#B58840",
+  primaryForeground: "#FFFFFF", mutedForeground: "#71717A", card: "#F9F9F9", border: "#E5E5E5",
+};
 
 export type ErrorFallbackProps = {
   error: Error;
@@ -20,7 +28,11 @@ export type ErrorFallbackProps = {
 };
 
 export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
-  const colors = useColors();
+  // Detect color scheme without a hook since ThemeProvider may not be mounted.
+  const prefersDark =
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
+  const colors = prefersDark ? DARK : LIGHT;
   const insets = useSafeAreaInsets();
 
   const [isModalVisible, setIsModalVisible] = useState(false);
