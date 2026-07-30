@@ -264,7 +264,8 @@ export default function ReelsScreen() {
         </Pressable>
       </View>
 
-      <StoryReelComposerSheet visible={composerOpen} onClose={() => setComposerOpen(false)} />
+      {/* Bug 3: Reel composer opened from Reels tab is locked to "reel" */}
+      <StoryReelComposerSheet visible={composerOpen} onClose={() => setComposerOpen(false)} lockedDestination="reel" />
     </View>
   );
 }

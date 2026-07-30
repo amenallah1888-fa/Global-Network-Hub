@@ -5,6 +5,7 @@ import {
 import { useState } from "react";
 import { FlatList, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 
 import { Composer } from "@/components/Composer";
 import { FeedSearch, FeedSearchResults } from "@/components/FeedSearch";
@@ -52,7 +53,13 @@ export default function FeedScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <Header title="HumanVerse" subtitle="Where operators meet capital" />
+      {/* Bug 2: Messages icon in header gives direct access to DM inbox */}
+      <Header
+        title="HumanVerse"
+        subtitle="Where operators meet capital"
+        rightIcon="message-circle"
+        onRightPress={() => router.push("/inbox")}
+      />
 
       <FlatList
         data={isSearching ? [] : allPosts}
@@ -149,10 +156,11 @@ export default function FeedScreen() {
         onViewed={markStoryViewed}
       />
 
-      {/* Story/Reel composer */}
+      {/* Bug 3: Story composer opened from StoriesBar is locked to "story" */}
       <StoryReelComposerSheet
         visible={composerOpen}
         onClose={() => setComposerOpen(false)}
+        lockedDestination="story"
       />
     </View>
   );

@@ -5,6 +5,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Avatar } from "@/components/Avatar";
 import { getImage } from "@/lib/imageMap";
@@ -32,12 +33,19 @@ export function StoryViewer({ visible, stories, startIndex, onClose, onViewed }:
   const insets = useSafeAreaInsets();
   const [current, setCurrent] = useState(startIndex);
   const [reply, setReply] = useState("");
-  const [liked, setLiked] = useState(false);
+  // Bug 1 fix: like state is isolated per story ID — never bleeds across stories
+  const [likedMap, setLikedMap] = useState<Record<string, boolean>>({});
   const progress = useRef(new Animated.Value(0)).current;
   const animRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const story = stories[current];
   const media = story ? STORY_MEDIA[story.userId] : null;
+  const liked = story ? (likedMap[story.userId] ?? false) : false;
+
+  const toggleLike = () => {
+    if (!story) return;
+    setLikedMap((prev) => ({ ...prev, [story.userId]: !prev[story.userId] }));
+  };
 
   const startProgress = () => {
     progress.setValue(0);
@@ -61,13 +69,16 @@ export function StoryViewer({ visible, stories, startIndex, onClose, onViewed }:
   };
 
   const goBack = () => {
-    if (current > 0) {
-      setCurrent((c) => c - 1);
-    }
+    if (current > 0) setCurrent((c) => c - 1);
   };
 
+  // Bug 1 fix: reset both position and liked-map whenever viewer opens fresh
   useEffect(() => {
-    if (visible) setCurrent(startIndex);
+    if (visible) {
+      setCurrent(startIndex);
+      setLikedMap({});
+      setReply("");
+    }
   }, [visible, startIndex]);
 
   useEffect(() => {
@@ -77,6 +88,17 @@ export function StoryViewer({ visible, stories, startIndex, onClose, onViewed }:
     return () => { if (animRef.current) animRef.current.stop(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current, visible]);
+
+  // Bug 2 fix: reply routes into the DM / Chat system
+  const handleSendReply = () => {
+    const text = reply.trim();
+    if (!text || !story) return;
+    setReply("");
+    if (animRef.current) animRef.current.stop();
+    onClose();
+    // Navigate to the DM thread with the draft pre-filled
+    router.push(`/chat/${story.userId}?draft=${encodeURIComponent(text)}`);
+  };
 
   if (!story) return null;
 
@@ -122,6 +144,14 @@ export function StoryViewer({ visible, stories, startIndex, onClose, onViewed }:
           <View style={{ flex: 1 }}>
             <Text style={sv.name}>{story.name}</Text>
           </View>
+          {/* Bug 2: DM shortcut — tap name to open chat */}
+          <Pressable
+            onPress={() => { onClose(); router.push(`/chat/${story.userId}`); }}
+            style={({ pressed }) => [sv.dmBtn, { opacity: pressed ? 0.7 : 1 }]}
+            hitSlop={8}
+          >
+            <Feather name="message-circle" size={18} color="rgba(255,255,255,0.85)" />
+          </Pressable>
           <Text style={sv.timeAgo}>2h ago</Text>
           <Pressable onPress={onClose} hitSlop={14} style={sv.closeBtn}>
             <Feather name="x" size={22} color="#fff" />
@@ -147,12 +177,13 @@ export function StoryViewer({ visible, stories, startIndex, onClose, onViewed }:
           style={sv.bottom}
         >
           <View style={sv.reactRow}>
+            {/* Bug 1 fix: like uses per-story state */}
             <Pressable
-              onPress={() => setLiked((v) => !v)}
+              onPress={toggleLike}
               style={({ pressed }) => [sv.reactBtn, { opacity: pressed ? 0.7 : 1 }]}
             >
               <Feather name="heart" size={24} color={liked ? "#EF4444" : "#fff"} />
-              <Text style={sv.reactLabel}>Like</Text>
+              <Text style={sv.reactLabel}>{liked ? "Liked" : "Like"}</Text>
             </Pressable>
             <Pressable
               style={({ pressed }) => [sv.reactBtn, { opacity: pressed ? 0.7 : 1 }]}
@@ -161,19 +192,21 @@ export function StoryViewer({ visible, stories, startIndex, onClose, onViewed }:
               <Text style={sv.reactLabel}>Tip π</Text>
             </Pressable>
           </View>
+
+          {/* Bug 2 fix: reply sends to DM, hint label updated */}
           <View style={[sv.replyRow, { paddingBottom: Math.max(insets.bottom, 20) }]}>
             <TextInput
               value={reply}
               onChangeText={setReply}
-              placeholder={`Reply to ${story.name}...`}
+              placeholder={`Message ${story.name}… (sends as DM)`}
               placeholderTextColor="rgba(255,255,255,0.55)"
               style={sv.replyInput}
               returnKeyType="send"
-              onSubmitEditing={() => setReply("")}
+              onSubmitEditing={handleSendReply}
             />
             {reply.length > 0 && (
               <Pressable
-                onPress={() => setReply("")}
+                onPress={handleSendReply}
                 style={({ pressed }) => [sv.sendBtn, { opacity: pressed ? 0.7 : 1 }]}
               >
                 <Feather name="send" size={17} color="#fff" />
@@ -202,6 +235,7 @@ const sv = StyleSheet.create({
     paddingHorizontal: 14, paddingBottom: 10, zIndex: 20,
   },
   name: { color: "#fff", fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  dmBtn: { padding: 4 },
   timeAgo: { color: "rgba(255,255,255,0.65)", fontSize: 12, fontFamily: "Inter_400Regular" },
   closeBtn: { padding: 4 },
   tapLeft: { position: "absolute", left: 0, top: 80, bottom: 200, width: SW * 0.35 },

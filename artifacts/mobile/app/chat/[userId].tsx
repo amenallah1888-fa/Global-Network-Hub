@@ -50,13 +50,14 @@ export default function ChatScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
-  const { userId } = useLocalSearchParams<{ userId: string }>();
+  // Bug 2 fix: accept a "draft" query param so story replies pre-fill the composer
+  const { userId, draft } = useLocalSearchParams<{ userId: string; draft?: string }>();
   const currentUserId = useCurrentUserId();
   const peer = useUserById(userId);
   const { data: peerAvatar } = useAvatarData(userId);
   const queryClient = useQueryClient();
   const listRef = useRef<FlatList>(null);
-  const [text, setText] = useState("");
+  const [text, setText] = useState(draft ? decodeURIComponent(draft) : "");
 
   const { data, isLoading } = useListMessages(userId, {
     query: { refetchInterval: 6000, staleTime: 2000 } as any,

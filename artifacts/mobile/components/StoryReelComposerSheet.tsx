@@ -10,11 +10,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 
 type Destination = "story" | "reel";
+// Bug 3 fix: step 2 is skipped when lockedDestination is provided
 type Step = 1 | 2 | 3 | 4;
 
 type Props = {
   visible: boolean;
   onClose: () => void;
+  /** Bug 3: lock the composer to a specific destination, hiding the choice step */
+  lockedDestination?: Destination;
 };
 
 const PROJECT_TAGS = [
@@ -23,13 +26,18 @@ const PROJECT_TAGS = [
   { id: "pi3", label: "Atelier Nord" },
 ];
 
-export function StoryReelComposerSheet({ visible, onClose }: Props) {
+const DEST_LABELS: Record<Destination, string> = {
+  story: "Story",
+  reel: "Reel",
+};
+
+export function StoryReelComposerSheet({ visible, onClose, lockedDestination }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<Step>(1);
   const [mediaUri, setMediaUri] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<"photo" | "video">("photo");
-  const [destination, setDestination] = useState<Destination>("story");
+  const [destination, setDestination] = useState<Destination>(lockedDestination ?? "story");
   const [caption, setCaption] = useState("");
   const [hashtags, setHashtags] = useState("");
   const [projectTag, setProjectTag] = useState<string | null>(null);
@@ -39,7 +47,7 @@ export function StoryReelComposerSheet({ visible, onClose }: Props) {
   const reset = () => {
     setStep(1);
     setMediaUri(null);
-    setDestination("story");
+    setDestination(lockedDestination ?? "story");
     setCaption("");
     setHashtags("");
     setProjectTag(null);
@@ -49,30 +57,25 @@ export function StoryReelComposerSheet({ visible, onClose }: Props) {
 
   const handleClose = () => { reset(); onClose(); };
 
-  // ─── Step 1: Media selection ─────────────────────────────────────────────
-  const pickFromGallery = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert("Permission needed", "Allow access to your media library to pick a photo or video.");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images", "videos"],
-      quality: 0.8,
-      allowsEditing: true,
-      aspect: [9, 16],
-    });
-    if (!result.canceled && result.assets[0]) {
-      setMediaUri(result.assets[0].uri);
-      setMediaType(result.assets[0].type === "video" ? "video" : "photo");
+  // After picking media: if destination is locked, skip step 2 and go straight to details
+  const afterMediaPicked = (uri: string, type: "photo" | "video") => {
+    setMediaUri(uri);
+    setMediaType(type);
+    if (lockedDestination) {
+      setDestination(lockedDestination);
+      setStep(3); // skip step 2
+    } else {
       setStep(2);
     }
   };
 
-  const recordMedia = async () => {
+  // ─── Step 1: Media selection ─────────────────────────────────────────────
+
+  // Bug 4 fix: "Take Photo/Video" correctly opens the CAMERA
+  const openCamera = async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert("Permission needed", "Allow camera access to record.");
+      Alert.alert("Camera access needed", "Allow camera access to take a photo or video.");
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -82,9 +85,25 @@ export function StoryReelComposerSheet({ visible, onClose }: Props) {
       aspect: [9, 16],
     });
     if (!result.canceled && result.assets[0]) {
-      setMediaUri(result.assets[0].uri);
-      setMediaType(result.assets[0].type === "video" ? "video" : "photo");
-      setStep(2);
+      afterMediaPicked(result.assets[0].uri, result.assets[0].type === "video" ? "video" : "photo");
+    }
+  };
+
+  // Bug 4 fix: "Choose from Gallery" correctly opens the LIBRARY
+  const openGallery = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Library access needed", "Allow access to your media library to pick a photo or video.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images", "videos"],
+      quality: 0.8,
+      allowsEditing: true,
+      aspect: [9, 16],
+    });
+    if (!result.canceled && result.assets[0]) {
+      afterMediaPicked(result.assets[0].uri, result.assets[0].type === "video" ? "video" : "photo");
     }
   };
 
@@ -100,20 +119,41 @@ export function StoryReelComposerSheet({ visible, onClose }: Props) {
     }).start(() => {
       setUploading(false);
       Alert.alert(
-        destination === "story" ? "Story Posted" : "Reel Published",
+        destination === "story" ? "Story Posted!" : "Reel Published!",
         destination === "story"
-          ? "Your story is live for 24 hours."
-          : "Your reel has been published to the Reels feed.",
-        [{ text: "Done", onPress: handleClose }]
+          ? "Your Story is live for 24 hours."
+          : "Your Reel has been published to the Reels feed.",
+        [{ text: "Done", onPress: handleClose }],
       );
     });
   };
 
-  // ─── Render ───────────────────────────────────────────────────────────────
+  // ─── Header title ─────────────────────────────────────────────────────────
+  const getTitle = () => {
+    if (lockedDestination) {
+      // Bug 3 fix: title is specific when destination is locked
+      const label = DEST_LABELS[lockedDestination];
+      if (step === 1) return `Create ${label}`;
+      if (step === 3) return `${label} Details`;
+      return "Publishing…";
+    }
+    if (step === 1) return "Add Media";
+    if (step === 2) return "Choose Destination";
+    if (step === 3) return "Add Details";
+    return "Publishing…";
+  };
+
   const progressWidth = uploadProgress.interpolate({
     inputRange: [0, 1],
     outputRange: ["0%", "100%"],
   });
+
+  // Step dots: when destination is locked we only have 3 meaningful steps (1, 3, 4)
+  // shown as 2-step progress (pick → details → done)
+  const visibleStepCount = lockedDestination ? 2 : 3;
+  const currentDotStep = lockedDestination
+    ? (step === 1 ? 1 : step === 3 ? 2 : 2)
+    : (step <= 3 ? step : 3);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
@@ -125,13 +165,20 @@ export function StoryReelComposerSheet({ visible, onClose }: Props) {
           {/* Header */}
           <View style={[rc.header, { borderBottomColor: colors.border }]}>
             {step > 1 && step < 4 ? (
-              <Pressable onPress={() => setStep((s) => (s - 1) as Step)} hitSlop={10}>
+              <Pressable
+                onPress={() => {
+                  if (lockedDestination && step === 3) {
+                    setStep(1); // skip back over step 2 when locked
+                  } else {
+                    setStep((s) => (s - 1) as Step);
+                  }
+                }}
+                hitSlop={10}
+              >
                 <Feather name="chevron-left" size={20} color={colors.foreground} />
               </Pressable>
             ) : <View style={{ width: 24 }} />}
-            <Text style={[rc.title, { color: colors.foreground }]}>
-              {step === 1 ? "Add to Story or Reel" : step === 2 ? "Choose Destination" : step === 3 ? "Add Details" : "Publishing..."}
-            </Text>
+            <Text style={[rc.title, { color: colors.foreground }]}>{getTitle()}</Text>
             <Pressable onPress={handleClose} hitSlop={10}>
               <Feather name="x" size={20} color={colors.mutedForeground} />
             </Pressable>
@@ -139,12 +186,12 @@ export function StoryReelComposerSheet({ visible, onClose }: Props) {
 
           {/* Step dots */}
           <View style={rc.stepDots}>
-            {([1, 2, 3] as const).map((s) => (
+            {Array.from({ length: visibleStepCount }).map((_, i) => (
               <View
-                key={s}
+                key={i}
                 style={[
                   rc.dot,
-                  { backgroundColor: step >= s ? colors.primary : colors.border },
+                  { backgroundColor: currentDotStep > i ? colors.primary : colors.border },
                 ]}
               />
             ))}
@@ -154,42 +201,45 @@ export function StoryReelComposerSheet({ visible, onClose }: Props) {
           {step === 1 && (
             <View style={rc.body}>
               <Text style={[rc.stepHint, { color: colors.mutedForeground }]}>
-                Record live or choose from your gallery
+                {lockedDestination === "story"
+                  ? "Add a photo or video to your Story"
+                  : lockedDestination === "reel"
+                  ? "Add a video for your Reel"
+                  : "Pick your media first"}
               </Text>
               <View style={rc.mediaOptions}>
+                {/* Bug 4 fix: button correctly labeled and wired to camera */}
                 <Pressable
-                  onPress={recordMedia}
+                  onPress={openCamera}
                   style={({ pressed }) => [
                     rc.mediaBtn,
                     { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
                   ]}
                 >
-                  <Feather name="video" size={24} color="#fff" />
-                  <Text style={rc.mediaBtnText}>Record</Text>
+                  <Feather name="camera" size={24} color="#fff" />
+                  <Text style={rc.mediaBtnText}>Take Photo/Video</Text>
                 </Pressable>
+
+                {/* Bug 4 fix: button correctly labeled and wired to gallery */}
                 <Pressable
-                  onPress={pickFromGallery}
+                  onPress={openGallery}
                   style={({ pressed }) => [
                     rc.mediaBtn,
                     { backgroundColor: colors.cardElevated, borderWidth: 1, borderColor: colors.border, opacity: pressed ? 0.85 : 1 },
                   ]}
                 >
                   <Feather name="image" size={24} color={colors.foreground} />
-                  <Text style={[rc.mediaBtnText, { color: colors.foreground }]}>Gallery</Text>
+                  <Text style={[rc.mediaBtnText, { color: colors.foreground }]}>Choose from Gallery</Text>
                 </Pressable>
               </View>
             </View>
           )}
 
-          {/* ── STEP 2: Destination ── */}
-          {step === 2 && (
+          {/* ── STEP 2: Destination (only shown when NOT locked) ── */}
+          {step === 2 && !lockedDestination && (
             <View style={rc.body}>
               {mediaUri ? (
-                <Image
-                  source={{ uri: mediaUri }}
-                  style={rc.preview}
-                  contentFit="cover"
-                />
+                <Image source={{ uri: mediaUri }} style={rc.preview} contentFit="cover" />
               ) : null}
               <Text style={[rc.stepHint, { color: colors.mutedForeground }]}>
                 Where should this go?
@@ -229,6 +279,9 @@ export function StoryReelComposerSheet({ visible, onClose }: Props) {
           {/* ── STEP 3: Metadata ── */}
           {step === 3 && (
             <ScrollView style={{ flex: 1 }} contentContainerStyle={rc.body} keyboardShouldPersistTaps="handled">
+              {mediaUri ? (
+                <Image source={{ uri: mediaUri }} style={rc.previewSmall} contentFit="cover" />
+              ) : null}
               <Text style={[rc.stepHint, { color: colors.mutedForeground }]}>Add a caption and optional project tag</Text>
               <View style={rc.fieldWrap}>
                 <Text style={[rc.label, { color: colors.mutedForeground }]}>Caption</Text>
@@ -297,7 +350,7 @@ export function StoryReelComposerSheet({ visible, onClose }: Props) {
                 )}
               </View>
               <Text style={[rc.uploadTitle, { color: colors.foreground }]}>
-                {uploading ? "Uploading your content..." : "Published!"}
+                {uploading ? `Uploading ${DEST_LABELS[destination]}…` : "Published!"}
               </Text>
               <View style={[rc.progressTrack, { backgroundColor: colors.border }]}>
                 <Animated.View
@@ -337,8 +390,9 @@ const rc = StyleSheet.create({
     flex: 1, alignItems: "center", justifyContent: "center", gap: 10,
     paddingVertical: 28, borderRadius: 20,
   },
-  mediaBtnText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
+  mediaBtnText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff", textAlign: "center" },
   preview: { width: "100%", height: 160, borderRadius: 14 },
+  previewSmall: { width: "100%", height: 110, borderRadius: 12 },
   destRow: { flexDirection: "row", gap: 12 },
   destCard: {
     flex: 1, alignItems: "center", gap: 8, padding: 18, borderRadius: 18, borderWidth: 2,
