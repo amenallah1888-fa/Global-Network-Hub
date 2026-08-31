@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { and, desc, eq } from "drizzle-orm";
 import { db, appDirectoryTable } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
+import { getPagination } from "../lib/requestSecurity";
 
 const router: IRouter = Router();
 
@@ -42,10 +43,12 @@ const MOCK_APPS = [
 ];
 
 router.get("/apps", async (_req, res): Promise<void> => {
+  const { limit, offset } = getPagination(res);
   const apps = await db.select().from(appDirectoryTable)
     .where(eq(appDirectoryTable.submissionStatus, "approved"))
-    .orderBy(desc(appDirectoryTable.securityScore), desc(appDirectoryTable.createdAt));
-  res.json(apps.length > 0 ? apps : MOCK_APPS);
+    .orderBy(desc(appDirectoryTable.securityScore), desc(appDirectoryTable.createdAt))
+    .limit(limit).offset(offset);
+  res.json(apps.length > 0 ? apps : MOCK_APPS.slice(offset, offset + limit));
 });
 
 router.post("/apps", async (req, res): Promise<void> => {

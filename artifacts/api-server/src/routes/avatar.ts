@@ -6,6 +6,7 @@ import {
 } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
 import { ensureAvatarExists, awardXp, checkAndUnlockSkins, computeLevel } from "../lib/xpEngine";
+import { getPagination } from "../lib/requestSecurity";
 
 const router: IRouter = Router();
 const NFT_MIN_LEVEL = 5;
@@ -94,7 +95,8 @@ router.post("/avatar/equip", async (req, res): Promise<void> => {
 
 router.get("/avatar/skins", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
-  const all = await db.select().from(avatarSkinsTable).orderBy(avatarSkinsTable.sortOrder);
+  const { limit, offset } = getPagination(res);
+  const all = await db.select().from(avatarSkinsTable).orderBy(avatarSkinsTable.sortOrder).limit(limit).offset(offset);
 
   const unlocked = await db.select({ skinId: userUnlockedSkinsTable.skinId })
     .from(userUnlockedSkinsTable).where(eq(userUnlockedSkinsTable.userId, meId));
@@ -160,10 +162,11 @@ router.post("/avatar/nft/list", async (req, res): Promise<void> => {
 });
 
 router.get("/avatar/nft/marketplace", async (_req, res): Promise<void> => {
+  const { limit, offset } = getPagination(res);
   const listings = await db.select().from(nftListingsTable)
     .where(eq(nftListingsTable.status, "active"))
     .orderBy(desc(nftListingsTable.createdAt))
-    .limit(50);
+    .limit(limit).offset(offset);
 
   const sellerIds = [...new Set(listings.map((l) => l.sellerId))];
   const sellers = sellerIds.length > 0
@@ -201,20 +204,24 @@ router.post("/avatar/nft/buy/:listingId", async (req, res): Promise<void> => {
   const sellerReceives = listing.pricePi - royaltyPi;
   const now = new Date();
 
-  await db.update(nftListingsTable).set({ status: "sold", soldAt: now, buyerId: meId }).where(eq(nftListingsTable.id, listingId));
-
-  await db.update(userAvatarsTable).set({ userId: meId, updatedAt: now }).where(eq(userAvatarsTable.id, listing.avatarId));
-
   const txId = uid("nfttx");
-  await db.insert(nftTransactionsTable).values({
-    id: txId,
-    listingId,
-    sellerId: listing.sellerId,
-    buyerId: meId,
-    avatarId: listing.avatarId,
-    pricePi: listing.pricePi,
-    royaltyPi,
-    royaltyPct: ROYALTY_PCT,
+  await db.transaction(async (tx) => {
+    const [lockedListing] = await tx.select().from(nftListingsTable).where(eq(nftListingsTable.id, listingId));
+    if (!lockedListing || lockedListing.status !== "active") {
+      throw new Error("Listing is no longer active");
+    }
+    await tx.update(nftListingsTable).set({ status: "sold", soldAt: now, buyerId: meId }).where(eq(nftListingsTable.id, listingId));
+    await tx.update(userAvatarsTable).set({ userId: meId, updatedAt: now }).where(eq(userAvatarsTable.id, listing.avatarId));
+    await tx.insert(nftTransactionsTable).values({
+      id: txId,
+      listingId,
+      sellerId: listing.sellerId,
+      buyerId: meId,
+      avatarId: listing.avatarId,
+      pricePi: listing.pricePi,
+      royaltyPi,
+      royaltyPct: ROYALTY_PCT,
+    });
   });
 
   res.json({ purchased: true, sellerReceives, royaltyPi, platform: "HumanVerse", txId });

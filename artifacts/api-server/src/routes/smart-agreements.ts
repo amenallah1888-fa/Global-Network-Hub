@@ -5,6 +5,8 @@ import { currentUserId } from "../lib/currentUser";
 import { hashTerms } from "../lib/piRpc";
 import { runAmlCheck } from "../lib/amlCheck";
 import { createNotification } from "../lib/notify";
+import { getPagination } from "../lib/requestSecurity";
+import { z } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
@@ -14,14 +16,19 @@ function uid(prefix: string) {
 
 router.post("/smart-agreements", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
-  const body = req.body ?? {};
-  const projectId = String(body.projectId ?? "").trim();
-  const totalPiCommitted = parseInt(String(body.totalPiCommitted ?? "0"), 10);
-  const milestones = Array.isArray(body.milestones) ? body.milestones : [];
-
-  if (!projectId || !Number.isFinite(totalPiCommitted) || totalPiCommitted <= 0) {
+  const parsed = z.object({
+    projectId: z.string().regex(/^[A-Za-z0-9_-]{1,100}$/),
+    totalPiCommitted: z.coerce.number().int().positive().max(1_000_000_000),
+    milestones: z.array(z.object({
+      title: z.string().trim().min(1).max(160),
+      percentage: z.coerce.number().int().positive().max(100),
+      description: z.string().trim().max(5000).optional(),
+    }).strict()).max(20).default([]),
+  }).strict().safeParse(req.body);
+  if (!parsed.success) {
     res.status(400).json({ error: "projectId and totalPiCommitted > 0 required" }); return;
   }
+  const { projectId, totalPiCommitted, milestones } = parsed.data;
 
   const [pitch] = await db.select().from(pitchesTable).where(eq(pitchesTable.id, projectId));
   if (!pitch) { res.status(404).json({ error: "Project not found" }); return; }
@@ -44,43 +51,40 @@ router.post("/smart-agreements", async (req, res): Promise<void> => {
   const refundDeadline = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
   const id = uid("sa");
-  await db.insert(smartAgreementsTable).values({
-    id,
-    senderId: meId,
-    receiverId: pitch.founderId,
-    projectId,
-    totalPiCommitted,
-    termsHash,
-    status: "LOCKED_IN_ESCROW",
-    refundDeadline,
-  });
-
   let milestonesInserted = 0;
-  if (milestones.length > 0) {
+  await db.transaction(async (tx) => {
+    await tx.insert(smartAgreementsTable).values({
+      id,
+      senderId: meId,
+      receiverId: pitch.founderId,
+      projectId,
+      totalPiCommitted,
+      termsHash,
+      status: "LOCKED_IN_ESCROW",
+      refundDeadline,
+    });
     for (let i = 0; i < milestones.length; i++) {
       const m = milestones[i];
-      if (!m.title || !m.percentage) continue;
-      await db.insert(milestonesTable).values({
+      await tx.insert(milestonesTable).values({
         id: uid("ms"),
         proposalId: id,
         pitchId: projectId,
-        title: String(m.title).trim(),
-        description: String(m.description ?? "").trim(),
-        percentageOfFunds: parseInt(String(m.percentage), 10),
+        title: m.title,
+        description: m.description ?? "",
+        percentageOfFunds: m.percentage,
         status: "locked",
         order: i,
       });
       milestonesInserted++;
     }
-  }
-
-  await db.insert(auditLogsTable).values({
-    id: uid("al"),
-    entityType: "smart_agreement",
-    entityId: id,
-    actorId: meId,
-    action: "CREATED",
-    metadata: JSON.stringify({ totalPiCommitted, termsHash, milestoneCount: milestonesInserted }),
+    await tx.insert(auditLogsTable).values({
+      id: uid("al"),
+      entityType: "smart_agreement",
+      entityId: id,
+      actorId: meId,
+      action: "CREATED",
+      metadata: JSON.stringify({ totalPiCommitted, termsHash, milestoneCount: milestonesInserted }),
+    });
   });
 
   await createNotification({
@@ -111,9 +115,10 @@ router.get("/smart-agreements/:id", async (req, res): Promise<void> => {
     res.status(403).json({ error: "Forbidden" }); return;
   }
 
-  const milestones = await db.select().from(milestonesTable).where(eq(milestonesTable.proposalId, id)).orderBy(milestonesTable.order);
-  const documents = await db.select().from(projectDocumentsTable).where(eq(projectDocumentsTable.agreementId, id));
-  const logs = await db.select().from(auditLogsTable).where(eq(auditLogsTable.entityId, id)).orderBy(desc(auditLogsTable.createdAt));
+  const { limit, offset } = getPagination(res);
+  const milestones = await db.select().from(milestonesTable).where(eq(milestonesTable.proposalId, id)).orderBy(milestonesTable.order).limit(limit).offset(offset);
+  const documents = await db.select().from(projectDocumentsTable).where(eq(projectDocumentsTable.agreementId, id)).limit(limit).offset(offset);
+  const logs = await db.select().from(auditLogsTable).where(eq(auditLogsTable.entityId, id)).orderBy(desc(auditLogsTable.createdAt)).limit(limit).offset(offset);
 
   res.json({ ...agreement, milestones, documents, auditLog: logs });
 });
@@ -130,14 +135,16 @@ router.post("/smart-agreements/:id/documents", async (req, res): Promise<void> =
   if (!documentUrl) { res.status(400).json({ error: "documentUrl required" }); return; }
 
   const docId = uid("doc");
-  await db.insert(projectDocumentsTable).values({ id: docId, projectId: agreement.projectId, agreementId: id, documentUrl, documentType, status: "PENDING" });
-  await db.insert(auditLogsTable).values({
-    id: uid("al"),
-    entityType: "smart_agreement",
-    entityId: id,
-    actorId: meId,
-    action: "DOCUMENT_SUBMITTED",
-    metadata: JSON.stringify({ documentType, documentUrl }),
+  await db.transaction(async (tx) => {
+    await tx.insert(projectDocumentsTable).values({ id: docId, projectId: agreement.projectId, agreementId: id, documentUrl, documentType, status: "PENDING" });
+    await tx.insert(auditLogsTable).values({
+      id: uid("al"),
+      entityType: "smart_agreement",
+      entityId: id,
+      actorId: meId,
+      action: "DOCUMENT_SUBMITTED",
+      metadata: JSON.stringify({ documentType, documentUrl }),
+    });
   });
 
   const [doc] = await db.select().from(projectDocumentsTable).where(eq(projectDocumentsTable.id, docId));
@@ -157,9 +164,10 @@ router.patch("/project-documents/:id", async (req, res): Promise<void> => {
 
 router.get("/admin/pending", async (req, res): Promise<void> => {
   currentUserId(req);
+  const { limit, offset } = getPagination(res);
   const [pendingDocs, pendingPitches] = await Promise.all([
-    db.select().from(projectDocumentsTable).where(eq(projectDocumentsTable.status, "PENDING")).orderBy(desc(projectDocumentsTable.uploadedAt)).limit(50),
-    db.select().from(pitchesTable).where(eq(pitchesTable.verificationStatus, "pending")).orderBy(desc(pitchesTable.createdAt)).limit(30),
+    db.select().from(projectDocumentsTable).where(eq(projectDocumentsTable.status, "PENDING")).orderBy(desc(projectDocumentsTable.uploadedAt)).limit(limit).offset(offset),
+    db.select().from(pitchesTable).where(eq(pitchesTable.verificationStatus, "pending")).orderBy(desc(pitchesTable.createdAt)).limit(limit).offset(offset),
   ]);
   res.json({ documents: pendingDocs, pitches: pendingPitches });
 });

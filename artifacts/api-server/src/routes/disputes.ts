@@ -81,11 +81,11 @@ router.post("/disputes/:id/resolve", async (req, res): Promise<void> => {
   const timelockExpired = dispute.timelockExpiresAt && now > dispute.timelockExpiresAt;
 
   if (dispute.phase === "timelock" && timelockExpired) {
-    const chatHistory = await db.select({ content: messagesTable.content, senderId: messagesTable.senderId })
+    const chatHistory = await db.select({ content: messagesTable.text, senderId: messagesTable.fromUserId })
       .from(messagesTable)
       .where(
-        sql`(${messagesTable.senderId} = ${agreement.senderId} AND ${messagesTable.receiverId} = ${agreement.receiverId})
-          OR (${messagesTable.senderId} = ${agreement.receiverId} AND ${messagesTable.receiverId} = ${agreement.senderId})`
+        sql`(${messagesTable.fromUserId} = ${agreement.senderId} AND ${messagesTable.toUserId} = ${agreement.receiverId})
+          OR (${messagesTable.fromUserId} = ${agreement.receiverId} AND ${messagesTable.toUserId} = ${agreement.senderId})`
       )
       .orderBy(desc(messagesTable.createdAt))
       .limit(30);

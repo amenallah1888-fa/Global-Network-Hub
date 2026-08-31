@@ -10,6 +10,7 @@ import {
 } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
 import { createNotification } from "../lib/notify";
+import { getPagination } from "../lib/requestSecurity";
 
 const router: IRouter = Router();
 
@@ -22,7 +23,7 @@ router.get("/me", async (req, res): Promise<void> => {
 
 router.patch("/me", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
-  const body = req.body ?? {};
+  const body = req.body as Record<string, unknown>;
 
   const allowed = ["name", "bio", "city", "country", "title", "company", "avatarKey", "linkedin", "twitter"] as const;
   type AllowedKey = typeof allowed[number];
@@ -53,7 +54,8 @@ router.delete("/me", async (req, res): Promise<void> => {
 
 router.get("/users", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
-  const all = await db.select().from(usersTable);
+  const { limit, offset } = getPagination(res);
+  const all = await db.select().from(usersTable).limit(limit).offset(offset);
   const myFollows = await db.select().from(followsTable).where(eq(followsTable.followerId, meId));
   const set = new Set(myFollows.map((f) => f.followingId));
   res.json(all.map((u) => ({ ...u, following: set.has(u.id) })));
@@ -62,6 +64,7 @@ router.get("/users", async (req, res): Promise<void> => {
 router.get("/users/:id", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   const targetId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const { limit } = getPagination(res);
 
   const [u] = await db.select().from(usersTable).where(eq(usersTable.id, targetId));
   if (!u) { res.status(404).json({ error: "Not found" }); return; }
@@ -72,7 +75,7 @@ router.get("/users/:id", async (req, res): Promise<void> => {
 
   const pitches = await db.select().from(pitchesTable)
     .where(eq(pitchesTable.founderId, targetId))
-    .orderBy(pitchesTable.createdAt);
+    .orderBy(pitchesTable.createdAt).limit(limit);
 
   const memberships = await db.select({ circle: circlesTable })
     .from(circleMembersTable)
@@ -96,21 +99,25 @@ router.post("/users/:id/follow", async (req, res): Promise<void> => {
     and(eq(followsTable.followerId, meId), eq(followsTable.followingId, targetId)),
   );
 
-  let following: boolean;
-  if (existing.length > 0) {
-    await db.delete(followsTable).where(
-      and(eq(followsTable.followerId, meId), eq(followsTable.followingId, targetId)),
-    );
-    await db.update(usersTable)
-      .set({ followersCount: sql`GREATEST(${usersTable.followersCount} - 1, 0)` })
-      .where(eq(usersTable.id, targetId));
-    following = false;
-  } else {
-    await db.insert(followsTable).values({ followerId: meId, followingId: targetId });
-    await db.update(usersTable)
-      .set({ followersCount: sql`${usersTable.followersCount} + 1` })
-      .where(eq(usersTable.id, targetId));
-    following = true;
+  let following = false;
+  await db.transaction(async (tx) => {
+    if (existing.length > 0) {
+      await tx.delete(followsTable).where(
+        and(eq(followsTable.followerId, meId), eq(followsTable.followingId, targetId)),
+      );
+      await tx.update(usersTable)
+        .set({ followersCount: sql`GREATEST(${usersTable.followersCount} - 1, 0)` })
+        .where(eq(usersTable.id, targetId));
+      following = false;
+    } else {
+      await tx.insert(followsTable).values({ followerId: meId, followingId: targetId });
+      await tx.update(usersTable)
+        .set({ followersCount: sql`${usersTable.followersCount} + 1` })
+        .where(eq(usersTable.id, targetId));
+      following = true;
+    }
+  });
+  if (following) {
     await createNotification({ userId: targetId, type: "follow", actorId: meId, message: "started following you" });
   }
 

@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db, projectCapsulesTable, pitchesTable, usersTable } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
+import { getPagination } from "../lib/requestSecurity";
 import { awardXp } from "../lib/xpEngine";
 
 const router: IRouter = Router();
@@ -43,6 +44,7 @@ router.post("/pitches/:id/capsules", async (req, res): Promise<void> => {
 router.get("/pitches/:id/capsules", async (req, res): Promise<void> => {
   currentUserId(req);
   const pitchId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const { limit, offset } = getPagination(res);
 
   const [pitch] = await db.select({ founderId: pitchesTable.founderId, title: pitchesTable.title })
     .from(pitchesTable).where(eq(pitchesTable.id, pitchId));
@@ -50,7 +52,7 @@ router.get("/pitches/:id/capsules", async (req, res): Promise<void> => {
 
   const capsules = await db.select().from(projectCapsulesTable)
     .where(eq(projectCapsulesTable.pitchId, pitchId))
-    .orderBy(asc(projectCapsulesTable.weekNumber));
+    .orderBy(asc(projectCapsulesTable.weekNumber)).limit(limit).offset(offset);
 
   const [founder] = await db.select({ id: usersTable.id, name: usersTable.name, handle: usersTable.handle, avatarKey: usersTable.avatarKey })
     .from(usersTable).where(eq(usersTable.id, pitch.founderId));
@@ -65,7 +67,7 @@ router.get("/pitches/:id/capsules", async (req, res): Promise<void> => {
 
 router.get("/capsules/recent", async (req, res): Promise<void> => {
   currentUserId(req);
-  const limit = Math.min(20, parseInt(String(req.query.limit ?? "10"), 10));
+  const { limit, offset } = getPagination(res);
 
   const capsules = await db.select({
     id: projectCapsulesTable.id,
@@ -75,7 +77,7 @@ router.get("/capsules/recent", async (req, res): Promise<void> => {
     weekNumber: projectCapsulesTable.weekNumber,
     createdAt: projectCapsulesTable.createdAt,
     founderId: projectCapsulesTable.founderId,
-  }).from(projectCapsulesTable).orderBy(desc(projectCapsulesTable.createdAt)).limit(limit);
+  }).from(projectCapsulesTable).orderBy(desc(projectCapsulesTable.createdAt)).limit(limit).offset(offset);
 
   const pitchIds = [...new Set(capsules.map((c) => c.pitchId))];
   const pitches = pitchIds.length > 0

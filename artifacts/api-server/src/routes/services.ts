@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 import { desc, eq, sql } from "drizzle-orm";
 import { db, serviceAppsTable, usersTable } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
+import { getPagination } from "../lib/requestSecurity";
+import { z } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
@@ -29,13 +31,16 @@ const MOCK_SERVICES = [
 router.get("/services", async (req, res): Promise<void> => {
   const category = req.query.category as string | undefined;
   const city = req.query.city as string | undefined;
+  const { limit, offset } = getPagination(res);
 
-  let rows = await db.select().from(serviceAppsTable).orderBy(desc(serviceAppsTable.trustScore), desc(serviceAppsTable.rating));
+  let rows = await db.select().from(serviceAppsTable)
+    .orderBy(desc(serviceAppsTable.trustScore), desc(serviceAppsTable.rating))
+    .limit(limit).offset(offset);
   if (category) rows = rows.filter((s) => s.category.toLowerCase() === category.toLowerCase());
   if (city) rows = rows.filter((s) => s.city?.toLowerCase() === city.toLowerCase());
 
   if (rows.length === 0 && !category && !city) {
-    res.json(MOCK_SERVICES); return;
+    res.json(MOCK_SERVICES.slice(offset, offset + limit)); return;
   }
 
   const userIds = [...new Set(rows.map((r) => r.providerId))];
@@ -49,10 +54,13 @@ router.get("/services", async (req, res): Promise<void> => {
 
 router.get("/services/match", async (req, res): Promise<void> => {
   const needType = (req.query.need as string ?? "").toLowerCase();
+  const { limit, offset } = getPagination(res);
   if (!needType) { res.json([]); return; }
 
-  const all = await db.select().from(serviceAppsTable).orderBy(desc(serviceAppsTable.trustScore), desc(serviceAppsTable.rating));
-  const matched = all.filter((s) => s.category.toLowerCase().includes(needType) || s.title.toLowerCase().includes(needType) || s.description.toLowerCase().includes(needType)).slice(0, 3);
+  const all = await db.select().from(serviceAppsTable)
+    .orderBy(desc(serviceAppsTable.trustScore), desc(serviceAppsTable.rating))
+    .limit(limit + offset);
+  const matched = all.filter((s) => s.category.toLowerCase().includes(needType) || s.title.toLowerCase().includes(needType) || s.description.toLowerCase().includes(needType)).slice(offset, offset + limit);
 
   const userIds = [...new Set(matched.map((r) => r.providerId))];
   const providers = userIds.length > 0 ? await db.select({ id: usersTable.id, name: usersTable.name, handle: usersTable.handle, avatarKey: usersTable.avatarKey, verified: usersTable.verified, city: usersTable.city }).from(usersTable) : [];
@@ -91,18 +99,22 @@ router.get("/services/:id", async (req, res): Promise<void> => {
 
 router.post("/services", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
-  const body = req.body ?? {};
-  const title = String(body.title ?? "").trim();
-  const category = String(body.category ?? "").trim();
-  const description = String(body.description ?? "").trim();
-  const pricePi = parseInt(String(body.pricePi ?? "0"), 10);
-  const city = typeof body.city === "string" && body.city.trim() ? body.city.trim() : null;
-  const country = typeof body.country === "string" && body.country.trim() ? body.country.trim() : null;
-  const portfolioUrl = typeof body.portfolioUrl === "string" && body.portfolioUrl.trim() ? body.portfolioUrl.trim() : null;
-
-  if (!title || !category || !description || pricePi < 0) {
+  const parsed = z.object({
+    title: z.string().trim().min(1).max(160),
+    category: z.string().trim().min(1).max(80),
+    description: z.string().trim().min(1).max(5000),
+    pricePi: z.coerce.number().int().min(0).max(10_000_000),
+    city: z.string().trim().max(120).nullable().optional(),
+    country: z.string().trim().max(120).nullable().optional(),
+    portfolioUrl: z.string().url().max(2000).nullable().optional(),
+  }).strict().safeParse(req.body);
+  if (!parsed.success) {
     res.status(400).json({ error: "title, category, description, pricePi required" }); return;
   }
+  const { title, category, description, pricePi } = parsed.data;
+  const city = parsed.data.city?.trim() || null;
+  const country = parsed.data.country?.trim() || null;
+  const portfolioUrl = parsed.data.portfolioUrl?.trim() || null;
 
   const [me] = await db.select().from(usersTable).where(eq(usersTable.id, meId));
   if (!me || me.kycStatus !== "verified") {
@@ -126,7 +138,9 @@ router.post("/services/:id/hire", async (req, res): Promise<void> => {
   if (!service) { res.status(404).json({ error: "Not found" }); return; }
   if (service.providerId === meId) { res.status(400).json({ error: "Cannot hire yourself" }); return; }
 
-  await db.update(serviceAppsTable).set({ hiredCount: sql`${serviceAppsTable.hiredCount} + 1` }).where(eq(serviceAppsTable.id, id));
+  await db.transaction(async (tx) => {
+    await tx.update(serviceAppsTable).set({ hiredCount: sql`${serviceAppsTable.hiredCount} + 1` }).where(eq(serviceAppsTable.id, id));
+  });
 
   const [updated] = await db.select().from(serviceAppsTable).where(eq(serviceAppsTable.id, id));
   res.json({ ...updated, createdAt: updated.createdAt.toISOString(), hiredCount: updated.hiredCount });

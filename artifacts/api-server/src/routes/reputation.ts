@@ -2,12 +2,14 @@ import { Router, type IRouter } from "express";
 import { desc, eq } from "drizzle-orm";
 import { db, reputationEventsTable, usersTable } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
+import { getPagination } from "../lib/requestSecurity";
 
 const router: IRouter = Router();
 
 router.get("/users/:id/reputation", async (req, res): Promise<void> => {
   currentUserId(req);
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const { limit, offset } = getPagination(res);
 
   const [user] = await db.select({
     id: usersTable.id,
@@ -23,7 +25,7 @@ router.get("/users/:id/reputation", async (req, res): Promise<void> => {
   const events = await db.select().from(reputationEventsTable)
     .where(eq(reputationEventsTable.userId, id))
     .orderBy(desc(reputationEventsTable.createdAt))
-    .limit(20);
+    .limit(limit).offset(offset);
 
   const breakdown = events.reduce((acc, e) => {
     acc[e.eventType] = (acc[e.eventType] ?? 0) + e.delta;
@@ -39,6 +41,7 @@ router.get("/users/:id/reputation", async (req, res): Promise<void> => {
 });
 
 router.get("/reputation/leaderboard", async (_req, res): Promise<void> => {
+  const { limit, offset } = getPagination(res);
   const top = await db.select({
     id: usersTable.id,
     name: usersTable.name,
@@ -48,7 +51,7 @@ router.get("/reputation/leaderboard", async (_req, res): Promise<void> => {
     kycStatus: usersTable.kycStatus,
   }).from(usersTable)
     .orderBy(desc(usersTable.reputationScore))
-    .limit(20);
+    .limit(limit).offset(offset);
 
   res.json(top.map((u) => ({ ...u, tier: reputationTier(u.reputationScore) })));
 });

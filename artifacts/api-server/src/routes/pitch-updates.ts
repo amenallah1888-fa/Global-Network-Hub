@@ -2,16 +2,18 @@ import { Router, type IRouter } from "express";
 import { desc, eq } from "drizzle-orm";
 import { db, pitchUpdatesTable, pitchesTable } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
+import { getPagination } from "../lib/requestSecurity";
 
 const router: IRouter = Router();
 
 router.get("/pitches/:id/updates", async (req, res): Promise<void> => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const { limit, offset } = getPagination(res);
   const updates = await db
     .select()
     .from(pitchUpdatesTable)
     .where(eq(pitchUpdatesTable.pitchId, id))
-    .orderBy(desc(pitchUpdatesTable.createdAt));
+    .orderBy(desc(pitchUpdatesTable.createdAt)).limit(limit).offset(offset);
   res.json(updates);
 });
 

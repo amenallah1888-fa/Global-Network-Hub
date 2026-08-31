@@ -12,6 +12,7 @@ import {
 } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
 import { createNotification } from "../lib/notify";
+import { getPagination } from "../lib/requestSecurity";
 
 const router: IRouter = Router();
 
@@ -25,7 +26,8 @@ function isAdmin(circle: { founderIds: string[] }, userId: string) {
 
 router.get("/circles", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
-  const all = await db.select().from(circlesTable);
+  const { limit, offset } = getPagination(res);
+  const all = await db.select().from(circlesTable).limit(limit).offset(offset);
   const mine = await db
     .select()
     .from(circleMembersTable)
@@ -195,7 +197,8 @@ router.post("/circles/:id/membership", async (req, res): Promise<void> => {
 
 router.get("/circles/:id/members", async (req, res): Promise<void> => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const members = await db.select().from(circleMembersTable).where(eq(circleMembersTable.circleId, id));
+  const { limit, offset } = getPagination(res);
+  const members = await db.select().from(circleMembersTable).where(eq(circleMembersTable.circleId, id)).limit(limit).offset(offset);
   const userIds = members.map((m) => m.userId);
   if (userIds.length === 0) { res.json([]); return; }
   const users = await db.select().from(usersTable)
@@ -207,12 +210,14 @@ router.get("/circles/:id/members", async (req, res): Promise<void> => {
 router.get("/circles/:id/requests", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const { limit, offset } = getPagination(res);
   const [circle] = await db.select().from(circlesTable).where(eq(circlesTable.id, id));
   if (!circle) { res.status(404).json({ error: "Not found" }); return; }
   if (!isAdmin(circle, meId)) { res.status(403).json({ error: "Not an admin" }); return; }
 
   const requests = await db.select().from(circleJoinRequestsTable)
-    .where(and(eq(circleJoinRequestsTable.circleId, id), eq(circleJoinRequestsTable.status, "pending")));
+    .where(and(eq(circleJoinRequestsTable.circleId, id), eq(circleJoinRequestsTable.status, "pending")))
+    .limit(limit).offset(offset);
   const userIds = requests.map((r) => r.userId);
   if (userIds.length === 0) { res.json([]); return; }
   const users = await db.select().from(usersTable)
@@ -289,9 +294,10 @@ router.delete("/circles/:id/members/:userId", async (req, res): Promise<void> =>
 
 router.get("/circles/:id/announcements", async (req, res): Promise<void> => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const { limit, offset } = getPagination(res);
   const items = await db.select().from(circleAnnouncementsTable)
     .where(eq(circleAnnouncementsTable.circleId, id))
-    .orderBy(desc(circleAnnouncementsTable.createdAt));
+    .orderBy(desc(circleAnnouncementsTable.createdAt)).limit(limit).offset(offset);
   res.json(items);
 });
 
@@ -313,10 +319,11 @@ router.post("/circles/:id/announcements", async (req, res): Promise<void> => {
 
 router.get("/circles/:id/chat", async (req, res): Promise<void> => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const { limit, offset } = getPagination(res);
   const messages = await db.select().from(circleChatMessagesTable)
     .where(eq(circleChatMessagesTable.circleId, id))
     .orderBy(desc(circleChatMessagesTable.createdAt))
-    .limit(50);
+    .limit(limit).offset(offset);
 
   const userIds = [...new Set(messages.map((m) => m.userId))];
   const users = userIds.length > 0
@@ -350,9 +357,10 @@ router.post("/circles/:id/chat", async (req, res): Promise<void> => {
 
 router.get("/circles/:id/events", async (req, res): Promise<void> => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const { limit, offset } = getPagination(res);
   const events = await db.select().from(circleEventsTable)
     .where(eq(circleEventsTable.circleId, id))
-    .orderBy(circleEventsTable.scheduledAt);
+    .orderBy(circleEventsTable.scheduledAt).limit(limit).offset(offset);
   res.json(events);
 });
 

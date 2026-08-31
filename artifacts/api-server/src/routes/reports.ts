@@ -21,16 +21,18 @@ router.post("/pitches/:id/report", async (req, res): Promise<void> => {
     );
 
   if (existing.length === 0) {
-    await db.insert(reportsTable).values({
-      reporterId: meId,
-      targetId: id,
-      targetType: "pitch",
-      reason,
+    await db.transaction(async (tx) => {
+      await tx.insert(reportsTable).values({
+        reporterId: meId,
+        targetId: id,
+        targetType: "pitch",
+        reason,
+      });
+      await tx
+        .update(pitchesTable)
+        .set({ reportsCount: sql`${pitchesTable.reportsCount} + 1` })
+        .where(eq(pitchesTable.id, id));
     });
-    await db
-      .update(pitchesTable)
-      .set({ reportsCount: sql`${pitchesTable.reportsCount} + 1` })
-      .where(eq(pitchesTable.id, id));
   }
 
   res.json({ reported: true });

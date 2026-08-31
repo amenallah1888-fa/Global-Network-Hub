@@ -14,6 +14,8 @@ import { currentUserId } from "../lib/currentUser";
 import { createNotification } from "../lib/notify";
 import { awardXp } from "../lib/xpEngine";
 import { addReputationEvent } from "../lib/reputation";
+import { getPagination } from "../lib/requestSecurity";
+import { z } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
@@ -29,12 +31,17 @@ router.post("/pitches/:id/proposals", async (req, res): Promise<void> => {
   if (!pitch) { res.status(404).json({ error: "Pitch not found" }); return; }
   if (pitch.founderId === meId) { res.status(400).json({ error: "Cannot invest in your own pitch" }); return; }
 
-  const type = req.body?.type === "investment" ? "investment" : "donation";
-  const amountPi = Math.max(1, parseInt(String(req.body?.amountPi ?? "0"), 10));
-  const equityPct = type === "investment" ? Math.max(0, Math.min(100, parseInt(String(req.body?.equityPct ?? "0"), 10))) : 0;
-  const message = String(req.body?.message ?? "").trim().slice(0, 500);
-
-  if (!amountPi || amountPi <= 0) { res.status(400).json({ error: "Amount must be greater than 0" }); return; }
+  const parsed = z.object({
+    type: z.enum(["investment", "donation"]).default("donation"),
+    amountPi: z.coerce.number().int().positive().max(1_000_000_000),
+    equityPct: z.coerce.number().int().min(0).max(100).default(0),
+    message: z.string().trim().max(500).default(""),
+  }).strict().safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid proposal payload", code: "INVALID_REQUEST" }); return; }
+  const type = parsed.data.type;
+  const amountPi = parsed.data.amountPi;
+  const equityPct = type === "investment" ? parsed.data.equityPct : 0;
+  const message = parsed.data.message;
 
   const proposalId = uid("prop");
   await db.insert(proposalsTable).values({
@@ -66,6 +73,7 @@ router.post("/pitches/:id/proposals", async (req, res): Promise<void> => {
 router.get("/pitches/:id/proposals", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   const pitchId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const { limit, offset } = getPagination(res);
 
   const [pitch] = await db.select().from(pitchesTable).where(eq(pitchesTable.id, pitchId));
   if (!pitch) { res.status(404).json({ error: "Not found" }); return; }
@@ -73,7 +81,7 @@ router.get("/pitches/:id/proposals", async (req, res): Promise<void> => {
 
   const proposals = await db.select().from(proposalsTable)
     .where(and(eq(proposalsTable.pitchId, pitchId), eq(proposalsTable.status, "pending")))
-    .orderBy(desc(proposalsTable.createdAt));
+    .orderBy(desc(proposalsTable.createdAt)).limit(limit).offset(offset);
 
   const userIds = [...new Set(proposals.map((p) => p.investorId))];
   const users = userIds.length > 0
@@ -87,9 +95,10 @@ router.get("/pitches/:id/proposals", async (req, res): Promise<void> => {
 
 router.get("/proposals/mine", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
+  const { limit, offset } = getPagination(res);
   const proposals = await db.select().from(proposalsTable)
     .where(eq(proposalsTable.investorId, meId))
-    .orderBy(desc(proposalsTable.createdAt));
+    .orderBy(desc(proposalsTable.createdAt)).limit(limit).offset(offset);
   res.json(proposals);
 });
 
@@ -105,60 +114,49 @@ router.post("/proposals/:id/accept", async (req, res): Promise<void> => {
   if (!pitch) { res.status(404).json({ error: "Pitch not found" }); return; }
   if (pitch.founderId !== meId) { res.status(403).json({ error: "Only the founder can accept offers" }); return; }
 
-  await db.update(proposalsTable)
-    .set({ status: "accepted", respondedAt: new Date() })
-    .where(eq(proposalsTable.id, proposalId));
-
-  await db.update(pitchesTable)
-    .set({ raised: sql`${pitchesTable.raised} + ${proposal.amountPi}` })
-    .where(eq(pitchesTable.id, proposal.pitchId));
-
-  const existing = await db.select().from(pitchBackersTable)
-    .where(and(eq(pitchBackersTable.pitchId, proposal.pitchId), eq(pitchBackersTable.userId, proposal.investorId)));
-  if (existing.length === 0) {
-    await db.insert(pitchBackersTable).values({
-      pitchId: proposal.pitchId,
-      userId: proposal.investorId,
-    });
-    await db.update(pitchesTable)
-      .set({ backersCount: sql`${pitchesTable.backersCount} + 1` })
-      .where(eq(pitchesTable.id, proposal.pitchId));
-  }
-
   const txId = uid("tx");
-  await db.insert(transactionsTable).values({
-    id: txId,
-    fromUserId: proposal.investorId,
-    toUserId: meId,
-    pitchId: proposal.pitchId,
-    amount: proposal.amountPi,
-    type: proposal.type === "investment" ? "investment" : "donation",
-    status: "completed",
-    note: proposal.type === "investment"
-      ? `Investment in "${pitch.title}" for ${proposal.equityPct}% equity`
-      : `Donation to "${pitch.title}"`,
-  });
-
-  const circles = await db.select().from(circlesTable)
-    .where(sql`${proposal.pitchId} = ANY(${circlesTable.founderIds})`);
-
-  const pitchPrivateCircle = circles.find((c) => c.founderIds.includes(pitch.founderId) && c.inviteOnly);
-
-  if (pitchPrivateCircle) {
-    const alreadyMember = await db.select().from(circleMembersTable)
-      .where(and(eq(circleMembersTable.circleId, pitchPrivateCircle.id), eq(circleMembersTable.userId, proposal.investorId)));
-    if (alreadyMember.length === 0) {
-      await db.insert(circleMembersTable).values({
-        circleId: pitchPrivateCircle.id,
-        userId: proposal.investorId,
-        paid: false,
-        role: "member",
-      });
-      await db.update(circlesTable)
-        .set({ membersCount: sql`${circlesTable.membersCount} + 1` })
-        .where(eq(circlesTable.id, pitchPrivateCircle.id));
+  await db.transaction(async (tx) => {
+    await tx.update(proposalsTable)
+      .set({ status: "accepted", respondedAt: new Date() })
+      .where(eq(proposalsTable.id, proposalId));
+    await tx.update(pitchesTable)
+      .set({ raised: sql`${pitchesTable.raised} + ${proposal.amountPi}` })
+      .where(eq(pitchesTable.id, proposal.pitchId));
+    const existing = await tx.select().from(pitchBackersTable)
+      .where(and(eq(pitchBackersTable.pitchId, proposal.pitchId), eq(pitchBackersTable.userId, proposal.investorId)));
+    if (existing.length === 0) {
+      await tx.insert(pitchBackersTable).values({ pitchId: proposal.pitchId, userId: proposal.investorId });
+      await tx.update(pitchesTable)
+        .set({ backersCount: sql`${pitchesTable.backersCount} + 1` })
+        .where(eq(pitchesTable.id, proposal.pitchId));
     }
-  }
+    await tx.insert(transactionsTable).values({
+      id: txId,
+      userId: proposal.investorId,
+      fromUserId: proposal.investorId,
+      toUserId: meId,
+      pitchId: proposal.pitchId,
+      amount: proposal.amountPi,
+      type: proposal.type === "investment" ? "investment" : "donation",
+      status: "completed",
+      note: proposal.type === "investment"
+        ? `Investment in "${pitch.title}" for ${proposal.equityPct}% equity`
+        : `Donation to "${pitch.title}"`,
+    });
+    const circles = await tx.select().from(circlesTable)
+      .where(sql`${proposal.pitchId} = ANY(${circlesTable.founderIds})`);
+    const pitchPrivateCircle = circles.find((c) => c.founderIds.includes(pitch.founderId) && c.inviteOnly);
+    if (pitchPrivateCircle) {
+      const alreadyMember = await tx.select().from(circleMembersTable)
+        .where(and(eq(circleMembersTable.circleId, pitchPrivateCircle.id), eq(circleMembersTable.userId, proposal.investorId)));
+      if (alreadyMember.length === 0) {
+        await tx.insert(circleMembersTable).values({ circleId: pitchPrivateCircle.id, userId: proposal.investorId, paid: false, role: "member" });
+        await tx.update(circlesTable)
+          .set({ membersCount: sql`${circlesTable.membersCount} + 1` })
+          .where(eq(circlesTable.id, pitchPrivateCircle.id));
+      }
+    }
+  });
 
   await createNotification({
     userId: proposal.investorId,

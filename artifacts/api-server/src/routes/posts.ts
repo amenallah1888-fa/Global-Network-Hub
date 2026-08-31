@@ -12,8 +12,13 @@ import {
 } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
 import { createNotification } from "../lib/notify";
+import { getPagination, validateBody, validateParams } from "../lib/requestSecurity";
+import { z } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+const idParams = z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{1,100}$/) });
+const textBody = z.object({ text: z.string().trim().min(1).max(5000) }).strict();
+const amountBody = z.object({ amount: z.coerce.number().int().positive().max(10000) }).strict();
 
 function uid(prefix: string) {
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -39,8 +44,9 @@ async function decoratePosts(meId: string, posts: (typeof postsTable.$inferSelec
 router.get("/posts", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   const feed = (req.query.feed as string | undefined) ?? "foryou";
+  const { limit, offset } = getPagination(res);
 
-  let rows = await db.select().from(postsTable).orderBy(desc(postsTable.createdAt));
+  let rows = await db.select().from(postsTable).orderBy(desc(postsTable.createdAt)).limit(limit).offset(offset);
 
   if (feed === "following") {
     const follows = await db.select().from(followsTable).where(eq(followsTable.followerId, meId));
@@ -57,8 +63,13 @@ router.get("/posts", async (req, res): Promise<void> => {
 
 router.post("/posts", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
-  const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
-  const imageKey = typeof req.body?.imageKey === "string" ? req.body.imageKey : null;
+  const parsed = z.object({
+    text: z.string().trim().min(1).max(5000),
+    imageKey: z.string().max(500).nullable().optional(),
+  }).strict().safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid request payload", code: "INVALID_REQUEST" }); return; }
+  const text = parsed.data.text;
+  const imageKey = parsed.data.imageKey ?? null;
   if (!text) { res.status(400).json({ error: "text required" }); return; }
   const id = uid("p");
   const [post] = await db.insert(postsTable).values({ id, authorId: meId, text, imageKey, category: "general" }).returning();
@@ -68,9 +79,10 @@ router.post("/posts", async (req, res): Promise<void> => {
 
 router.get("/posts/:id/comments", async (req, res): Promise<void> => {
   const postId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const { limit, offset } = getPagination(res);
   const comments = await db.select().from(commentsTable)
     .where(eq(commentsTable.postId, postId))
-    .orderBy(commentsTable.createdAt);
+    .orderBy(commentsTable.createdAt).limit(limit).offset(offset);
 
   const userIds = [...new Set(comments.map((c) => c.authorId))];
   const users = userIds.length > 0
@@ -89,17 +101,21 @@ router.get("/posts/:id/comments", async (req, res): Promise<void> => {
 router.post("/posts/:id/comments", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   const postId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+  const parsed = textBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid request payload", code: "INVALID_REQUEST" }); return; }
+  const text = parsed.data.text;
   if (!text) { res.status(400).json({ error: "text required" }); return; }
 
   const [post] = await db.select().from(postsTable).where(eq(postsTable.id, postId));
   if (!post) { res.status(404).json({ error: "Post not found" }); return; }
 
   const commentId = uid("cmt");
-  await db.insert(commentsTable).values({ id: commentId, postId, authorId: meId, text });
-  await db.update(postsTable)
-    .set({ commentsCount: sql`${postsTable.commentsCount} + 1` })
-    .where(eq(postsTable.id, postId));
+  await db.transaction(async (tx) => {
+    await tx.insert(commentsTable).values({ id: commentId, postId, authorId: meId, text });
+    await tx.update(postsTable)
+      .set({ commentsCount: sql`${postsTable.commentsCount} + 1` })
+      .where(eq(postsTable.id, postId));
+  });
 
   if (post.authorId !== meId) {
     await createNotification({
@@ -123,13 +139,19 @@ router.post("/posts/:id/like", async (req, res): Promise<void> => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   if (!id) { res.status(400).json({ error: "id required" }); return; }
 
-  const existing = await db.select().from(likesTable).where(and(eq(likesTable.postId, id), eq(likesTable.userId, meId)));
-  if (existing.length > 0) {
-    await db.delete(likesTable).where(and(eq(likesTable.postId, id), eq(likesTable.userId, meId)));
-    await db.update(postsTable).set({ likesCount: sql`GREATEST(${postsTable.likesCount} - 1, 0)` }).where(eq(postsTable.id, id));
-  } else {
-    await db.insert(likesTable).values({ postId: id, userId: meId });
-    await db.update(postsTable).set({ likesCount: sql`${postsTable.likesCount} + 1` }).where(eq(postsTable.id, id));
+  let didLike = false;
+  await db.transaction(async (tx) => {
+    const existing = await tx.select().from(likesTable).where(and(eq(likesTable.postId, id), eq(likesTable.userId, meId)));
+    if (existing.length > 0) {
+      await tx.delete(likesTable).where(and(eq(likesTable.postId, id), eq(likesTable.userId, meId)));
+      await tx.update(postsTable).set({ likesCount: sql`GREATEST(${postsTable.likesCount} - 1, 0)` }).where(eq(postsTable.id, id));
+    } else {
+      didLike = true;
+      await tx.insert(likesTable).values({ postId: id, userId: meId });
+      await tx.update(postsTable).set({ likesCount: sql`${postsTable.likesCount} + 1` }).where(eq(postsTable.id, id));
+    }
+  });
+  if (didLike) {
     const [post] = await db.select().from(postsTable).where(eq(postsTable.id, id));
     if (post) {
       await createNotification({ userId: post.authorId, type: "like", actorId: meId, postId: id, message: "liked your post" });
@@ -147,13 +169,19 @@ router.post("/posts/:id/retweet", async (req, res): Promise<void> => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   if (!id) { res.status(400).json({ error: "id required" }); return; }
 
-  const existing = await db.select().from(retweetsTable).where(and(eq(retweetsTable.postId, id), eq(retweetsTable.userId, meId)));
-  if (existing.length > 0) {
-    await db.delete(retweetsTable).where(and(eq(retweetsTable.postId, id), eq(retweetsTable.userId, meId)));
-    await db.update(postsTable).set({ retweetsCount: sql`GREATEST(${postsTable.retweetsCount} - 1, 0)` }).where(eq(postsTable.id, id));
-  } else {
-    await db.insert(retweetsTable).values({ postId: id, userId: meId });
-    await db.update(postsTable).set({ retweetsCount: sql`${postsTable.retweetsCount} + 1` }).where(eq(postsTable.id, id));
+  let didRetweet = false;
+  await db.transaction(async (tx) => {
+    const existing = await tx.select().from(retweetsTable).where(and(eq(retweetsTable.postId, id), eq(retweetsTable.userId, meId)));
+    if (existing.length > 0) {
+      await tx.delete(retweetsTable).where(and(eq(retweetsTable.postId, id), eq(retweetsTable.userId, meId)));
+      await tx.update(postsTable).set({ retweetsCount: sql`GREATEST(${postsTable.retweetsCount} - 1, 0)` }).where(eq(postsTable.id, id));
+    } else {
+      didRetweet = true;
+      await tx.insert(retweetsTable).values({ postId: id, userId: meId });
+      await tx.update(postsTable).set({ retweetsCount: sql`${postsTable.retweetsCount} + 1` }).where(eq(postsTable.id, id));
+    }
+  });
+  if (didRetweet) {
     const [post] = await db.select().from(postsTable).where(eq(postsTable.id, id));
     if (post) {
       await createNotification({ userId: post.authorId, type: "retweet", actorId: meId, postId: id, message: "reposted your post" });
@@ -169,7 +197,9 @@ router.post("/posts/:id/retweet", async (req, res): Promise<void> => {
 router.post("/posts/:id/tip", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const amount = parseInt(String(req.body?.amount ?? ""), 10);
+  const parsed = amountBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid request payload", code: "INVALID_REQUEST" }); return; }
+  const amount = parsed.data.amount;
   if (!id || !Number.isFinite(amount) || amount <= 0 || amount > 10000) {
     res.status(400).json({ error: "invalid id or amount" }); return;
   }
@@ -177,8 +207,10 @@ router.post("/posts/:id/tip", async (req, res): Promise<void> => {
   const [post] = await db.select().from(postsTable).where(eq(postsTable.id, id));
   if (!post) { res.status(404).json({ error: "Not found" }); return; }
 
-  await db.insert(tipsTable).values({ postId: id, fromUserId: meId, toUserId: post.authorId, amount });
-  await db.update(postsTable).set({ tipsTotal: sql`${postsTable.tipsTotal} + ${amount}` }).where(eq(postsTable.id, id));
+  await db.transaction(async (tx) => {
+    await tx.insert(tipsTable).values({ postId: id, fromUserId: meId, toUserId: post.authorId, amount });
+    await tx.update(postsTable).set({ tipsTotal: sql`${postsTable.tipsTotal} + ${amount}` }).where(eq(postsTable.id, id));
+  });
   await createNotification({ userId: post.authorId, type: "tip", actorId: meId, postId: id, amount, message: `tipped you ${amount} π` });
 
   const [updated] = await db.select().from(postsTable).where(eq(postsTable.id, id));

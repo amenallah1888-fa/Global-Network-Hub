@@ -3,6 +3,8 @@ import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { db, messagesTable, usersTable } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
 import { createNotification } from "../lib/notify";
+import { getPagination } from "../lib/requestSecurity";
+import { z } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
@@ -12,6 +14,7 @@ function serializeMessage(m: typeof messagesTable.$inferSelect) {
 
 router.get("/conversations", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
+  const { limit, offset } = getPagination(res);
 
   const rows = await db
     .select()
@@ -19,7 +22,9 @@ router.get("/conversations", async (req, res): Promise<void> => {
     .where(
       or(eq(messagesTable.fromUserId, meId), eq(messagesTable.toUserId, meId)),
     )
-    .orderBy(desc(messagesTable.createdAt));
+    .orderBy(desc(messagesTable.createdAt))
+    .limit(Math.min(500, Math.max(limit * 10, limit)))
+    .offset(offset);
 
   const byPeer = new Map<
     string,
@@ -78,6 +83,7 @@ router.get("/conversations", async (req, res): Promise<void> => {
 router.get("/conversations/:userId/messages", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   const peerId = req.params.userId;
+  const { limit, offset } = getPagination(res);
 
   const peer = await db
     .select()
@@ -104,7 +110,9 @@ router.get("/conversations/:userId/messages", async (req, res): Promise<void> =>
         ),
       ),
     )
-    .orderBy(messagesTable.createdAt);
+    .orderBy(desc(messagesTable.createdAt))
+    .limit(limit)
+    .offset(offset);
 
   // Mark inbound messages as read
   await db
@@ -118,7 +126,7 @@ router.get("/conversations/:userId/messages", async (req, res): Promise<void> =>
       ),
     );
 
-  res.json(rows.map(serializeMessage));
+  res.json(rows.reverse().map(serializeMessage));
 });
 
 router.post(
@@ -126,12 +134,12 @@ router.post(
   async (req, res): Promise<void> => {
     const meId = currentUserId(req);
     const peerId = req.params.userId;
-    const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
-
-    if (!text) {
+    const parsed = z.object({ text: z.string().trim().min(1).max(5000) }).strict().safeParse(req.body);
+    if (!parsed.success) {
       res.status(400).json({ error: "text required" });
       return;
     }
+    const text = parsed.data.text;
     if (peerId === meId) {
       res.status(400).json({ error: "cannot message yourself" });
       return;
@@ -147,14 +155,16 @@ router.post(
       return;
     }
 
-    const [msg] = await db
-      .insert(messagesTable)
-      .values({
-        fromUserId: meId,
-        toUserId: peerId,
-        text,
-      })
-      .returning();
+    const [msg] = await db.transaction(async (tx) =>
+      tx.insert(messagesTable)
+        .values({
+          id: `msg_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+          fromUserId: meId,
+          toUserId: peerId,
+          text,
+        })
+        .returning(),
+    );
 
     const me = await db
       .select()

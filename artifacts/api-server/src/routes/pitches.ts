@@ -15,6 +15,8 @@ import {
 import { currentUserId } from "../lib/currentUser";
 import { createNotification } from "../lib/notify";
 import { awardXp } from "../lib/xpEngine";
+import { getPagination } from "../lib/requestSecurity";
+import { z } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
@@ -60,7 +62,8 @@ router.get("/validator/random-pitch", async (req, res): Promise<void> => {
   }
   const candidates = await db.select().from(pitchesTable)
     .where(sql`${pitchesTable.founderId} != ${meId} AND ${pitchesTable.trustScore} < 100`)
-    .orderBy(desc(pitchesTable.createdAt));
+    .orderBy(desc(pitchesTable.createdAt))
+    .limit(20);
   const eligible = candidates.filter(p => {
     const approvals = parseValidatorApprovals(p.validatorApprovals);
     const votedBlocks = Object.keys(approvals).length;
@@ -75,14 +78,15 @@ router.get("/pitches", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   const sort = String(req.query.sort ?? "trending");
   const category = typeof req.query.category === "string" && req.query.category.length > 0 ? req.query.category : null;
+  const { limit, offset } = getPagination(res);
 
   let all: typeof pitchesTable.$inferSelect[];
   if (sort === "trustScore") {
-    all = await db.select().from(pitchesTable).orderBy(desc(pitchesTable.trustScore), desc(pitchesTable.createdAt));
+    all = await db.select().from(pitchesTable).orderBy(desc(pitchesTable.trustScore), desc(pitchesTable.createdAt)).limit(limit).offset(offset);
   } else if (sort === "newest") {
-    all = await db.select().from(pitchesTable).orderBy(desc(pitchesTable.createdAt));
+    all = await db.select().from(pitchesTable).orderBy(desc(pitchesTable.createdAt)).limit(limit).offset(offset);
   } else {
-    all = await db.select().from(pitchesTable).orderBy(desc(pitchesTable.trending), desc(pitchesTable.createdAt));
+    all = await db.select().from(pitchesTable).orderBy(desc(pitchesTable.trending), desc(pitchesTable.createdAt)).limit(limit).offset(offset);
   }
 
   if (category) all = all.filter(p => p.industry === category);
@@ -99,45 +103,59 @@ router.post("/pitches", async (req, res): Promise<void> => {
     res.status(403).json({ error: "KYC verification required to post a Pitch. Complete identity verification first.", code: "KYC_REQUIRED" }); return;
   }
 
-  const body = req.body ?? {};
-  const title = String(body.title ?? "").trim();
-  const summary = String(body.summary ?? "").trim();
-  const raising = parseInt(String(body.raising ?? "0"), 10);
-  const stage = String(body.stage ?? "").trim();
-  const industry = String(body.industry ?? "").trim();
-  const city = String(body.city ?? "").trim();
-  const coverKey = typeof body.coverKey === "string" && body.coverKey.length > 0 ? body.coverKey : null;
-  const x = typeof body.x === "number" && Number.isFinite(body.x) ? body.x : null;
-  const y = typeof body.y === "number" && Number.isFinite(body.y) ? body.y : null;
-  const entityType = body.entityType === "service_app" ? "service_app" : "startup";
-  const serviceCategory = typeof body.serviceCategory === "string" && body.serviceCategory.length > 0 ? body.serviceCategory : null;
-  const roadmapUrl = typeof body.roadmapUrl === "string" && body.roadmapUrl.length > 0 ? body.roadmapUrl : null;
-  const founderLinkedin = typeof body.founderLinkedin === "string" && body.founderLinkedin.length > 0 ? body.founderLinkedin : null;
-  const proofOfRealityUrl = typeof body.proofOfRealityUrl === "string" && body.proofOfRealityUrl.length > 0 ? body.proofOfRealityUrl : null;
-  const portfolioUrl = typeof body.portfolioUrl === "string" && body.portfolioUrl.length > 0 ? body.portfolioUrl : null;
-  const experienceDescription = typeof body.experienceDescription === "string" && body.experienceDescription.length > 0 ? body.experienceDescription : null;
-  const requirementsRaw = Array.isArray(body.requirements) ? JSON.stringify(body.requirements) : null;
-
-  if (!title || !summary || !stage || !industry || !city || !Number.isFinite(raising) || raising <= 0) {
+  const parsed = z.object({
+    title: z.string().trim().min(1).max(160),
+    summary: z.string().trim().min(1).max(5000),
+    raising: z.coerce.number().int().positive().max(1_000_000_000),
+    stage: z.string().trim().min(1).max(80),
+    industry: z.string().trim().min(1).max(80),
+    city: z.string().trim().min(1).max(120),
+    coverKey: z.string().max(500).nullable().optional(),
+    x: z.number().finite().min(0).max(1).nullable().optional(),
+    y: z.number().finite().min(0).max(1).nullable().optional(),
+    entityType: z.enum(["startup", "service_app"]).optional(),
+    serviceCategory: z.string().max(120).nullable().optional(),
+    roadmapUrl: z.string().url().max(2000).nullable().optional(),
+    founderLinkedin: z.string().url().max(2000).nullable().optional(),
+    proofOfRealityUrl: z.string().url().max(2000).nullable().optional(),
+    portfolioUrl: z.string().url().max(2000).nullable().optional(),
+    experienceDescription: z.string().max(5000).nullable().optional(),
+    requirements: z.array(z.record(z.string(), z.unknown())).max(20).optional(),
+  }).strict().safeParse(req.body);
+  if (!parsed.success) {
     res.status(400).json({ error: "Missing or invalid fields" }); return;
   }
+  const body = parsed.data;
+  const { title, summary, raising, stage, industry, city } = body;
+  const coverKey = body.coverKey ?? null;
+  const x = body.x ?? null;
+  const y = body.y ?? null;
+  const entityType = body.entityType ?? "startup";
+  const serviceCategory = body.serviceCategory ?? null;
+  const roadmapUrl = body.roadmapUrl ?? null;
+  const founderLinkedin = body.founderLinkedin ?? null;
+  const proofOfRealityUrl = body.proofOfRealityUrl ?? null;
+  const portfolioUrl = body.portfolioUrl ?? null;
+  const experienceDescription = body.experienceDescription ?? null;
+  const requirementsRaw = body.requirements ? JSON.stringify(body.requirements) : null;
 
   const id = uid("pi");
   const founderCollateral = Math.floor(raising * 0.1);
-  await db.insert(pitchesTable).values({
-    id, founderId: meId, title, stage, industry, raising, raised: 0, city, summary,
-    coverKey, backersCount: 0, trending: false, entityType, serviceCategory,
-    roadmapUrl, founderLinkedin, proofOfRealityUrl, portfolioUrl, experienceDescription,
-    requirements: requirementsRaw, founderCollateral,
-  });
-
   const markerType = entityType === "service_app" ? "service"
     : ["biotech", "climate", "robotics", "ai", "deeptech"].includes(industry.toLowerCase()) ? "project" : "business";
 
-  await db.insert(markersTable).values({
-    id: `m_${id}`, type: markerType, label: title, city, x: x ?? 0.5, y: y ?? 0.5,
-    meta: entityType === "service_app" ? `${serviceCategory ?? "Service"} · ${city}` : `${stage} · ${industry}`,
-    refId: id,
+  await db.transaction(async (tx) => {
+    await tx.insert(pitchesTable).values({
+      id, founderId: meId, title, stage, industry, raising, raised: 0, city, summary,
+      coverKey, backersCount: 0, trending: false, entityType, serviceCategory,
+      roadmapUrl, founderLinkedin, proofOfRealityUrl, portfolioUrl, experienceDescription,
+      requirements: requirementsRaw, founderCollateral,
+    });
+    await tx.insert(markersTable).values({
+      id: `m_${id}`, type: markerType, label: title, city, x: x ?? 0.5, y: y ?? 0.5,
+      meta: entityType === "service_app" ? `${serviceCategory ?? "Service"} · ${city}` : `${stage} · ${industry}`,
+      refId: id,
+    });
   });
 
   const [created] = await db.select().from(pitchesTable).where(eq(pitchesTable.id, id));
@@ -224,18 +242,26 @@ router.patch("/pitches/:id/proof-links", async (req, res): Promise<void> => {
 router.post("/pitches/:id/back", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const amount = parseInt(String(req.body?.amount ?? "0"), 10);
-  if (!id || !Number.isFinite(amount) || amount < 0) { res.status(400).json({ error: "Invalid input" }); return; }
+  const parsed = z.object({ amount: z.coerce.number().int().min(0).max(1_000_000_000) }).strict().safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid input", code: "INVALID_REQUEST" }); return; }
+  const amount = parsed.data.amount;
+  if (!id) { res.status(400).json({ error: "Invalid input" }); return; }
 
   const [pitch] = await db.select().from(pitchesTable).where(eq(pitchesTable.id, id));
   if (!pitch) { res.status(404).json({ error: "Not found" }); return; }
 
-  const existing = await db.select().from(pitchBackersTable).where(and(eq(pitchBackersTable.pitchId, id), eq(pitchBackersTable.userId, meId)));
-  if (existing.length === 0) {
-    await db.insert(pitchBackersTable).values({ pitchId: id, userId: meId });
-    await db.update(pitchesTable).set({ backersCount: sql`${pitchesTable.backersCount} + 1`, raised: sql`${pitchesTable.raised} + ${amount}` }).where(eq(pitchesTable.id, id));
-    const txId = uid("tx");
-    await db.insert(transactionsTable).values({ id: txId, userId: meId, pitchId: id, amount, type: pitch.entityType === "service_app" ? "hire" : "invest" });
+  let backed = false;
+  await db.transaction(async (tx) => {
+    const existing = await tx.select().from(pitchBackersTable).where(and(eq(pitchBackersTable.pitchId, id), eq(pitchBackersTable.userId, meId)));
+    if (existing.length === 0) {
+      backed = true;
+      await tx.insert(pitchBackersTable).values({ pitchId: id, userId: meId });
+      await tx.update(pitchesTable).set({ backersCount: sql`${pitchesTable.backersCount} + 1`, raised: sql`${pitchesTable.raised} + ${amount}` }).where(eq(pitchesTable.id, id));
+      const txId = uid("tx");
+      await tx.insert(transactionsTable).values({ id: txId, userId: meId, pitchId: id, amount, type: pitch.entityType === "service_app" ? "hire" : "invest" });
+    }
+  });
+  if (backed) {
     await createNotification({
       userId: pitch.founderId, type: "pitch_backed", actorId: meId, pitchId: id, amount,
       message: amount > 0 ? `expressed interest in ${pitch.title} (${amount.toLocaleString()} π)` : `expressed interest in ${pitch.title}`,
