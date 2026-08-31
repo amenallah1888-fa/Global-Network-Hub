@@ -493,7 +493,7 @@ export default function CircleDashboard() {
             <View key={a.id} style={[styles.annoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.annoHeader}>
                 <View style={[styles.annoPinIcon, { backgroundColor: colors.primary + "20" }]}>
-                  <Feather name="pin" size={12} color={colors.primary} />
+                  <Feather name="map-pin" size={12} color={colors.primary} />
                 </View>
                 <Text style={[styles.annoMeta, { color: colors.mutedForeground }]}>{formatDate(a.createdAt)}</Text>
               </View>

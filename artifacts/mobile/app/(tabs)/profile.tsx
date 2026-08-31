@@ -44,6 +44,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
   const { token, clearSession } = useAuth();
   const { devMode } = useDevMode();
   const me = useCurrentUser();
+  const role = (me as typeof me & { role?: string }).role;
   const qc = useQueryClient();
 
   const [tab, setTab] = useState<"profile" | "account">("profile");
@@ -256,10 +257,10 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
               <SectionLabel label="ACCOUNT & IDENTITY" colors={colors} />
               <View style={[sm.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={[sm.roleRow, { borderTopColor: colors.border }]}>
-                  <View style={[sm.roleBadge, { backgroundColor: me.role === "validator" ? colors.primary + "20" : me.role === "admin" ? "#EF444420" : colors.cardElevated, borderColor: me.role === "validator" ? colors.primary : me.role === "admin" ? "#EF4444" : colors.border }]}>
-                    <Feather name={me.role === "admin" ? "shield" : me.role === "validator" ? "check-circle" : "user"} size={13} color={me.role === "admin" ? "#EF4444" : me.role === "validator" ? colors.primary : colors.mutedForeground} />
-                    <Text style={[sm.roleText, { color: me.role === "admin" ? "#EF4444" : me.role === "validator" ? colors.primary : colors.mutedForeground }]}>
-                      {me.role === "admin" ? "Admin" : me.role === "validator" ? "Validator" : "Member"}
+                  <View style={[sm.roleBadge, { backgroundColor: role === "validator" ? colors.primary + "20" : role === "admin" ? "#EF444420" : colors.cardElevated, borderColor: role === "validator" ? colors.primary : role === "admin" ? "#EF4444" : colors.border }]}>
+                    <Feather name={role === "admin" ? "shield" : role === "validator" ? "check-circle" : "user"} size={13} color={role === "admin" ? "#EF4444" : role === "validator" ? colors.primary : colors.mutedForeground} />
+                    <Text style={[sm.roleText, { color: role === "admin" ? "#EF4444" : role === "validator" ? colors.primary : colors.mutedForeground }]}>
+                      {role === "admin" ? "Admin" : role === "validator" ? "Validator" : "Member"}
                     </Text>
                   </View>
                   {me.verified && (
@@ -424,7 +425,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                 </View>
                 {/* Validator Portal row */}
                 {(() => {
-                  const isValidator = me.role === "validator" || me.role === "admin";
+                  const isValidator = role === "validator" || role === "admin";
                   const repScore = (me as any).reputationScore ?? 0;
                   const meetsRep = repScore >= 85;
                   const isLocked = !isValidator && !meetsRep && !devMode;
@@ -871,6 +872,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const me = useCurrentUser();
+  const role = (me as typeof me & { role?: string }).role;
   const { devMode } = useDevMode();
   const currentUserId = useCurrentUserId();
   const { data: users } = useListUsers();
@@ -1030,7 +1032,7 @@ export default function ProfileScreen() {
             color="#8B5CF6"
             onPress={() => {
               const rep = (me as any).reputationScore ?? 0;
-              const isVal = me.role === "validator" || me.role === "admin";
+              const isVal = role === "validator" || role === "admin";
               if (isVal || rep >= 85 || devMode) {
                 router.push("/admin");
               } else {

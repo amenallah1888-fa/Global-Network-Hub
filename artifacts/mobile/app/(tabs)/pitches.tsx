@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { useListPitches } from "@workspace/api-client-react";
+import { useListPitches, type Pitch } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import {
@@ -567,7 +567,7 @@ export default function PitchesScreen() {
       return true;
     });
     if (sortOrder === "trustScore") return [...filtered].sort((a, b) => ((b as any).trustScore ?? 0) - ((a as any).trustScore ?? 0));
-    if (sortOrder === "newest") return [...filtered].sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+    if (sortOrder === "newest") return [...filtered].sort((a, b) => new Date((b as Pitch & { createdAt?: string }).createdAt ?? 0).getTime() - new Date((a as Pitch & { createdAt?: string }).createdAt ?? 0).getTime());
     return filtered;
   }, [list, stage, filters, sortOrder]);
 

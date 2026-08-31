@@ -2,7 +2,7 @@ import React, { createContext, useContext, useMemo, useState } from "react";
 
 type Ctx = {
   composeText: string;
-  setComposeText: (s: string) => void;
+  setComposeText: React.Dispatch<React.SetStateAction<string>>;
 };
 
 const AppContext = createContext<Ctx | null>(null);

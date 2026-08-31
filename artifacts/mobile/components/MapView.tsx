@@ -23,17 +23,20 @@ type Props = {
   filter: Marker["type"] | "all";
   selected: Marker | null;
   onSelect: (m: Marker) => void;
+  cityFilter?: string | null;
 };
 
-export function AtlasMap({ filter, selected, onSelect }: Props) {
+export function AtlasMap({ filter, selected, onSelect, cityFilter }: Props) {
   const colors = useColors();
   const { data: markers } = useListMarkers({
     query: { staleTime: 60_000 } as any,
   });
 
-  const visible = (markers ?? []).filter(
-    (m) => filter === "all" || m.type === filter,
-  );
+  const visible = (markers ?? []).filter((m) => {
+    const matchesType = filter === "all" || m.type === filter;
+    const matchesCity = !cityFilter || m.city?.toLowerCase() === cityFilter.toLowerCase();
+    return matchesType && matchesCity;
+  });
 
   const onPick = (m: Marker) => {
     if (Platform.OS !== "web") Haptics.selectionAsync();

@@ -102,7 +102,7 @@ export function CircleCard({ circle }: { circle: Circle }) {
                 <Text style={[styles.metaText, { color: colors.tip }]}>π {circle.price}/month — invite-only</Text>
               </View>
             )}
-            {!circle.paid && circle.inviteOnly && (
+            {!circle.paid && (circle as Circle & { inviteOnly?: boolean }).inviteOnly && (
               <View style={styles.metaRow}>
                 <Feather name="lock" size={12} color={colors.mutedForeground} />
                 <Text style={[styles.metaText, { color: colors.mutedForeground }]}>Invite only</Text>

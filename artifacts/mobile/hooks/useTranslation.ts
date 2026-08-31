@@ -1,4 +1,3 @@
-import { getLocales } from "expo-localization";
 import en from "../i18n/en.json";
 import es from "../i18n/es.json";
 import fr from "../i18n/fr.json";
@@ -10,8 +9,10 @@ const TRANSLATIONS: Record<string, TranslationDict> = { en, es, fr, zh };
 
 function detectLocale(): string {
   try {
-    const locales = getLocales();
-    const lang = locales[0]?.languageCode ?? "en";
+    const locale = typeof Intl !== "undefined"
+      ? Intl.DateTimeFormat().resolvedOptions().locale
+      : "en";
+    const lang = locale.split("-")[0] || "en";
     return TRANSLATIONS[lang] ? lang : "en";
   } catch {
     return "en";
