@@ -73,6 +73,10 @@ router.patch("/milestones/:id", async (req, res): Promise<void> => {
 
   const [pitch] = await db.select().from(pitchesTable).where(eq(pitchesTable.id, milestone.pitchId));
   if (!pitch) { res.status(404).json({ error: "Pitch not found" }); return; }
+  if (pitch.founderId !== meId && req.user?.role !== "admin") {
+    res.status(403).json({ error: "Only the project owner or an admin can update milestones" });
+    return;
+  }
 
   const allowed = ["locked", "pending_proof", "released"];
   const newStatus = String(body.status ?? "").trim();

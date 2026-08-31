@@ -201,7 +201,13 @@ router.get("/circles/:id/members", async (req, res): Promise<void> => {
   const members = await db.select().from(circleMembersTable).where(eq(circleMembersTable.circleId, id)).limit(limit).offset(offset);
   const userIds = members.map((m) => m.userId);
   if (userIds.length === 0) { res.json([]); return; }
-  const users = await db.select().from(usersTable)
+  const users = await db.select({
+    id: usersTable.id,
+    handle: usersTable.handle,
+    name: usersTable.name,
+    avatarKey: usersTable.avatarKey,
+    verified: usersTable.verified,
+  }).from(usersTable)
     .where(sql`${usersTable.id} = ANY(ARRAY[${sql.join(userIds.map((uid2) => sql`${uid2}`), sql`, `)}])`);
   const userMap = new Map(users.map((u) => [u.id, u]));
   res.json(members.map((m) => ({ ...m, user: userMap.get(m.userId) ?? null })));
@@ -220,7 +226,13 @@ router.get("/circles/:id/requests", async (req, res): Promise<void> => {
     .limit(limit).offset(offset);
   const userIds = requests.map((r) => r.userId);
   if (userIds.length === 0) { res.json([]); return; }
-  const users = await db.select().from(usersTable)
+  const users = await db.select({
+    id: usersTable.id,
+    handle: usersTable.handle,
+    name: usersTable.name,
+    avatarKey: usersTable.avatarKey,
+    verified: usersTable.verified,
+  }).from(usersTable)
     .where(sql`${usersTable.id} = ANY(ARRAY[${sql.join(userIds.map((uid2) => sql`${uid2}`), sql`, `)}])`);
   const userMap = new Map(users.map((u) => [u.id, u]));
   res.json(requests.map((r) => ({ ...r, user: userMap.get(r.userId) ?? null })));

@@ -7,6 +7,7 @@ import { runAmlCheck } from "../lib/amlCheck";
 import { createNotification } from "../lib/notify";
 import { getPagination } from "../lib/requestSecurity";
 import { z } from "@workspace/api-zod";
+import { requireRole } from "../middlewares/authMiddleware";
 
 const router: IRouter = Router();
 
@@ -151,8 +152,7 @@ router.post("/smart-agreements/:id/documents", async (req, res): Promise<void> =
   res.status(201).json(doc);
 });
 
-router.patch("/project-documents/:id", async (req, res): Promise<void> => {
-  currentUserId(req);
+router.patch("/project-documents/:id", requireRole(["validator", "admin"]), async (req, res): Promise<void> => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const status = req.body?.status === "APPROVED" ? "APPROVED" : "REJECTED";
   const reviewNote = typeof req.body?.reviewNote === "string" ? req.body.reviewNote.trim() : null;
@@ -162,8 +162,7 @@ router.patch("/project-documents/:id", async (req, res): Promise<void> => {
   res.json(doc);
 });
 
-router.get("/admin/pending", async (req, res): Promise<void> => {
-  currentUserId(req);
+router.get("/admin/pending", requireRole(["validator", "admin"]), async (req, res): Promise<void> => {
   const { limit, offset } = getPagination(res);
   const [pendingDocs, pendingPitches] = await Promise.all([
     db.select().from(projectDocumentsTable).where(eq(projectDocumentsTable.status, "PENDING")).orderBy(desc(projectDocumentsTable.uploadedAt)).limit(limit).offset(offset),

@@ -11,6 +11,7 @@ import {
 import { currentUserId } from "../lib/currentUser";
 import { createNotification } from "../lib/notify";
 import { getPagination } from "../lib/requestSecurity";
+import { currentUserView, publicUser } from "../lib/userView";
 
 const router: IRouter = Router();
 
@@ -18,7 +19,7 @@ router.get("/me", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   const [u] = await db.select().from(usersTable).where(eq(usersTable.id, meId));
   if (!u) { res.status(404).json({ error: "User not found" }); return; }
-  res.json({ ...u, following: false });
+  res.json({ ...currentUserView(u), following: false });
 });
 
 router.patch("/me", async (req, res): Promise<void> => {
@@ -43,7 +44,7 @@ router.patch("/me", async (req, res): Promise<void> => {
 
   await db.update(usersTable).set(updates).where(eq(usersTable.id, meId));
   const [u] = await db.select().from(usersTable).where(eq(usersTable.id, meId));
-  res.json({ ...u, following: false });
+  res.json({ ...currentUserView(u), following: false });
 });
 
 router.delete("/me", async (req, res): Promise<void> => {
@@ -58,7 +59,9 @@ router.get("/users", async (req, res): Promise<void> => {
   const all = await db.select().from(usersTable).limit(limit).offset(offset);
   const myFollows = await db.select().from(followsTable).where(eq(followsTable.followerId, meId));
   const set = new Set(myFollows.map((f) => f.followingId));
-  res.json(all.map((u) => ({ ...u, following: set.has(u.id) })));
+  res.json(all
+    .filter((u) => u.isProfilePublic || u.id === meId)
+    .map((u) => ({ ...publicUser(u), following: set.has(u.id) })));
 });
 
 router.get("/users/:id", async (req, res): Promise<void> => {
@@ -68,6 +71,9 @@ router.get("/users/:id", async (req, res): Promise<void> => {
 
   const [u] = await db.select().from(usersTable).where(eq(usersTable.id, targetId));
   if (!u) { res.status(404).json({ error: "Not found" }); return; }
+  if (!u.isProfilePublic && targetId !== meId && req.user?.role !== "admin") {
+    res.status(404).json({ error: "Not found" }); return;
+  }
 
   const [follow] = await db.select().from(followsTable).where(
     and(eq(followsTable.followerId, meId), eq(followsTable.followingId, targetId)),
@@ -83,7 +89,7 @@ router.get("/users/:id", async (req, res): Promise<void> => {
     .where(eq(circleMembersTable.userId, targetId));
 
   res.json({
-    ...u,
+    ...publicUser(u),
     following: !!follow,
     pitches: pitches.map((p) => ({ ...p, coverKey: p.coverKey ?? null, backed: false })),
     circles: memberships.map((m) => ({ ...m.circle, coverKey: m.circle.coverKey ?? null, joined: false })),

@@ -67,7 +67,7 @@ router.post("/smart-agreements/:id/dispute", async (req, res): Promise<void> => 
 });
 
 router.post("/disputes/:id/resolve", async (req, res): Promise<void> => {
-  currentUserId(req);
+  const meId = currentUserId(req);
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
   const [dispute] = await db.select().from(disputesTable).where(eq(disputesTable.id, id));
@@ -76,6 +76,14 @@ router.post("/disputes/:id/resolve", async (req, res): Promise<void> => {
 
   const [agreement] = await db.select().from(smartAgreementsTable).where(eq(smartAgreementsTable.id, dispute.agreementId));
   if (!agreement) { res.status(404).json({ error: "Agreement not found" }); return; }
+  if (
+    agreement.senderId !== meId &&
+    agreement.receiverId !== meId &&
+    req.user?.role !== "admin"
+  ) {
+    res.status(403).json({ error: "Only agreement parties or an admin can resolve this dispute" });
+    return;
+  }
 
   const now = new Date();
   const timelockExpired = dispute.timelockExpiresAt && now > dispute.timelockExpiresAt;

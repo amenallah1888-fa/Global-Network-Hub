@@ -1,11 +1,22 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { db, usersTable } from "@workspace/db";
-import { signToken } from "../lib/auth";
+import {
+  createSession,
+  revokeSession,
+  SESSION_COOKIE,
+  sessionCookieOptions,
+} from "../lib/auth";
 import { currentUserId } from "../lib/currentUser";
+import { requireAuth, requireRole } from "../middlewares/authMiddleware";
+import { publicUser } from "../lib/userView";
 
 const router: IRouter = Router();
+
+function setSessionCookie(res: Response, token: string) {
+  res.cookie(SESSION_COOKIE, token, sessionCookieOptions);
+}
 
 router.post("/auth/register", async (req, res): Promise<void> => {
   const { handle, name, password } = req.body ?? {};
@@ -37,8 +48,9 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     .values({ id, handle, name: String(name).trim().slice(0, 60), passwordHash, avatarKey, reputationScore: 50 })
     .returning();
 
-  const token = signToken(user.id);
-  res.status(201).json({ token, user: { ...user, following: false } });
+  const token = await createSession(user.id);
+  setSessionCookie(res, token);
+  res.status(201).json({ token, user: { ...publicUser(user), following: false } });
 });
 
 router.post("/auth/login", async (req, res): Promise<void> => {
@@ -64,8 +76,9 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
 
-  const token = signToken(user.id);
-  res.json({ token, user: { ...user, following: false } });
+  const token = await createSession(user.id);
+  setSessionCookie(res, token);
+  res.json({ token, user: { ...publicUser(user), following: false } });
 });
 
 router.post("/auth/pi", async (req, res): Promise<void> => {
@@ -117,22 +130,38 @@ router.post("/auth/pi", async (req, res): Promise<void> => {
       .returning();
   }
 
-  const token = signToken(user.id);
-  res.json({ token, user: { ...user, following: false } });
+  const token = await createSession(user.id);
+  setSessionCookie(res, token);
+  res.json({ token, user: { ...publicUser(user), following: false } });
 });
 
-router.patch("/auth/promote-validator", async (req, res): Promise<void> => {
+async function logout(req: Request, res: Response): Promise<void> {
+  const cookieToken = req.cookies?.[SESSION_COOKIE];
+  const header = req.headers.authorization;
+  const bearerToken = header?.startsWith("Bearer ") ? header.slice(7).trim() : undefined;
+  await Promise.all([
+    revokeSession(typeof cookieToken === "string" ? cookieToken : undefined),
+    revokeSession(bearerToken),
+  ]);
+  res.clearCookie(SESSION_COOKIE, { httpOnly: true, secure: true, sameSite: "lax", path: "/" });
+  res.json({ success: true });
+}
+
+router.post("/auth/logout", logout);
+router.get("/auth/logout", logout);
+
+router.patch("/auth/promote-validator", requireAuth, requireRole(["admin"]), async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   await db.update(usersTable).set({ role: "validator" }).where(eq(usersTable.id, meId));
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, meId));
-  res.json({ ...user });
+  res.json(user ? publicUser(user) : {});
 });
 
-router.patch("/auth/promote-kyc", async (req, res): Promise<void> => {
+router.patch("/auth/promote-kyc", requireAuth, requireRole(["admin"]), async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   await db.update(usersTable).set({ kycStatus: "verified", kycVerifiedAt: new Date() }).where(eq(usersTable.id, meId));
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, meId));
-  res.json({ ...user });
+  res.json(user ? publicUser(user) : {});
 });
 
 export default router;

@@ -7,7 +7,7 @@ import { getPagination } from "../lib/requestSecurity";
 const router: IRouter = Router();
 
 router.get("/users/:id/reputation", async (req, res): Promise<void> => {
-  currentUserId(req);
+  const meId = currentUserId(req);
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const { limit, offset } = getPagination(res);
 
@@ -21,11 +21,14 @@ router.get("/users/:id/reputation", async (req, res): Promise<void> => {
   }).from(usersTable).where(eq(usersTable.id, id));
 
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  const canViewPrivate = id === meId || req.user?.role === "admin";
 
-  const events = await db.select().from(reputationEventsTable)
-    .where(eq(reputationEventsTable.userId, id))
-    .orderBy(desc(reputationEventsTable.createdAt))
-    .limit(limit).offset(offset);
+  const events = canViewPrivate
+    ? await db.select().from(reputationEventsTable)
+        .where(eq(reputationEventsTable.userId, id))
+        .orderBy(desc(reputationEventsTable.createdAt))
+        .limit(limit).offset(offset)
+    : [];
 
   const breakdown = events.reduce((acc, e) => {
     acc[e.eventType] = (acc[e.eventType] ?? 0) + e.delta;
@@ -34,6 +37,7 @@ router.get("/users/:id/reputation", async (req, res): Promise<void> => {
 
   res.json({
     ...user,
+    ...(canViewPrivate ? {} : { kycStatus: undefined, role: undefined }),
     events: events.map((e) => ({ ...e, createdAt: e.createdAt.toISOString() })),
     breakdown,
     tier: reputationTier(user.reputationScore),

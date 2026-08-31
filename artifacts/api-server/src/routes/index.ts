@@ -23,11 +23,13 @@ import disputesRouter from "./disputes";
 import reputationRouter from "./reputation";
 import avatarRouter from "./avatar";
 import capsulesRouter from "./capsules";
+import { requireAuth } from "../middlewares/authMiddleware";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
+router.use(requireAuth);
 router.use(usersRouter);
 router.use(postsRouter);
 router.use(circlesRouter);

@@ -17,11 +17,15 @@ function uid(prefix: string) {
 }
 
 router.get("/users/:id/avatar", async (req, res): Promise<void> => {
+  const meId = currentUserId(req);
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const canViewProgress = id === meId || req.user?.role === "admin";
   const avatar = await ensureAvatarExists(id);
 
-  const unlockedRows = await db.select({ skinId: userUnlockedSkinsTable.skinId })
-    .from(userUnlockedSkinsTable).where(eq(userUnlockedSkinsTable.userId, id));
+  const unlockedRows = canViewProgress
+    ? await db.select({ skinId: userUnlockedSkinsTable.skinId })
+        .from(userUnlockedSkinsTable).where(eq(userUnlockedSkinsTable.userId, id))
+    : [];
   const unlockedIds = unlockedRows.map((r) => r.skinId);
 
   const [skin] = await db.select().from(avatarSkinsTable).where(eq(avatarSkinsTable.id, avatar.currentSkinId));
@@ -35,9 +39,9 @@ router.get("/users/:id/avatar", async (req, res): Promise<void> => {
     updatedAt: avatar.updatedAt.toISOString(),
     activeSkin: skin ?? null,
     activeSkinUrl: skin?.assetPath ?? "skins/skin_default.png",
-    unlockedSkins: unlockedIds,
-    nextLevelXp,
-    xpToNextLevel: nextLevelXp !== null ? Math.max(0, nextLevelXp - currentXpInLevel) : 0,
+    unlockedSkins: canViewProgress ? unlockedIds : [],
+    nextLevelXp: canViewProgress ? nextLevelXp : null,
+    xpToNextLevel: canViewProgress && nextLevelXp !== null ? Math.max(0, nextLevelXp - currentXpInLevel) : 0,
   });
 });
 

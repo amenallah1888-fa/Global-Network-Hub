@@ -54,7 +54,14 @@ router.get("/conversations", async (req, res): Promise<void> => {
     peerIds.length === 0
       ? []
       : await db
-          .select()
+          .select({
+            id: usersTable.id,
+            handle: usersTable.handle,
+            name: usersTable.name,
+            avatarKey: usersTable.avatarKey,
+            verified: usersTable.verified,
+            city: usersTable.city,
+          })
           .from(usersTable)
           .where(inArray(usersTable.id, peerIds));
   const userById = new Map(users.map((u) => [u.id, u]));
