@@ -3,6 +3,7 @@ import { eq, asc } from "drizzle-orm";
 import { db, milestonesTable, proposalsTable, auditLogsTable, pitchesTable } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
 import { runMilestoneAudit } from "./ai-agents";
+import { auditLogValues } from "../lib/auditLog";
 
 const router: IRouter = Router();
 
@@ -11,14 +12,13 @@ function uid(prefix: string) {
 }
 
 async function writeAudit(actorId: string, entityType: string, entityId: string, action: string, metadata?: object) {
-  await db.insert(auditLogsTable).values({
-    id: uid("al"),
+  await db.insert(auditLogsTable).values(auditLogValues({
     entityType,
     entityId,
     actorId,
     action,
-    metadata: metadata ? JSON.stringify(metadata) : null,
-  });
+    metadata: metadata as Record<string, unknown> | undefined,
+  }));
 }
 
 router.get("/proposals/:proposalId/milestones", async (req, res): Promise<void> => {
@@ -94,7 +94,7 @@ router.patch("/milestones/:id", async (req, res): Promise<void> => {
   };
 
   await db.update(milestonesTable).set(updates).where(eq(milestonesTable.id, id));
-  await writeAudit(meId, "milestone", id, `status_changed_to_${newStatus}`, { proofUrl });
+  await writeAudit(meId, "milestone", id, `status_changed_to_${newStatus}`, { hasProofUrl: Boolean(proofUrl) });
 
   let audit: { confidenceScore: number; summary: string; flags: string[] } | null = null;
   if (newStatus === "pending_proof") {

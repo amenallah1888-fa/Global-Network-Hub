@@ -2,10 +2,7 @@ import { and, eq, lt, sql } from "drizzle-orm";
 import { db, milestonesTable, smartAgreementsTable, auditLogsTable, userAvatarsTable } from "@workspace/db";
 import { addReputationEvent } from "./reputation";
 import { awardXp } from "./xpEngine";
-
-function uid(prefix: string) {
-  return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-}
+import { auditLogValues } from "./auditLog";
 
 const DECAY_INACTIVE_DAYS = 7;
 const DECAY_XP_PCT = 5;
@@ -21,22 +18,32 @@ async function processTimelockMilestones() {
   );
 
   for (const m of expired) {
-    await db.update(milestonesTable)
-      .set({ status: "released", completedAt: now })
-      .where(eq(milestonesTable.id, m.id));
-
-    await db.insert(auditLogsTable).values({
-      id: uid("al"),
-      entityType: "milestone",
-      entityId: m.id,
-      actorId: "system",
-      action: "TIMELOCK_AUTO_RELEASED",
-      metadata: JSON.stringify({ reason: "Client did not respond within timelock window", pitchId: m.pitchId }),
+    const released = await db.transaction(async (tx) => {
+      const [lockedMilestone] = await tx.select().from(milestonesTable).where(
+        and(
+          eq(milestonesTable.id, m.id),
+          eq(milestonesTable.status, "pending_proof"),
+          lt(milestonesTable.timelockAutoReleaseAt, now),
+        ),
+      ).for("update");
+      if (!lockedMilestone) return null;
+      await tx.update(milestonesTable)
+        .set({ status: "released", completedAt: now })
+        .where(eq(milestonesTable.id, lockedMilestone.id));
+      await tx.insert(auditLogsTable).values(auditLogValues({
+        entityType: "milestone",
+        entityId: lockedMilestone.id,
+        actorId: "system",
+        action: "TIMELOCK_AUTO_RELEASED",
+        metadata: { reason: "Client did not respond within timelock window", pitchId: lockedMilestone.pitchId },
+      }));
+      return lockedMilestone;
     });
 
-    const [agreement] = await db.select().from(smartAgreementsTable).where(eq(smartAgreementsTable.projectId, m.pitchId));
+    if (!released) continue;
+    const [agreement] = await db.select().from(smartAgreementsTable).where(eq(smartAgreementsTable.projectId, released.pitchId));
     if (agreement) {
-      await addReputationEvent(agreement.receiverId, "milestone_delivered", `Milestone "${m.title}" auto-released by timelock`, m.id);
+      await addReputationEvent(agreement.receiverId, "milestone_delivered", `Milestone "${released.title}" auto-released by timelock`, released.id);
       await awardXp(agreement.receiverId, "milestone_completed");
     }
   }
@@ -49,17 +56,35 @@ async function processTimelockMilestones() {
   );
 
   for (const sa of refundExpired) {
-    const allMilestones = await db.select().from(milestonesTable).where(eq(milestonesTable.proposalId, sa.id));
-    const allReleased = allMilestones.length > 0 && allMilestones.every((m) => m.status === "released");
-    if (allReleased) {
-      await db.update(smartAgreementsTable)
+    const completed = await db.transaction(async (tx) => {
+      const [lockedAgreement] = await tx.select().from(smartAgreementsTable).where(
+        and(
+          eq(smartAgreementsTable.id, sa.id),
+          eq(smartAgreementsTable.status, "LOCKED_IN_ESCROW"),
+          lt(smartAgreementsTable.refundDeadline, now),
+        ),
+      ).for("update");
+      if (!lockedAgreement) return null;
+      const allMilestones = await tx.select().from(milestonesTable).where(eq(milestonesTable.proposalId, lockedAgreement.id));
+      if (allMilestones.length === 0 || !allMilestones.every((milestone) => milestone.status === "released")) return null;
+      await tx.update(smartAgreementsTable)
         .set({ status: "ACTIVE", completedAt: now, updatedAt: now })
-        .where(eq(smartAgreementsTable.id, sa.id));
+        .where(eq(smartAgreementsTable.id, lockedAgreement.id));
+      await tx.insert(auditLogsTable).values(auditLogValues({
+        entityType: "financial",
+        entityId: lockedAgreement.id,
+        actorId: "system",
+        action: "ESCROW_COMPLETED",
+        metadata: { projectId: lockedAgreement.projectId, totalPiCommitted: lockedAgreement.totalPiCommitted },
+      }));
+      return lockedAgreement;
+    });
 
-      await addReputationEvent(sa.receiverId, "escrow_completed", `Agreement ${sa.id} completed`, sa.id);
-      await addReputationEvent(sa.senderId, "escrow_completed", `Agreement ${sa.id} funded`, sa.id);
-      await awardXp(sa.receiverId, "escrow_completed");
-      await awardXp(sa.senderId, "escrow_completed");
+    if (completed) {
+      await addReputationEvent(completed.receiverId, "escrow_completed", `Agreement ${completed.id} completed`, completed.id);
+      await addReputationEvent(completed.senderId, "escrow_completed", `Agreement ${completed.id} funded`, completed.id);
+      await awardXp(completed.receiverId, "escrow_completed");
+      await awardXp(completed.senderId, "escrow_completed");
     }
   }
 }
@@ -75,24 +100,26 @@ async function processDecay() {
   );
 
   for (const av of inactive) {
-    if (av.xp <= 0) continue;
-    const decayAmount = Math.max(1, Math.floor(av.xp * DECAY_XP_PCT / 100));
-    const newXp = Math.max(0, av.xp - decayAmount);
-
-    await db.update(userAvatarsTable).set({
-      xp: newXp,
-      decayActive: true,
-      dailyStreak: 0,
-      updatedAt: new Date(),
-    }).where(eq(userAvatarsTable.id, av.id));
-
-    await db.insert(auditLogsTable).values({
-      id: uid("al"),
-      entityType: "avatar",
-      entityId: av.id,
-      actorId: "system",
-      action: "XP_DECAY",
-      metadata: JSON.stringify({ userId: av.userId, decayAmount, newXp, reason: `${DECAY_INACTIVE_DAYS} days of inactivity` }),
+    await db.transaction(async (tx) => {
+      const [lockedAvatar] = await tx.select().from(userAvatarsTable).where(
+        and(eq(userAvatarsTable.id, av.id), eq(userAvatarsTable.decayActive, false)),
+      ).for("update");
+      if (!lockedAvatar || lockedAvatar.xp <= 0) return;
+      const decayAmount = Math.max(1, Math.floor(lockedAvatar.xp * DECAY_XP_PCT / 100));
+      const newXp = Math.max(0, lockedAvatar.xp - decayAmount);
+      await tx.update(userAvatarsTable).set({
+        xp: newXp,
+        decayActive: true,
+        dailyStreak: 0,
+        updatedAt: new Date(),
+      }).where(eq(userAvatarsTable.id, lockedAvatar.id));
+      await tx.insert(auditLogsTable).values(auditLogValues({
+        entityType: "avatar",
+        entityId: lockedAvatar.id,
+        actorId: "system",
+        action: "XP_DECAY",
+        metadata: { userId: lockedAvatar.userId, decayAmount, newXp, reason: `${DECAY_INACTIVE_DAYS} days of inactivity` },
+      }));
     });
   }
 }

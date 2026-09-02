@@ -9,6 +9,7 @@ import { getPagination } from "../lib/requestSecurity";
 import { z } from "@workspace/api-zod";
 import { requireRole } from "../middlewares/authMiddleware";
 import { uploadRateLimiter } from "../lib/rateLimit";
+import { auditLogValues } from "../lib/auditLog";
 
 const router: IRouter = Router();
 
@@ -79,14 +80,14 @@ router.post("/smart-agreements", async (req, res): Promise<void> => {
       });
       milestonesInserted++;
     }
-    await tx.insert(auditLogsTable).values({
-      id: uid("al"),
-      entityType: "smart_agreement",
+    await tx.insert(auditLogsTable).values(auditLogValues({
+      entityType: "financial",
       entityId: id,
       actorId: meId,
-      action: "CREATED",
-      metadata: JSON.stringify({ totalPiCommitted, termsHash, milestoneCount: milestonesInserted }),
-    });
+      action: "SMART_AGREEMENT_CREATED",
+      metadata: { totalPiCommitted, termsHash, milestoneCount: milestonesInserted },
+      req,
+    }));
   });
 
   await createNotification({
@@ -139,14 +140,14 @@ router.post("/smart-agreements/:id/documents", uploadRateLimiter, async (req, re
   const docId = uid("doc");
   await db.transaction(async (tx) => {
     await tx.insert(projectDocumentsTable).values({ id: docId, projectId: agreement.projectId, agreementId: id, documentUrl, documentType, status: "PENDING" });
-    await tx.insert(auditLogsTable).values({
-      id: uid("al"),
+    await tx.insert(auditLogsTable).values(auditLogValues({
       entityType: "smart_agreement",
       entityId: id,
       actorId: meId,
       action: "DOCUMENT_SUBMITTED",
-      metadata: JSON.stringify({ documentType, documentUrl }),
-    });
+      metadata: { documentType, hasDocumentUrl: Boolean(documentUrl) },
+      req,
+    }));
   });
 
   const [doc] = await db.select().from(projectDocumentsTable).where(eq(projectDocumentsTable.id, docId));
@@ -154,11 +155,29 @@ router.post("/smart-agreements/:id/documents", uploadRateLimiter, async (req, re
 });
 
 router.patch("/project-documents/:id", requireRole(["validator", "admin"]), async (req, res): Promise<void> => {
+  const meId = currentUserId(req);
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const status = req.body?.status === "APPROVED" ? "APPROVED" : "REJECTED";
   const reviewNote = typeof req.body?.reviewNote === "string" ? req.body.reviewNote.trim() : null;
-  await db.update(projectDocumentsTable).set({ status, reviewNote: reviewNote || null }).where(eq(projectDocumentsTable.id, id));
-  const [doc] = await db.select().from(projectDocumentsTable).where(eq(projectDocumentsTable.id, id));
+  let doc: typeof projectDocumentsTable.$inferSelect | undefined;
+  await db.transaction(async (tx) => {
+    const [lockedDoc] = await tx.select().from(projectDocumentsTable)
+      .where(eq(projectDocumentsTable.id, id))
+      .for("update");
+    if (!lockedDoc) return;
+    await tx.update(projectDocumentsTable)
+      .set({ status, reviewNote: reviewNote || null })
+      .where(eq(projectDocumentsTable.id, id));
+    [doc] = await tx.select().from(projectDocumentsTable).where(eq(projectDocumentsTable.id, id));
+    await tx.insert(auditLogsTable).values(auditLogValues({
+      entityType: "admin_action",
+      entityId: id,
+      actorId: meId,
+      action: "PROJECT_DOCUMENT_REVIEWED",
+      metadata: { status, hasReviewNote: Boolean(reviewNote) },
+      req,
+    }));
+  });
   if (!doc) { res.status(404).json({ error: "Not found" }); return; }
   res.json(doc);
 });

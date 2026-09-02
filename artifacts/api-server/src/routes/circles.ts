@@ -9,10 +9,12 @@ import {
   circleChatMessagesTable,
   circleEventsTable,
   usersTable,
+  auditLogsTable,
 } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
 import { createNotification } from "../lib/notify";
 import { getPagination } from "../lib/requestSecurity";
+import { auditLogValues } from "../lib/auditLog";
 
 const router: IRouter = Router();
 
@@ -243,23 +245,52 @@ router.post("/circles/:id/requests/:userId/approve", async (req, res): Promise<v
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const targetUserId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
 
-  const [circle] = await db.select().from(circlesTable).where(eq(circlesTable.id, id));
+  let circle: typeof circlesTable.$inferSelect | undefined;
+  let wasAdded = false;
+  await db.transaction(async (tx) => {
+    const [lockedCircle] = await tx.select().from(circlesTable)
+      .where(eq(circlesTable.id, id))
+      .for("update");
+    if (!lockedCircle) return;
+    circle = lockedCircle;
+    if (!isAdmin(lockedCircle, meId)) {
+      res.status(403).json({ error: "Not an admin" });
+      return;
+    }
+
+    const [request] = await tx.select().from(circleJoinRequestsTable).where(
+      and(eq(circleJoinRequestsTable.circleId, id), eq(circleJoinRequestsTable.userId, targetUserId)),
+    );
+    if (!request || request.status !== "pending") return;
+
+    const existingMember = await tx.select().from(circleMembersTable).where(
+      and(eq(circleMembersTable.circleId, id), eq(circleMembersTable.userId, targetUserId)),
+    );
+    await tx.update(circleJoinRequestsTable)
+      .set({ status: "approved" })
+      .where(and(eq(circleJoinRequestsTable.circleId, id), eq(circleJoinRequestsTable.userId, targetUserId)));
+    if (existingMember.length === 0) {
+      wasAdded = true;
+      await tx.insert(circleMembersTable).values({ circleId: id, userId: targetUserId, paid: lockedCircle.paid, role: "member" });
+      await tx.update(circlesTable)
+        .set({
+          membersCount: sql`${circlesTable.membersCount} + 1`,
+          poolBalance: lockedCircle.paid ? sql`${circlesTable.poolBalance} + ${lockedCircle.price}` : circlesTable.poolBalance,
+        })
+        .where(eq(circlesTable.id, id));
+      await tx.insert(auditLogsTable).values(auditLogValues({
+        entityType: "financial",
+        entityId: id,
+        actorId: meId,
+        action: lockedCircle.paid ? "PAID_CIRCLE_MEMBERSHIP_APPROVED" : "CIRCLE_MEMBERSHIP_APPROVED",
+        metadata: { circleId: id, memberId: targetUserId, amount: lockedCircle.paid ? lockedCircle.price : 0 },
+        req,
+      }));
+    }
+  });
   if (!circle) { res.status(404).json({ error: "Not found" }); return; }
-  if (!isAdmin(circle, meId)) { res.status(403).json({ error: "Not an admin" }); return; }
-
-  await db.update(circleJoinRequestsTable)
-    .set({ status: "approved" })
-    .where(and(eq(circleJoinRequestsTable.circleId, id), eq(circleJoinRequestsTable.userId, targetUserId)));
-
-  const existingMember = await db.select().from(circleMembersTable).where(
-    and(eq(circleMembersTable.circleId, id), eq(circleMembersTable.userId, targetUserId)),
-  );
-  if (existingMember.length === 0) {
-    await db.insert(circleMembersTable).values({ circleId: id, userId: targetUserId, paid: circle.paid, role: "member" });
-    await db.update(circlesTable)
-      .set({ membersCount: sql`${circlesTable.membersCount} + 1`,
-             poolBalance: circle.paid ? sql`${circlesTable.poolBalance} + ${circle.price}` : circlesTable.poolBalance })
-      .where(eq(circlesTable.id, id));
+  if (res.headersSent) return;
+  if (wasAdded) {
     await createNotification({
       userId: targetUserId,
       type: "circle_invite",

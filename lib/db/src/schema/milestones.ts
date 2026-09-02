@@ -1,4 +1,4 @@
-import { pgTable, text, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, index } from "drizzle-orm/pg-core";
 
 export const milestonesTable = pgTable("milestones", {
   id: text("id").primaryKey(),
@@ -24,7 +24,11 @@ export const auditLogsTable = pgTable("audit_logs", {
   action: text("action").notNull(),
   metadata: text("metadata"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("audit_logs_created_at_idx").on(table.createdAt),
+  index("audit_logs_action_idx").on(table.action),
+  index("audit_logs_entity_idx").on(table.entityType, table.entityId),
+]);
 
 export type Milestone = typeof milestonesTable.$inferSelect;
 export type AuditLog = typeof auditLogsTable.$inferSelect;

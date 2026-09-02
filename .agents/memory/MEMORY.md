@@ -9,3 +9,4 @@
 - [Backend security boundary](backend-security-boundary.md) — API requests are bounded/validated centrally; critical financial writes are transactional with side effects after commit.
 - [Authentication & authorization boundary](auth-boundary.md) — Use short-lived cookie-first JWT sessions with persistent revocation, verified request identity, RBAC, and resource-scoped private data.
 - [Abuse protection boundary](abuse-protection.md) — Run per-IP limits and bounded Zod parsing before expensive handlers; use Redis when scaling beyond one API process.
+- [Financial locking and audit boundary](phase4-financial-audit.md) — Lock authoritative financial rows and co-write sanitized audit events transactionally; trigger side effects only after commit.

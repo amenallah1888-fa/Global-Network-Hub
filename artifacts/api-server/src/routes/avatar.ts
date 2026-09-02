@@ -2,11 +2,13 @@ import { Router, type IRouter } from "express";
 import { and, desc, eq, sql } from "drizzle-orm";
 import {
   db, userAvatarsTable, avatarSkinsTable, userUnlockedSkinsTable,
-  nftListingsTable, nftTransactionsTable, usersTable,
+  nftListingsTable, nftTransactionsTable, usersTable, auditLogsTable,
 } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
 import { ensureAvatarExists, awardXp, checkAndUnlockSkins, computeLevel } from "../lib/xpEngine";
 import { getPagination } from "../lib/requestSecurity";
+import { auditLogValues } from "../lib/auditLog";
+import { AppError } from "../lib/errors";
 
 const router: IRouter = Router();
 const NFT_MIN_LEVEL = 5;
@@ -134,12 +136,31 @@ router.post("/avatar/nft/mint", async (req, res): Promise<void> => {
   }
 
   const nftTokenId = `hvnft_${meId}_${Date.now().toString(36)}`;
-  await db.update(userAvatarsTable).set({
-    mintStatus: "minted",
-    mintedAt: new Date(),
-    nftTokenId,
-    updatedAt: new Date(),
-  }).where(eq(userAvatarsTable.userId, meId));
+  await db.transaction(async (tx) => {
+    const [lockedAvatar] = await tx.select().from(userAvatarsTable)
+      .where(eq(userAvatarsTable.userId, meId))
+      .for("update");
+    if (!lockedAvatar || lockedAvatar.level < NFT_MIN_LEVEL) {
+      throw new AppError(403, "NFT_LEVEL_REQUIRED", `Avatar must be Level ${NFT_MIN_LEVEL}+ to mint as an NFT`);
+    }
+    if (lockedAvatar.mintStatus === "minted") {
+      throw new AppError(409, "NFT_ALREADY_MINTED", "Avatar is already minted as an NFT");
+    }
+    await tx.update(userAvatarsTable).set({
+      mintStatus: "minted",
+      mintedAt: new Date(),
+      nftTokenId,
+      updatedAt: new Date(),
+    }).where(eq(userAvatarsTable.userId, meId));
+    await tx.insert(auditLogsTable).values(auditLogValues({
+      entityType: "financial",
+      entityId: lockedAvatar.id,
+      actorId: meId,
+      action: "NFT_MINTED",
+      metadata: { avatarId: lockedAvatar.id, level: lockedAvatar.level },
+      req,
+    }));
+  });
 
   res.json({ minted: true, nftTokenId, level: avatar.level, currentSkinId: avatar.currentSkinId });
 });
@@ -154,14 +175,24 @@ router.post("/avatar/nft/list", async (req, res): Promise<void> => {
     res.status(403).json({ error: "Avatar must be minted before listing on the marketplace" }); return;
   }
 
-  const existingActive = await db.select().from(nftListingsTable)
-    .where(and(eq(nftListingsTable.sellerId, meId), eq(nftListingsTable.status, "active")));
-  if (existingActive.length > 0) {
-    res.status(409).json({ error: "You already have an active listing. Remove it before creating a new one." }); return;
-  }
-
   const id = uid("lst");
-  await db.insert(nftListingsTable).values({ id, sellerId: meId, avatarId: avatar.id, pricePi });
+  await db.transaction(async (tx) => {
+    await tx.select().from(userAvatarsTable).where(eq(userAvatarsTable.id, avatar.id)).for("update");
+    const existingActive = await tx.select().from(nftListingsTable)
+      .where(and(eq(nftListingsTable.sellerId, meId), eq(nftListingsTable.status, "active")));
+    if (existingActive.length > 0) {
+      throw new AppError(409, "ACTIVE_LISTING_EXISTS", "You already have an active listing. Remove it before creating a new one.");
+    }
+    await tx.insert(nftListingsTable).values({ id, sellerId: meId, avatarId: avatar.id, pricePi });
+    await tx.insert(auditLogsTable).values(auditLogValues({
+      entityType: "financial",
+      entityId: id,
+      actorId: meId,
+      action: "NFT_LISTED",
+      metadata: { listingId: id, pricePi },
+      req,
+    }));
+  });
   res.status(201).json({ listingId: id, pricePi, status: "active" });
 });
 
@@ -199,33 +230,49 @@ router.post("/avatar/nft/buy/:listingId", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   const listingId = Array.isArray(req.params.listingId) ? req.params.listingId[0] : req.params.listingId;
 
-  const [listing] = await db.select().from(nftListingsTable).where(eq(nftListingsTable.id, listingId));
-  if (!listing) { res.status(404).json({ error: "Listing not found" }); return; }
-  if (listing.status !== "active") { res.status(400).json({ error: "This listing is no longer active" }); return; }
-  if (listing.sellerId === meId) { res.status(400).json({ error: "Cannot buy your own listing" }); return; }
-
-  const royaltyPi = Math.ceil(listing.pricePi * ROYALTY_PCT / 1000);
-  const sellerReceives = listing.pricePi - royaltyPi;
   const now = new Date();
 
   const txId = uid("nfttx");
+  let sellerReceives = 0;
+  let royaltyPi = 0;
   await db.transaction(async (tx) => {
-    const [lockedListing] = await tx.select().from(nftListingsTable).where(eq(nftListingsTable.id, listingId));
+    const [lockedListing] = await tx.select().from(nftListingsTable)
+      .where(eq(nftListingsTable.id, listingId))
+      .for("update");
     if (!lockedListing || lockedListing.status !== "active") {
-      throw new Error("Listing is no longer active");
+      throw new AppError(409, "LISTING_NOT_ACTIVE", "This listing is no longer active");
     }
+    if (lockedListing.sellerId === meId) {
+      throw new AppError(400, "INVALID_PURCHASE", "Cannot buy your own listing");
+    }
+    const [lockedAvatar] = await tx.select().from(userAvatarsTable)
+      .where(eq(userAvatarsTable.id, lockedListing.avatarId))
+      .for("update");
+    if (!lockedAvatar || lockedAvatar.userId !== lockedListing.sellerId) {
+      throw new AppError(409, "NFT_STATE_INVALID", "The NFT is not available for transfer");
+    }
+    royaltyPi = Math.ceil(lockedListing.pricePi * ROYALTY_PCT / 1000);
+    sellerReceives = lockedListing.pricePi - royaltyPi;
     await tx.update(nftListingsTable).set({ status: "sold", soldAt: now, buyerId: meId }).where(eq(nftListingsTable.id, listingId));
-    await tx.update(userAvatarsTable).set({ userId: meId, updatedAt: now }).where(eq(userAvatarsTable.id, listing.avatarId));
+    await tx.update(userAvatarsTable).set({ userId: meId, updatedAt: now }).where(eq(userAvatarsTable.id, lockedListing.avatarId));
     await tx.insert(nftTransactionsTable).values({
       id: txId,
       listingId,
-      sellerId: listing.sellerId,
+      sellerId: lockedListing.sellerId,
       buyerId: meId,
-      avatarId: listing.avatarId,
-      pricePi: listing.pricePi,
+      avatarId: lockedListing.avatarId,
+      pricePi: lockedListing.pricePi,
       royaltyPi,
       royaltyPct: ROYALTY_PCT,
     });
+    await tx.insert(auditLogsTable).values(auditLogValues({
+      entityType: "financial",
+      entityId: txId,
+      actorId: meId,
+      action: "NFT_PURCHASED",
+      metadata: { listingId, transactionId: txId, pricePi: lockedListing.pricePi, royaltyPi },
+      req,
+    }));
   });
 
   res.json({ purchased: true, sellerReceives, royaltyPi, platform: "HumanVerse", txId });
@@ -235,12 +282,25 @@ router.delete("/avatar/nft/list/:listingId", async (req, res): Promise<void> => 
   const meId = currentUserId(req);
   const listingId = Array.isArray(req.params.listingId) ? req.params.listingId[0] : req.params.listingId;
 
-  const [listing] = await db.select().from(nftListingsTable).where(eq(nftListingsTable.id, listingId));
-  if (!listing) { res.status(404).json({ error: "Not found" }); return; }
-  if (listing.sellerId !== meId) { res.status(403).json({ error: "Forbidden" }); return; }
-  if (listing.status !== "active") { res.status(400).json({ error: "Listing is not active" }); return; }
-
-  await db.update(nftListingsTable).set({ status: "cancelled" }).where(eq(nftListingsTable.id, listingId));
+  await db.transaction(async (tx) => {
+    const [listing] = await tx.select().from(nftListingsTable)
+      .where(eq(nftListingsTable.id, listingId))
+      .for("update");
+    if (!listing) throw new AppError(404, "LISTING_NOT_FOUND", "Not found");
+    if (listing.sellerId !== meId) throw new AppError(403, "FORBIDDEN", "Forbidden");
+    if (listing.status !== "active") throw new AppError(409, "LISTING_NOT_ACTIVE", "Listing is not active");
+    await tx.update(nftListingsTable)
+      .set({ status: "cancelled" })
+      .where(and(eq(nftListingsTable.id, listingId), eq(nftListingsTable.status, "active")));
+    await tx.insert(auditLogsTable).values(auditLogValues({
+      entityType: "financial",
+      entityId: listingId,
+      actorId: meId,
+      action: "NFT_LISTING_CANCELLED",
+      metadata: { listingId },
+      req,
+    }));
+  });
   res.json({ cancelled: true });
 });
 

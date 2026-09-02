@@ -9,6 +9,7 @@ import {
   transactionsTable,
   circlesTable,
   circleMembersTable,
+  auditLogsTable,
 } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
 import { createNotification } from "../lib/notify";
@@ -16,6 +17,8 @@ import { awardXp } from "../lib/xpEngine";
 import { addReputationEvent } from "../lib/reputation";
 import { getPagination } from "../lib/requestSecurity";
 import { z } from "@workspace/api-zod";
+import { auditLogValues } from "../lib/auditLog";
+import { AppError } from "../lib/errors";
 
 const router: IRouter = Router();
 
@@ -106,57 +109,84 @@ router.post("/proposals/:id/accept", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   const proposalId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
-  const [proposal] = await db.select().from(proposalsTable).where(eq(proposalsTable.id, proposalId));
-  if (!proposal) { res.status(404).json({ error: "Proposal not found" }); return; }
-  if (proposal.status !== "pending") { res.status(400).json({ error: "Proposal is no longer pending" }); return; }
-
-  const [pitch] = await db.select().from(pitchesTable).where(eq(pitchesTable.id, proposal.pitchId));
-  if (!pitch) { res.status(404).json({ error: "Pitch not found" }); return; }
-  if (pitch.founderId !== meId) { res.status(403).json({ error: "Only the founder can accept offers" }); return; }
-
   const txId = uid("tx");
+  let proposal: typeof proposalsTable.$inferSelect | undefined;
+  let pitch: typeof pitchesTable.$inferSelect | undefined;
   await db.transaction(async (tx) => {
+    const [lockedProposal] = await tx.select().from(proposalsTable)
+      .where(eq(proposalsTable.id, proposalId))
+      .for("update");
+    if (!lockedProposal) return;
+    proposal = lockedProposal;
+    if (lockedProposal.status !== "pending") {
+      throw new AppError(409, "PROPOSAL_NOT_PENDING", "Proposal is no longer pending");
+    }
+
+    const [lockedPitch] = await tx.select().from(pitchesTable)
+      .where(eq(pitchesTable.id, lockedProposal.pitchId))
+      .for("update");
+    if (!lockedPitch) {
+      throw new AppError(404, "PITCH_NOT_FOUND", "Pitch not found");
+    }
+    pitch = lockedPitch;
+    if (lockedPitch.founderId !== meId) {
+      throw new AppError(403, "FORBIDDEN", "Only the founder can accept offers");
+    }
+    if (lockedPitch.raised + lockedProposal.amountPi > lockedPitch.raising) {
+      throw new AppError(409, "FUNDING_CAP_REACHED", "This pitch cannot accept more than its requested funding amount");
+    }
+
     await tx.update(proposalsTable)
       .set({ status: "accepted", respondedAt: new Date() })
-      .where(eq(proposalsTable.id, proposalId));
+      .where(and(eq(proposalsTable.id, proposalId), eq(proposalsTable.status, "pending")));
     await tx.update(pitchesTable)
-      .set({ raised: sql`${pitchesTable.raised} + ${proposal.amountPi}` })
-      .where(eq(pitchesTable.id, proposal.pitchId));
+      .set({ raised: sql`${pitchesTable.raised} + ${lockedProposal.amountPi}` })
+      .where(eq(pitchesTable.id, lockedProposal.pitchId));
     const existing = await tx.select().from(pitchBackersTable)
-      .where(and(eq(pitchBackersTable.pitchId, proposal.pitchId), eq(pitchBackersTable.userId, proposal.investorId)));
+      .where(and(eq(pitchBackersTable.pitchId, lockedProposal.pitchId), eq(pitchBackersTable.userId, lockedProposal.investorId)));
     if (existing.length === 0) {
-      await tx.insert(pitchBackersTable).values({ pitchId: proposal.pitchId, userId: proposal.investorId });
+      await tx.insert(pitchBackersTable).values({ pitchId: lockedProposal.pitchId, userId: lockedProposal.investorId });
       await tx.update(pitchesTable)
         .set({ backersCount: sql`${pitchesTable.backersCount} + 1` })
-        .where(eq(pitchesTable.id, proposal.pitchId));
+        .where(eq(pitchesTable.id, lockedProposal.pitchId));
     }
     await tx.insert(transactionsTable).values({
       id: txId,
-      userId: proposal.investorId,
-      fromUserId: proposal.investorId,
+      userId: lockedProposal.investorId,
+      fromUserId: lockedProposal.investorId,
       toUserId: meId,
-      pitchId: proposal.pitchId,
-      amount: proposal.amountPi,
-      type: proposal.type === "investment" ? "investment" : "donation",
+      pitchId: lockedProposal.pitchId,
+      amount: lockedProposal.amountPi,
+      type: lockedProposal.type === "investment" ? "investment" : "donation",
       status: "completed",
-      note: proposal.type === "investment"
-        ? `Investment in "${pitch.title}" for ${proposal.equityPct}% equity`
-        : `Donation to "${pitch.title}"`,
+      note: lockedProposal.type === "investment"
+        ? `Investment in "${lockedPitch.title}" for ${lockedProposal.equityPct}% equity`
+        : `Donation to "${lockedPitch.title}"`,
     });
     const circles = await tx.select().from(circlesTable)
-      .where(sql`${proposal.pitchId} = ANY(${circlesTable.founderIds})`);
-    const pitchPrivateCircle = circles.find((c) => c.founderIds.includes(pitch.founderId) && c.inviteOnly);
+      .where(sql`${lockedProposal.pitchId} = ANY(${circlesTable.founderIds})`);
+    const pitchPrivateCircle = circles.find((c) => c.founderIds.includes(lockedPitch.founderId) && c.inviteOnly);
     if (pitchPrivateCircle) {
       const alreadyMember = await tx.select().from(circleMembersTable)
-        .where(and(eq(circleMembersTable.circleId, pitchPrivateCircle.id), eq(circleMembersTable.userId, proposal.investorId)));
+        .where(and(eq(circleMembersTable.circleId, pitchPrivateCircle.id), eq(circleMembersTable.userId, lockedProposal.investorId)));
       if (alreadyMember.length === 0) {
-        await tx.insert(circleMembersTable).values({ circleId: pitchPrivateCircle.id, userId: proposal.investorId, paid: false, role: "member" });
+        await tx.insert(circleMembersTable).values({ circleId: pitchPrivateCircle.id, userId: lockedProposal.investorId, paid: false, role: "member" });
         await tx.update(circlesTable)
           .set({ membersCount: sql`${circlesTable.membersCount} + 1` })
           .where(eq(circlesTable.id, pitchPrivateCircle.id));
       }
     }
+    await tx.insert(auditLogsTable).values(auditLogValues({
+      entityType: "financial",
+      entityId: txId,
+      actorId: meId,
+      action: "PROPOSAL_ACCEPTED",
+      metadata: { proposalId, pitchId: lockedProposal.pitchId, amount: lockedProposal.amountPi, investorId: lockedProposal.investorId },
+      req,
+    }));
   });
+  if (!proposal) { res.status(404).json({ error: "Proposal not found" }); return; }
+  if (!pitch) { res.status(404).json({ error: "Pitch not found" }); return; }
 
   await createNotification({
     userId: proposal.investorId,

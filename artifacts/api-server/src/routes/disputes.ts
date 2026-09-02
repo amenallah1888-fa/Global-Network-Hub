@@ -7,6 +7,7 @@ import {
 import { currentUserId } from "../lib/currentUser";
 import { addReputationEvent } from "../lib/reputation";
 import { createNotification } from "../lib/notify";
+import { auditLogValues } from "../lib/auditLog";
 
 const router: IRouter = Router();
 
@@ -52,10 +53,14 @@ router.post("/smart-agreements/:id/dispute", async (req, res): Promise<void> => 
     .set({ disputeStatus: "open", timelockDeadline: timelockExpiresAt, updatedAt: new Date() })
     .where(eq(smartAgreementsTable.id, id));
 
-  await db.insert(auditLogsTable).values({
-    id: uid("al"), entityType: "dispute", entityId: disputeId, actorId: meId,
-    action: "DISPUTE_OPENED", metadata: JSON.stringify({ reason, timelockExpiresAt }),
-  });
+  await db.insert(auditLogsTable).values(auditLogValues({
+    entityType: "dispute",
+    entityId: disputeId,
+    actorId: meId,
+    action: "DISPUTE_OPENED",
+    metadata: { reasonProvided: Boolean(reason), timelockExpiresAt },
+    req,
+  }));
 
   const otherParty = agreement.senderId === meId ? agreement.receiverId : agreement.senderId;
   await createNotification({

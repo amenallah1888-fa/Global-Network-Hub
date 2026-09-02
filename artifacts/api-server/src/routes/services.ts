@@ -1,9 +1,10 @@
 import { Router, type IRouter } from "express";
 import { desc, eq, sql } from "drizzle-orm";
-import { db, serviceAppsTable, usersTable } from "@workspace/db";
+import { db, serviceAppsTable, usersTable, auditLogsTable } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
 import { getPagination } from "../lib/requestSecurity";
 import { z } from "@workspace/api-zod";
+import { auditLogValues } from "../lib/auditLog";
 
 const router: IRouter = Router();
 
@@ -134,13 +135,33 @@ router.post("/services", async (req, res): Promise<void> => {
 router.post("/services/:id/hire", async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const [service] = await db.select().from(serviceAppsTable).where(eq(serviceAppsTable.id, id));
-  if (!service) { res.status(404).json({ error: "Not found" }); return; }
-  if (service.providerId === meId) { res.status(400).json({ error: "Cannot hire yourself" }); return; }
-
+  let service: typeof serviceAppsTable.$inferSelect | undefined;
   await db.transaction(async (tx) => {
-    await tx.update(serviceAppsTable).set({ hiredCount: sql`${serviceAppsTable.hiredCount} + 1` }).where(eq(serviceAppsTable.id, id));
+    const [lockedService] = await tx.select().from(serviceAppsTable)
+      .where(eq(serviceAppsTable.id, id))
+      .for("update");
+    if (!lockedService) return;
+    service = lockedService;
+    if (lockedService.providerId === meId) {
+      res.status(400).json({ error: "Cannot hire yourself" });
+      return;
+    }
+    const updated = await tx.update(serviceAppsTable)
+      .set({ hiredCount: sql`${serviceAppsTable.hiredCount} + 1` })
+      .where(eq(serviceAppsTable.id, id))
+      .returning({ id: serviceAppsTable.id });
+    if (updated.length !== 1) return;
+    await tx.insert(auditLogsTable).values(auditLogValues({
+      entityType: "financial",
+      entityId: id,
+      actorId: meId,
+      action: "SERVICE_HIRED",
+      metadata: { serviceId: id, pricePi: lockedService.pricePi },
+      req,
+    }));
   });
+  if (!service) { res.status(404).json({ error: "Not found" }); return; }
+  if (res.headersSent) return;
 
   const [updated] = await db.select().from(serviceAppsTable).where(eq(serviceAppsTable.id, id));
   res.json({ ...updated, createdAt: updated.createdAt.toISOString(), hiredCount: updated.hiredCount });

@@ -70,12 +70,17 @@ export async function ensureAvatarExists(userId: string): Promise<typeof userAva
   if (existing) return existing;
 
   const id = uid("av");
-  await db.insert(userAvatarsTable).values({ id, userId });
-  const [created] = await db.select().from(userAvatarsTable).where(eq(userAvatarsTable.id, id));
-
-  await db.insert(userUnlockedSkinsTable).values({ id: uid("usl"), userId, skinId: "skin_default", equipped: true });
-
-  return created;
+  const [created] = await db.insert(userAvatarsTable)
+    .values({ id, userId })
+    .onConflictDoNothing({ target: userAvatarsTable.userId })
+    .returning();
+  if (created) {
+    await db.insert(userUnlockedSkinsTable).values({ id: uid("usl"), userId, skinId: "skin_default", equipped: true });
+    return created;
+  }
+  const [racedAvatar] = await db.select().from(userAvatarsTable).where(eq(userAvatarsTable.userId, userId));
+  if (!racedAvatar) throw new Error("Could not initialize avatar");
+  return racedAvatar;
 }
 
 export async function awardXp(
@@ -83,43 +88,48 @@ export async function awardXp(
   event: XpEventType,
   meta?: { piAmount?: number }
 ): Promise<{ newXp: number; newLevel: number; levelUp: boolean; newSkins: string[] }> {
-  const avatar = await ensureAvatarExists(userId);
-
   let xpDelta = XP_REWARDS[event] ?? 0;
 
   if (event === "pi_invested" && meta?.piAmount) {
     xpDelta = Math.floor(meta.piAmount / 10);
   }
 
-  const streakMultiplier = avatar.dailyStreak >= 30 ? 1.5 : avatar.dailyStreak >= 7 ? 1.2 : 1;
-  if (event === "streak_bonus") xpDelta = Math.ceil(xpDelta * streakMultiplier);
+  await ensureAvatarExists(userId);
+  const result = await db.transaction(async (tx) => {
+    const [avatar] = await tx.select().from(userAvatarsTable)
+      .where(eq(userAvatarsTable.userId, userId))
+      .for("update");
+    if (!avatar) throw new Error("Avatar disappeared during reward update");
 
-  const newXp = avatar.xp + xpDelta;
-  const oldLevel = avatar.level;
-  const newLevel = computeLevel(newXp);
-  const levelUp = newLevel > oldLevel;
+    const streakMultiplier = avatar.dailyStreak >= 30 ? 1.5 : avatar.dailyStreak >= 7 ? 1.2 : 1;
+    const appliedXpDelta = event === "streak_bonus" ? Math.ceil(xpDelta * streakMultiplier) : xpDelta;
+    const newXp = avatar.xp + appliedXpDelta;
+    const oldLevel = avatar.level;
+    const newLevel = computeLevel(newXp);
 
-  const updates: Partial<typeof userAvatarsTable.$inferInsert> = {
-    xp: newXp,
-    level: newLevel,
-    lastActivityAt: new Date(),
-    decayActive: false,
-    updatedAt: new Date(),
-  };
+    const updates: Partial<typeof userAvatarsTable.$inferInsert> = {
+      xp: newXp,
+      level: newLevel,
+      lastActivityAt: new Date(),
+      decayActive: false,
+      updatedAt: new Date(),
+    };
 
-  if (event === "escrow_completed") updates.escrowsCompleted = sql`${userAvatarsTable.escrowsCompleted} + 1` as unknown as number;
-  if (event === "review_5_star" || event === "five_consecutive_reviews") updates.consecutiveFiveStarReviews = sql`${userAvatarsTable.consecutiveFiveStarReviews} + 1` as unknown as number;
-  if (event === "pitch_launched") updates.pitchesLaunched = sql`${userAvatarsTable.pitchesLaunched} + 1` as unknown as number;
-  if (event === "milestone_completed") updates.milestonesCompleted = sql`${userAvatarsTable.milestonesCompleted} + 1` as unknown as number;
-  if (event === "capsule_posted") updates.capsulesPosted = sql`${userAvatarsTable.capsulesPosted} + 1` as unknown as number;
-  if (event === "pi_invested" && meta?.piAmount) updates.totalPiInvested = sql`${userAvatarsTable.totalPiInvested} + ${meta.piAmount}` as unknown as number;
+    if (event === "escrow_completed") updates.escrowsCompleted = sql`${userAvatarsTable.escrowsCompleted} + 1` as unknown as number;
+    if (event === "review_5_star" || event === "five_consecutive_reviews") updates.consecutiveFiveStarReviews = sql`${userAvatarsTable.consecutiveFiveStarReviews} + 1` as unknown as number;
+    if (event === "pitch_launched") updates.pitchesLaunched = sql`${userAvatarsTable.pitchesLaunched} + 1` as unknown as number;
+    if (event === "milestone_completed") updates.milestonesCompleted = sql`${userAvatarsTable.milestonesCompleted} + 1` as unknown as number;
+    if (event === "capsule_posted") updates.capsulesPosted = sql`${userAvatarsTable.capsulesPosted} + 1` as unknown as number;
+    if (event === "pi_invested" && meta?.piAmount) updates.totalPiInvested = sql`${userAvatarsTable.totalPiInvested} + ${meta.piAmount}` as unknown as number;
 
-  await db.update(userAvatarsTable).set(updates).where(eq(userAvatarsTable.userId, userId));
+    await tx.update(userAvatarsTable).set(updates).where(eq(userAvatarsTable.userId, userId));
+    return { newXp, newLevel, levelUp: newLevel > oldLevel };
+  });
 
   const refreshed = await ensureAvatarExists(userId);
   const newSkins = await checkAndUnlockSkins(userId, refreshed);
 
-  return { newXp, newLevel, levelUp, newSkins };
+  return { ...result, newSkins };
 }
 
 export async function checkAndUnlockSkins(userId: string, avatar: typeof userAvatarsTable.$inferSelect): Promise<string[]> {

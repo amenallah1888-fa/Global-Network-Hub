@@ -9,11 +9,13 @@ import {
   tipsTable,
   commentsTable,
   usersTable,
+  auditLogsTable,
 } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
 import { createNotification } from "../lib/notify";
 import { getPagination, validateBody, validateParams } from "../lib/requestSecurity";
 import { z } from "@workspace/api-zod";
+import { auditLogValues } from "../lib/auditLog";
 
 const router: IRouter = Router();
 const idParams = z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{1,100}$/) });
@@ -204,13 +206,25 @@ router.post("/posts/:id/tip", async (req, res): Promise<void> => {
     res.status(400).json({ error: "invalid id or amount" }); return;
   }
 
-  const [post] = await db.select().from(postsTable).where(eq(postsTable.id, id));
-  if (!post) { res.status(404).json({ error: "Not found" }); return; }
-
+  let post: typeof postsTable.$inferSelect | undefined;
   await db.transaction(async (tx) => {
-    await tx.insert(tipsTable).values({ postId: id, fromUserId: meId, toUserId: post.authorId, amount });
+    const [lockedPost] = await tx.select().from(postsTable)
+      .where(eq(postsTable.id, id))
+      .for("update");
+    if (!lockedPost) return;
+    post = lockedPost;
+    await tx.insert(tipsTable).values({ postId: id, fromUserId: meId, toUserId: lockedPost.authorId, amount });
     await tx.update(postsTable).set({ tipsTotal: sql`${postsTable.tipsTotal} + ${amount}` }).where(eq(postsTable.id, id));
+    await tx.insert(auditLogsTable).values(auditLogValues({
+      entityType: "financial",
+      entityId: id,
+      actorId: meId,
+      action: "POST_TIPPED",
+      metadata: { postId: id, amount },
+      req,
+    }));
   });
+  if (!post) { res.status(404).json({ error: "Not found" }); return; }
   await createNotification({ userId: post.authorId, type: "tip", actorId: meId, postId: id, amount, message: `tipped you ${amount} π` });
 
   const [updated] = await db.select().from(postsTable).where(eq(postsTable.id, id));

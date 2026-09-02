@@ -6,6 +6,7 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import { logUnhandledError, validateApiRequest } from "./lib/requestSecurity";
 import { generalRateLimiter } from "./lib/rateLimit";
+import { AppError } from "./lib/errors";
 
 const app: Express = express();
 app.set("trust proxy", 1);
@@ -42,8 +43,18 @@ app.use((_req, res) => {
 });
 
 app.use((error: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  logUnhandledError(error, req);
   if (res.headersSent) return;
+  if (error instanceof AppError) {
+    logger.warn({
+      code: error.code,
+      status: error.status,
+      method: req.method,
+      path: req.path,
+    }, "Expected API error");
+    res.status(error.status).json({ error: error.message, code: error.code });
+    return;
+  }
+  logUnhandledError(error, req);
   const status = typeof error === "object" && error !== null && "status" in error
     && typeof error.status === "number" ? error.status : 500;
   if (status === 413) {

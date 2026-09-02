@@ -14,6 +14,7 @@ import { publicUser } from "../lib/userView";
 import { authRateLimiter } from "../lib/rateLimit";
 import { validateBody } from "../lib/requestSecurity";
 import { z } from "@workspace/api-zod";
+import { recordAuditEvent } from "../lib/auditLog";
 
 const router: IRouter = Router();
 const registerBody = z.object({
@@ -52,6 +53,14 @@ router.post("/auth/register", authRateLimiter, validateBody(registerBody), async
 
   const existing = await db.select().from(usersTable).where(eq(usersTable.handle, handle));
   if (existing.length > 0) {
+    await recordAuditEvent({
+      entityType: "auth",
+      entityId: "register",
+      actorId: "anonymous",
+      action: "AUTH_REGISTER_CONFLICT",
+      metadata: { reason: "handle_taken" },
+      req,
+    });
     res.status(409).json({ error: "handle already taken" });
     return;
   }
@@ -67,6 +76,13 @@ router.post("/auth/register", authRateLimiter, validateBody(registerBody), async
 
   const token = await createSession(user.id);
   setSessionCookie(res, token);
+  await recordAuditEvent({
+    entityType: "auth",
+    entityId: user.id,
+    actorId: user.id,
+    action: "AUTH_REGISTER_SUCCESS",
+    req,
+  });
   res.status(201).json({ token, user: { ...publicUser(user), following: false } });
 });
 
@@ -83,18 +99,41 @@ router.post("/auth/login", authRateLimiter, validateBody(loginBody), async (req,
     .where(eq(usersTable.handle, String(handle).toLowerCase()));
 
   if (!user || !user.passwordHash) {
+    await recordAuditEvent({
+      entityType: "auth",
+      entityId: "login",
+      actorId: "anonymous",
+      action: "AUTH_LOGIN_FAILURE",
+      metadata: { reason: "invalid_credentials" },
+      req,
+    });
     res.status(401).json({ error: "Invalid credentials" });
     return;
   }
 
   const valid = await bcrypt.compare(String(password), user.passwordHash);
   if (!valid) {
+    await recordAuditEvent({
+      entityType: "auth",
+      entityId: "login",
+      actorId: "anonymous",
+      action: "AUTH_LOGIN_FAILURE",
+      metadata: { reason: "invalid_credentials" },
+      req,
+    });
     res.status(401).json({ error: "Invalid credentials" });
     return;
   }
 
   const token = await createSession(user.id);
   setSessionCookie(res, token);
+  await recordAuditEvent({
+    entityType: "auth",
+    entityId: user.id,
+    actorId: user.id,
+    action: "AUTH_LOGIN_SUCCESS",
+    req,
+  });
   res.json({ token, user: { ...publicUser(user), following: false } });
 });
 
@@ -111,16 +150,40 @@ router.post("/auth/pi", authRateLimiter, validateBody(piBody), async (req, res):
       headers: { Authorization: `Bearer ${String(accessToken)}` },
     });
     if (!piRes.ok) {
+      await recordAuditEvent({
+        entityType: "auth",
+        entityId: "pi",
+        actorId: "anonymous",
+        action: "AUTH_PI_FAILURE",
+        metadata: { reason: "provider_rejected" },
+        req,
+      });
       res.status(401).json({ error: "Invalid Pi access token" });
       return;
     }
     piUser = (await piRes.json()) as { uid: string; username: string };
   } catch {
+    await recordAuditEvent({
+      entityType: "auth",
+      entityId: "pi",
+      actorId: "anonymous",
+      action: "AUTH_PI_FAILURE",
+      metadata: { reason: "provider_unavailable" },
+      req,
+    });
     res.status(503).json({ error: "Could not reach Pi Platform" });
     return;
   }
 
   if (piUser.uid !== uid) {
+    await recordAuditEvent({
+      entityType: "auth",
+      entityId: "pi",
+      actorId: "anonymous",
+      action: "AUTH_PI_FAILURE",
+      metadata: { reason: "uid_mismatch" },
+      req,
+    });
     res.status(401).json({ error: "Pi UID mismatch" });
     return;
   }
@@ -149,6 +212,13 @@ router.post("/auth/pi", authRateLimiter, validateBody(piBody), async (req, res):
 
   const token = await createSession(user.id);
   setSessionCookie(res, token);
+  await recordAuditEvent({
+    entityType: "auth",
+    entityId: user.id,
+    actorId: user.id,
+    action: "AUTH_PI_SUCCESS",
+    req,
+  });
   res.json({ token, user: { ...publicUser(user), following: false } });
 });
 
@@ -171,6 +241,14 @@ router.patch("/auth/promote-validator", requireAuth, requireRole(["admin"]), asy
   const meId = currentUserId(req);
   await db.update(usersTable).set({ role: "validator" }).where(eq(usersTable.id, meId));
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, meId));
+  await recordAuditEvent({
+    entityType: "user",
+    entityId: meId,
+    actorId: meId,
+    action: "PRIVILEGE_ESCALATION_VALIDATOR",
+    metadata: { role: "validator" },
+    req,
+  });
   res.json(user ? publicUser(user) : {});
 });
 
@@ -178,6 +256,14 @@ router.patch("/auth/promote-kyc", requireAuth, requireRole(["admin"]), async (re
   const meId = currentUserId(req);
   await db.update(usersTable).set({ kycStatus: "verified", kycVerifiedAt: new Date() }).where(eq(usersTable.id, meId));
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, meId));
+  await recordAuditEvent({
+    entityType: "user",
+    entityId: meId,
+    actorId: meId,
+    action: "ADMIN_KYC_VERIFICATION",
+    metadata: { kycStatus: "verified" },
+    req,
+  });
   res.json(user ? publicUser(user) : {});
 });
 

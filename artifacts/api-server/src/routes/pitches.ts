@@ -11,6 +11,7 @@ import {
   milestonesTable,
   projectDocumentsTable,
   appDirectoryTable,
+  auditLogsTable,
 } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
 import { createNotification } from "../lib/notify";
@@ -20,6 +21,8 @@ import { z } from "@workspace/api-zod";
 import { requireRole } from "../middlewares/authMiddleware";
 import { publicUser } from "../lib/userView";
 import { uploadRateLimiter } from "../lib/rateLimit";
+import { auditLogValues } from "../lib/auditLog";
+import { AppError } from "../lib/errors";
 
 const router: IRouter = Router();
 
@@ -250,20 +253,36 @@ router.post("/pitches/:id/back", async (req, res): Promise<void> => {
   const amount = parsed.data.amount;
   if (!id) { res.status(400).json({ error: "Invalid input" }); return; }
 
-  const [pitch] = await db.select().from(pitchesTable).where(eq(pitchesTable.id, id));
-  if (!pitch) { res.status(404).json({ error: "Not found" }); return; }
-
   let backed = false;
+  let pitch: typeof pitchesTable.$inferSelect | undefined;
   await db.transaction(async (tx) => {
+    const [lockedPitch] = await tx.select().from(pitchesTable)
+      .where(eq(pitchesTable.id, id))
+      .for("update");
+    if (!lockedPitch) return;
+    pitch = lockedPitch;
+
     const existing = await tx.select().from(pitchBackersTable).where(and(eq(pitchBackersTable.pitchId, id), eq(pitchBackersTable.userId, meId)));
     if (existing.length === 0) {
+      if (lockedPitch.raised + amount > lockedPitch.raising) {
+        throw new AppError(409, "FUNDING_CAP_REACHED", "This pitch cannot accept more than its requested funding amount");
+      }
       backed = true;
       await tx.insert(pitchBackersTable).values({ pitchId: id, userId: meId });
       await tx.update(pitchesTable).set({ backersCount: sql`${pitchesTable.backersCount} + 1`, raised: sql`${pitchesTable.raised} + ${amount}` }).where(eq(pitchesTable.id, id));
       const txId = uid("tx");
-      await tx.insert(transactionsTable).values({ id: txId, userId: meId, pitchId: id, amount, type: pitch.entityType === "service_app" ? "hire" : "invest" });
+      await tx.insert(transactionsTable).values({ id: txId, userId: meId, pitchId: id, amount, type: lockedPitch.entityType === "service_app" ? "hire" : "invest" });
+      await tx.insert(auditLogsTable).values(auditLogValues({
+        entityType: "financial",
+        entityId: txId,
+        actorId: meId,
+        action: "PITCH_BACKED",
+        metadata: { pitchId: id, amount, transactionId: txId },
+        req,
+      }));
     }
   });
+  if (!pitch) { res.status(404).json({ error: "Not found" }); return; }
   if (backed) {
     await createNotification({
       userId: pitch.founderId, type: "pitch_backed", actorId: meId, pitchId: id, amount,
