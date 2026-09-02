@@ -11,14 +11,31 @@ import {
 import { currentUserId } from "../lib/currentUser";
 import { requireAuth, requireRole } from "../middlewares/authMiddleware";
 import { publicUser } from "../lib/userView";
+import { authRateLimiter } from "../lib/rateLimit";
+import { validateBody } from "../lib/requestSecurity";
+import { z } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+const registerBody = z.object({
+  handle: z.string().trim().regex(/^[a-z0-9_]{2,24}$/),
+  name: z.string().trim().min(1).max(60),
+  password: z.string().min(6).max(256),
+}).strict();
+const loginBody = z.object({
+  handle: z.string().trim().min(2).max(24),
+  password: z.string().min(1).max(256),
+}).strict();
+const piBody = z.object({
+  accessToken: z.string().trim().min(1).max(4096),
+  uid: z.string().trim().min(1).max(200),
+  username: z.string().trim().max(100).optional(),
+}).strict();
 
 function setSessionCookie(res: Response, token: string) {
   res.cookie(SESSION_COOKIE, token, sessionCookieOptions);
 }
 
-router.post("/auth/register", async (req, res): Promise<void> => {
+router.post("/auth/register", authRateLimiter, validateBody(registerBody), async (req, res): Promise<void> => {
   const { handle, name, password } = req.body ?? {};
   if (!handle || !name || !password) {
     res.status(400).json({ error: "handle, name, and password required" });
@@ -53,7 +70,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   res.status(201).json({ token, user: { ...publicUser(user), following: false } });
 });
 
-router.post("/auth/login", async (req, res): Promise<void> => {
+router.post("/auth/login", authRateLimiter, validateBody(loginBody), async (req, res): Promise<void> => {
   const { handle, password } = req.body ?? {};
   if (!handle || !password) {
     res.status(400).json({ error: "handle and password required" });
@@ -81,7 +98,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   res.json({ token, user: { ...publicUser(user), following: false } });
 });
 
-router.post("/auth/pi", async (req, res): Promise<void> => {
+router.post("/auth/pi", authRateLimiter, validateBody(piBody), async (req, res): Promise<void> => {
   const { accessToken, uid, username } = req.body ?? {};
   if (!accessToken || !uid) {
     res.status(400).json({ error: "accessToken and uid required" });

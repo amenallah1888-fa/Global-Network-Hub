@@ -5,8 +5,10 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { logUnhandledError, validateApiRequest } from "./lib/requestSecurity";
+import { generalRateLimiter } from "./lib/rateLimit";
 
 const app: Express = express();
+app.set("trust proxy", 1);
 
 app.use(
   pinoHttp({
@@ -27,6 +29,7 @@ app.use(
     },
   }),
 );
+app.use("/api", generalRateLimiter);
 app.use(cors({ credentials: true, origin: true }));
 app.use(cookieParser());
 app.use(express.json({ limit: "256kb" }));
@@ -41,6 +44,16 @@ app.use((_req, res) => {
 app.use((error: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   logUnhandledError(error, req);
   if (res.headersSent) return;
+  const status = typeof error === "object" && error !== null && "status" in error
+    && typeof error.status === "number" ? error.status : 500;
+  if (status === 413) {
+    res.status(413).json({ error: "Request payload too large", code: "PAYLOAD_TOO_LARGE" });
+    return;
+  }
+  if (status === 400) {
+    res.status(400).json({ error: "Malformed request", code: "INVALID_REQUEST" });
+    return;
+  }
   res.status(500).json({ error: "An internal error occurred", code: "INTERNAL_ERROR" });
 });
 

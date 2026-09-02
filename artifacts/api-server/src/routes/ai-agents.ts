@@ -11,6 +11,7 @@ import {
   proposalsTable,
 } from "@workspace/db";
 import { currentUserId } from "../lib/currentUser";
+import { aiRateLimiter } from "../lib/rateLimit";
 
 const CHAT_MODEL = "llama-3.3-70b-versatile";
 const FAST_MODEL = "llama-3.1-8b-instant";
@@ -23,6 +24,7 @@ function createGroqClient(): Groq | null {
 
 const groq = createGroqClient();
 const router: IRouter = Router();
+router.use("/ai", aiRateLimiter);
 
 function uid(prefix: string) {
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;

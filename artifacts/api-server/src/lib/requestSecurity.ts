@@ -8,6 +8,42 @@ const MAX_BODY_KEYS = 100;
 const MAX_STRING_LENGTH = 10_000;
 const FORBIDDEN_KEYS = new Set(["__proto__", "prototype", "constructor"]);
 
+function sanitizeString(value: string): string {
+  return value
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, "")
+    .replace(/[<>]/g, "")
+    .trim();
+}
+
+const sanitizedString = z.string()
+  .max(MAX_STRING_LENGTH)
+  .transform(sanitizeString);
+
+const safeJsonValue: z.ZodTypeAny = z.lazy((): z.ZodTypeAny => z.union([
+  sanitizedString,
+  z.number().refine(Number.isFinite, "number must be finite"),
+  z.boolean(),
+  z.null(),
+  z.array(safeJsonValue).max(MAX_BODY_KEYS),
+  z.record(z.string().max(100), safeJsonValue).refine(
+    (value) => Object.keys(value).every((key) => !FORBIDDEN_KEYS.has(key)),
+    "unsafe object key",
+  ),
+]));
+
+const requestBodySchema = safeJsonValue.optional();
+const requestQuerySchema = z.record(
+  z.string().max(100),
+  z.union([sanitizedString, z.array(sanitizedString).max(MAX_BODY_KEYS)]),
+);
+const requestParamsSchema = z.record(
+  z.string().max(100),
+  z.union([sanitizedString, z.array(sanitizedString).max(MAX_BODY_KEYS)]),
+);
+const requestPathSchema = z.array(
+  z.string().min(1).max(100).regex(/^[A-Za-z0-9_.~-]+$/),
+).max(50);
+
 const paginationSchema = z.object({
   limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(20),
   offset: z.coerce.number().int().min(0).max(MAX_OFFSET).default(0),
@@ -15,38 +51,22 @@ const paginationSchema = z.object({
 
 export type Pagination = z.infer<typeof paginationSchema>;
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function findUnsafeValue(value: unknown, depth = 0): string | null {
-  if (depth > 12) return "payload nesting is too deep";
-  if (typeof value === "string" && value.length > MAX_STRING_LENGTH) {
-    return "payload string is too long";
-  }
-  if (Array.isArray(value)) {
-    if (value.length > MAX_BODY_KEYS) return "payload array is too large";
-    for (const item of value) {
-      const issue = findUnsafeValue(item, depth + 1);
-      if (issue) return issue;
-    }
-    return null;
-  }
-  if (isPlainObject(value)) {
-    const keys = Object.keys(value);
-    if (keys.length > MAX_BODY_KEYS) return "payload has too many fields";
-    for (const key of keys) {
-      if (FORBIDDEN_KEYS.has(key)) return "unsafe object key";
-      const issue = findUnsafeValue(value[key], depth + 1);
-      if (issue) return issue;
-    }
-  }
-  return null;
+function replaceRequestProperty(
+  req: Request,
+  property: "body" | "query" | "params",
+  value: unknown,
+): void {
+  Object.defineProperty(req, property, {
+    configurable: true,
+    enumerable: true,
+    writable: true,
+    value,
+  });
 }
 
 export function validateApiRequest(req: Request, res: Response, next: NextFunction): void {
-  const bodyIssue = findUnsafeValue(req.body);
-  if (bodyIssue) {
+  const body = requestBodySchema.safeParse(req.body);
+  if (!body.success) {
     res.status(400).json({
       error: "Invalid request payload",
       code: "INVALID_REQUEST",
@@ -54,8 +74,8 @@ export function validateApiRequest(req: Request, res: Response, next: NextFuncti
     return;
   }
 
-  const queryIssue = findUnsafeValue(req.query);
-  if (queryIssue) {
+  const query = requestQuerySchema.safeParse(req.query);
+  if (!query.success) {
     res.status(400).json({
       error: "Invalid query parameters",
       code: "INVALID_REQUEST",
@@ -63,8 +83,8 @@ export function validateApiRequest(req: Request, res: Response, next: NextFuncti
     return;
   }
 
-  const paramsIssue = findUnsafeValue(req.params);
-  if (paramsIssue || Object.values(req.params).some((value) => {
+  const params = requestParamsSchema.safeParse(req.params);
+  if (!params.success || Object.values(params.data).some((value) => {
     const values = Array.isArray(value) ? value : [value];
     return values.some((item) => !/^[A-Za-z0-9_.~-]{1,100}$/.test(item));
   })) {
@@ -74,6 +94,28 @@ export function validateApiRequest(req: Request, res: Response, next: NextFuncti
     });
     return;
   }
+
+  // This middleware runs before nested routers, so Express has not populated
+  // req.params yet. Validate decoded URL segments globally to cover every
+  // route parameter before a handler can consume it.
+  let decodedPath: string[];
+  try {
+    decodedPath = req.originalUrl.split("?")[0]
+      .split("/")
+      .filter(Boolean)
+      .map((segment) => decodeURIComponent(segment));
+  } catch {
+    res.status(400).json({ error: "Invalid route parameters", code: "INVALID_REQUEST" });
+    return;
+  }
+  if (!requestPathSchema.safeParse(decodedPath).success) {
+    res.status(400).json({ error: "Invalid route parameters", code: "INVALID_REQUEST" });
+    return;
+  }
+
+  replaceRequestProperty(req, "body", body.data);
+  replaceRequestProperty(req, "query", query.data);
+  replaceRequestProperty(req, "params", params.data);
 
   const pagination = paginationSchema.safeParse(req.query);
   if (!pagination.success) {

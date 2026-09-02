@@ -8,3 +8,4 @@
 - [RN Web Modal stacking](rn-web-modal-stacking.md) — sibling `<Modal>`s mount in DOM order on web; declare sub-modals after the primary modal's closing tag so they stack on top.
 - [Backend security boundary](backend-security-boundary.md) — API requests are bounded/validated centrally; critical financial writes are transactional with side effects after commit.
 - [Authentication & authorization boundary](auth-boundary.md) — Use short-lived cookie-first JWT sessions with persistent revocation, verified request identity, RBAC, and resource-scoped private data.
+- [Abuse protection boundary](abuse-protection.md) — Run per-IP limits and bounded Zod parsing before expensive handlers; use Redis when scaling beyond one API process.

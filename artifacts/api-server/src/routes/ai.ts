@@ -4,6 +4,7 @@ import { db, pitchesTable, markersTable, usersTable, serviceAppsTable } from "@w
 import { currentUserId } from "../lib/currentUser";
 import { cache, TTL } from "../lib/cache";
 import Groq from "groq-sdk";
+import { aiRateLimiter } from "../lib/rateLimit";
 
 const MODEL = "llama-3.3-70b-versatile";
 
@@ -15,6 +16,7 @@ function createGroqClient(): Groq | null {
 
 const groq = createGroqClient();
 const router: IRouter = Router();
+router.use("/ai", aiRateLimiter);
 
 async function buildEcosystemContext(): Promise<string> {
   const cacheKey = "ecosystem_context";

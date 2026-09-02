@@ -19,6 +19,7 @@ import { getPagination } from "../lib/requestSecurity";
 import { z } from "@workspace/api-zod";
 import { requireRole } from "../middlewares/authMiddleware";
 import { publicUser } from "../lib/userView";
+import { uploadRateLimiter } from "../lib/rateLimit";
 
 const router: IRouter = Router();
 
@@ -293,7 +294,7 @@ router.get("/pitches/:id/documents", async (req, res): Promise<void> => {
   res.json(docs.map((d) => ({ ...d, uploadedAt: d.uploadedAt.toISOString() })));
 });
 
-router.post("/pitches/:id/documents", async (req, res): Promise<void> => {
+router.post("/pitches/:id/documents", uploadRateLimiter, async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const [pitch] = await db.select({ founderId: pitchesTable.founderId }).from(pitchesTable).where(eq(pitchesTable.id, id));

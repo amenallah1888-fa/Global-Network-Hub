@@ -8,6 +8,7 @@ import { createNotification } from "../lib/notify";
 import { getPagination } from "../lib/requestSecurity";
 import { z } from "@workspace/api-zod";
 import { requireRole } from "../middlewares/authMiddleware";
+import { uploadRateLimiter } from "../lib/rateLimit";
 
 const router: IRouter = Router();
 
@@ -124,7 +125,7 @@ router.get("/smart-agreements/:id", async (req, res): Promise<void> => {
   res.json({ ...agreement, milestones, documents, auditLog: logs });
 });
 
-router.post("/smart-agreements/:id/documents", async (req, res): Promise<void> => {
+router.post("/smart-agreements/:id/documents", uploadRateLimiter, async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const [agreement] = await db.select().from(smartAgreementsTable).where(eq(smartAgreementsTable.id, id));
