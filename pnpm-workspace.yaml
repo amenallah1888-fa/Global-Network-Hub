@@ -76,6 +76,8 @@ onlyBuiltDependencies:
 
 overrides:
   # replit uses linux-x64 only, we can exclude all other platforms
+  # Keep Expo CLI's tar dependency on the current safe registry release.
+  tar: "7.5.22"
   "esbuild>@esbuild/darwin-arm64": "-"
   "esbuild>@esbuild/darwin-x64": "-"
   "esbuild>@esbuild/freebsd-arm64": "-"

@@ -8,6 +8,17 @@ This monorepo hosts **HumanVerse**, a high-end mobile-first social-business supe
 inspired by X + LinkedIn, with persistent backend, real-time-style notifications,
 an interactive world atlas, and monetization (tips and paid circles).
 
+## Running on Replit
+
+- Install the workspace dependencies required by the running services with
+  `pnpm install --filter @workspace/api-server... --filter @workspace/mobile...`.
+- Push the development database schema with
+  `pnpm --filter @workspace/db run push`.
+- The managed workflow `artifacts/api-server: API Server` runs the Express API on
+  port 8080.
+- The managed workflow `artifacts/mobile: expo` runs the Expo web preview on the
+  Expo development domain.
+
 ## Artifacts
 
 - `artifacts/api-server` — Express API server (port 8080, mounted at `/api` on the
