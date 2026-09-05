@@ -1,0 +1,94 @@
+### SYSTEM ARCHITECTURE & INTEGRATION TASK: Platform Monetization Engine & Admin Dashboard (E2E)
+
+You are tasked with engineering and implementing the full Monetization Logic, Database Schemas, Backend APIs, and Admin Dashboard UI/UX for our Monorepo application. Follow the strict requirements below without altering or breaking any existing authentication or application flows.
+
+---
+
+### 1. DATABASE SCHEMAS & MONETIZATION ENGINE (Drizzle ORM)
+
+Implement/Update the following schemas with proper relations and migrations:
+
+1. **`platform_settings` Table:**
+   - `id` (PK, uuid)
+   - `escrow_fee_percent` (decimal, default: 3.00)
+   - `withdrawal_flat_fee` (decimal, default: 1.00)
+   - `featured_pitch_fee` (decimal, default: 10.00)
+   - `kyc_verification_fee` (decimal, default: 5.00)
+   - `nft_royalty_fee_percent` (decimal, default: 2.50)
+   - `updated_at` (timestamp, auto-now)
+
+2. **`fee_transactions` Table:**
+   - `id` (PK, uuid)
+   - `source_transaction_id` (varchar / reference to Escrow/Payment)
+   - `fee_type` (enum: 'escrow_cut', 'withdrawal_fee', 'featured_pitch', 'kyc_verification', 'nft_royalty')
+   - `gross_amount` (decimal)
+   - `fee_amount` (decimal)
+   - `net_amount` (decimal)
+   - `currency` (varchar, default: 'PI')
+   - `created_at` (timestamp, default: now)
+
+3. **`audit_logs` Table:**
+   - `id` (PK, uuid)
+   - `user_id` (uuid, FK -> users)
+   - `action` (varchar) -- e.g., 'ADMIN_FEE_UPDATE', 'USER_BAN', 'DISPUTE_RESOLVED'
+   - `ip_address` (varchar)
+   - `details` (jsonb)
+   - `created_at` (timestamp)
+
+4. **Super Admin Seeding:**
+   - Seed a initial Super Admin user if not exists:
+     - Email: `admin@humanverse.app`
+     - Password: `AdminTestPassword123!`
+     - Role: `'super_admin'`
+
+---
+
+### 2. BACKEND API ENDPOINTS & BUSINESS LOGIC (Express API - Port 8080)
+
+Create/Protect the following routes under `/api/admin` with `requireAdmin` middleware (`role === 'admin' || role === 'super_admin'`):
+
+1. **`GET /api/admin/analytics/revenue`**:
+   - Calculates Total Platform Revenue, Monthly Revenue, Pending Escrow Funds, and Breakdown per `fee_type`.
+2. **`GET /api/admin/escrows` & `POST /api/admin/escrows/:id/resolve`**:
+   - Lists all active/disputed escrows.
+   - Allows Admin to resolve disputes (Refund Buyer vs Release to Founder) and deduct the platform fee automatically.
+3. **`GET /api/admin/users` & `PATCH /api/admin/users/:id/status`**:
+   - Lists registered users with options to change roles or suspend/ban accounts.
+4. **`GET /api/admin/audit-logs`**:
+   - Fetch recent system audit logs with pagination and filters.
+5. **`GET & PATCH /api/admin/settings`**:
+   - Retrieve and update platform fee percentages in real-time.
+
+---
+
+### 3. FRONTEND UI/UX & DASHBOARD ROUTE (`/admin` - Expo Web)
+
+Create a high-end, responsive Admin Panel layout (`app/admin/index.tsx` or equivalent Next/Expo route):
+
+1. **Security Guard / Route Protection:**
+   - If user is not authenticated or `user.role` is not `admin`/`super_admin`, render a professional `403 Forbidden` screen with a button to return home.
+
+2. **Dashboard Layout & Component Breakdown:**
+   - **Header Bar:** Admin profile badge, Environment indicator, Logout button.
+   - **Tab 1: Financial Overview (Monetization Center):**
+     - Stat Cards: Total Generated Fees (Pi), Escrow Volume, Active Subscriptions.
+     - Live Chart / Table: List of recent `fee_transactions` with status and net payout calculations.
+     - Editable Settings Card: Inputs for updating `escrow_fee_percent`, `withdrawal_flat_fee`, etc., with an "Update Settings" button connected to `PATCH /api/admin/settings`.
+   - **Tab 2: Escrow & Dispute Management:**
+     - Data table displaying deal IDs, buyer, seller, locked amount, status (`Funded`, `Disputed`, `Released`).
+     - Action Modal for Disputed deals: "Release to Seller (minus 3% fee)" or "Refund Buyer".
+   - **Tab 3: User & KYC Control:**
+     - Searchable list of users, roles, account status (Active/Suspended), and one-click Ban/Unban buttons.
+   - **Tab 4: Audit Trail & Error Logs:**
+     - Real-time event log displaying security actions, IP addresses, and operational timestamps.
+
+---
+
+### 4. CRITICAL WARNINGS & GUARDRAILS FOR AGENT
+
+1. **DO NOT MOCK DATA:** Ensure the UI components query the Express API endpoints via standard `fetch` or React Query/SWR.
+2. **DO NOT ALTER EXISTING AUTH LOGIC:** Keep JWT / Session handling intact. Integrate role checks seamlessly on top of existing middleware.
+3. **TRANSACTION SAFETY:** When resolving an Escrow or processing payments, use DB transactions (`db.transaction`) to ensure fee deductions and balance updates occur atomically.
+4. **NO BREAKING CHANGES:** Maintain backward compatibility for standard end-user routes and components.
+
+Please apply the DB migrations, update backend routes, build the `/admin` UI, and restart Express API and Expo workflows cleanly.
