@@ -40,6 +40,10 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
       res.status(401).json({ error: "Authentication required", code: "UNAUTHENTICATED" });
       return;
     }
+    if (user.accountStatus !== "active") {
+      res.status(403).json({ error: "Account access is restricted", code: "ACCOUNT_RESTRICTED" });
+      return;
+    }
 
     req.user = user;
     next();
@@ -48,7 +52,7 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
   }
 };
 
-export type AppRole = "user" | "validator" | "admin" | "investor" | "creator";
+export type AppRole = "user" | "validator" | "admin" | "super_admin" | "investor" | "creator";
 
 export function requireRole(roles: readonly AppRole[]): RequestHandler {
   return (req, res, next) => {
@@ -63,3 +67,5 @@ export function requireRole(roles: readonly AppRole[]): RequestHandler {
     next();
   };
 }
+
+export const requireAdmin: RequestHandler = requireRole(["admin", "super_admin"]);

@@ -15,6 +15,7 @@ tags:
   - name: markers
   - name: notifications
   - name: messages
+  - name: admin
 paths:
   /healthz:
     get:
@@ -41,6 +42,162 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/User"
+
+  /admin/analytics/revenue:
+    get:
+      operationId: getAdminRevenueAnalytics
+      tags: [admin]
+      summary: Get platform revenue analytics
+      responses:
+        "200":
+          description: Revenue analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevenueAnalytics"
+        "403":
+          description: Admin access required
+
+  /admin/escrows:
+    get:
+      operationId: listAdminEscrows
+      tags: [admin]
+      summary: List active and disputed escrows
+      responses:
+        "200":
+          description: Escrow agreements
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminEscrow"
+        "403":
+          description: Admin access required
+
+  /admin/escrows/{id}/resolve:
+    post:
+      operationId: resolveAdminEscrow
+      tags: [admin]
+      summary: Atomically release or refund an escrow
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveEscrowBody"
+      responses:
+        "200":
+          description: Settlement result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EscrowSettlement"
+        "403":
+          description: Admin access required
+
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      tags: [admin]
+      summary: List users for account and KYC operations
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: role
+          schema: { type: string }
+        - in: query
+          name: accountStatus
+          schema: { type: string }
+      responses:
+        "200":
+          description: Admin user directory
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminUser"
+        "403":
+          description: Admin access required
+
+  /admin/users/{id}/status:
+    patch:
+      operationId: updateAdminUserStatus
+      tags: [admin]
+      summary: Update a user's role or account status
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAdminUserBody"
+      responses:
+        "200":
+          description: Updated user summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "403":
+          description: Admin access required
+
+  /admin/audit-logs:
+    get:
+      operationId: listAdminAuditLogs
+      tags: [admin]
+      summary: List sanitized audit events
+      responses:
+        "200":
+          description: Audit events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminAuditLog"
+        "403":
+          description: Admin access required
+
+  /admin/settings:
+    get:
+      operationId: getAdminPlatformSettings
+      tags: [admin]
+      summary: Get platform fee settings
+      responses:
+        "200":
+          description: Current platform fee settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformSettings"
+        "403":
+          description: Admin access required
+    patch:
+      operationId: updateAdminPlatformSettings
+      tags: [admin]
+      summary: Update platform fee settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlatformSettingsPatch"
+      responses:
+        "200":
+          description: Updated platform fee settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformSettings"
+        "403":
+          description: Admin access required
 
   /users:
     get:
@@ -591,3 +748,109 @@ components:
       properties:
         text: { type: string }
       required: [text]
+
+    PlatformSettings:
+      type: object
+      properties:
+        id: { type: string }
+        escrowFeePercent: { type: number, minimum: 0, maximum: 100 }
+        withdrawalFlatFee: { type: number, minimum: 0 }
+        featuredPitchFee: { type: number, minimum: 0 }
+        kycVerificationFee: { type: number, minimum: 0 }
+        nftRoyaltyFeePercent: { type: number, minimum: 0, maximum: 100 }
+        updatedAt: { type: string, format: date-time }
+      required: [id, escrowFeePercent, withdrawalFlatFee, featuredPitchFee, kycVerificationFee, nftRoyaltyFeePercent, updatedAt]
+
+    PlatformSettingsPatch:
+      type: object
+      properties:
+        escrowFeePercent: { type: number, minimum: 0, maximum: 100 }
+        withdrawalFlatFee: { type: number, minimum: 0 }
+        featuredPitchFee: { type: number, minimum: 0 }
+        kycVerificationFee: { type: number, minimum: 0 }
+        nftRoyaltyFeePercent: { type: number, minimum: 0, maximum: 100 }
+
+    RevenueAnalytics:
+      type: object
+      properties:
+        totalPlatformRevenue: { type: number }
+        monthlyRevenue: { type: number }
+        pendingEscrowFunds: { type: number }
+        activeSubscriptions: { type: integer }
+        grossVolume: { type: number }
+        feeTransactionCount: { type: integer }
+        breakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              feeType: { type: string }
+              total: { type: number }
+              count: { type: integer }
+            required: [feeType, total, count]
+      required: [totalPlatformRevenue, monthlyRevenue, pendingEscrowFunds, activeSubscriptions, grossVolume, feeTransactionCount, breakdown]
+
+    AdminEscrow:
+      type: object
+      properties:
+        id: { type: string }
+        projectId: { type: string }
+        status: { type: string }
+        disputeStatus: { type: ["string", "null"] }
+        totalPiCommitted: { type: number }
+        updatedAt: { type: string, format: date-time }
+        buyer: { type: ["object", "null"] }
+        seller: { type: ["object", "null"] }
+        resolutionAvailable: { type: boolean }
+      required: [id, projectId, status, totalPiCommitted, updatedAt, resolutionAvailable]
+
+    ResolveEscrowBody:
+      type: object
+      properties:
+        decision: { type: string, enum: [release_founder, refund_buyer] }
+      required: [decision]
+
+    EscrowSettlement:
+      type: object
+      properties:
+        agreementId: { type: string }
+        decision: { type: string }
+        grossAmount: { type: number }
+        feeAmount: { type: number }
+        netAmount: { type: number }
+        currency: { type: string }
+      required: [agreementId, decision, grossAmount, feeAmount, netAmount, currency]
+
+    AdminUser:
+      type: object
+      properties:
+        id: { type: string }
+        handle: { type: string }
+        email: { type: ["string", "null"] }
+        name: { type: string }
+        role: { type: string }
+        accountStatus: { type: string }
+        kycStatus: { type: string }
+        reputationScore: { type: integer }
+        createdAt: { type: string, format: date-time }
+      required: [id, handle, name, role, accountStatus, kycStatus, reputationScore, createdAt]
+
+    UpdateAdminUserBody:
+      type: object
+      properties:
+        role: { type: string }
+        accountStatus: { type: string, enum: [active, suspended, banned] }
+
+    AdminAuditLog:
+      type: object
+      properties:
+        id: { type: string }
+        entityType: { type: string }
+        entityId: { type: string }
+        actorId: { type: string }
+        action: { type: string }
+        userId: { type: ["string", "null"] }
+        ipAddress: { type: ["string", "null"] }
+        details: { type: object }
+        createdAt: { type: string, format: date-time }
+      required: [id, entityType, entityId, actorId, action, createdAt]

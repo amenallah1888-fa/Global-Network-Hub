@@ -69,6 +69,9 @@ export function auditLogValues(event: AuditEvent): typeof auditLogsTable.$inferI
     actorId: event.actorId.slice(0, 160),
     action: event.action.slice(0, 120),
     metadata: JSON.stringify(safeMetadata(context)),
+    userId: event.actorId === "anonymous" ? null : event.actorId.slice(0, 160),
+    ipAddress: hashIp(event.req),
+    details: safeMetadata(context) as Record<string, unknown>,
   };
 }
 

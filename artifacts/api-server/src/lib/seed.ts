@@ -6,11 +6,16 @@ import {
   circlesTable,
   pitchesTable,
   markersTable,
+  platformSettingsTable,
 } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { logger } from "./logger";
 
 export async function seedIfEmpty(): Promise<void> {
   const existing = await db.select().from(usersTable).limit(1);
+  await ensurePlatformSettings();
+  await ensureSuperAdmin();
+
   if (existing.length > 0) {
     logger.info("Seed: skipping (data present)");
     return;
@@ -292,4 +297,45 @@ export async function seedIfEmpty(): Promise<void> {
   ]);
 
   logger.info("Seed: complete");
+}
+
+async function ensurePlatformSettings(): Promise<void> {
+  const [settings] = await db.select().from(platformSettingsTable).limit(1);
+  if (settings) return;
+  await db.insert(platformSettingsTable).values({ id: "default" });
+  logger.info("Seed: platform settings initialized");
+}
+
+async function ensureSuperAdmin(): Promise<void> {
+  const password = process.env.SUPER_ADMIN_PASSWORD;
+  if (!password) {
+    logger.warn("Seed: SUPER_ADMIN_PASSWORD is not configured; super-admin bootstrap skipped");
+    return;
+  }
+
+  const [existing] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.email, "admin@humanverse.app"))
+    .limit(1);
+  if (existing) return;
+
+  const passwordHash = await bcrypt.hash(password, 12);
+  await db.insert(usersTable).values({
+    id: "u_super_admin",
+    handle: "superadmin",
+    email: "admin@humanverse.app",
+    name: "HumanVerse Super Admin",
+    title: "Platform Operations",
+    company: "HumanVerse",
+    city: "Global",
+    country: "—",
+    avatarKey: "avatar1",
+    verified: true,
+    passwordHash,
+    role: "super_admin",
+    accountStatus: "active",
+    reputationScore: 100,
+  });
+  logger.info("Seed: super-admin initialized");
 }

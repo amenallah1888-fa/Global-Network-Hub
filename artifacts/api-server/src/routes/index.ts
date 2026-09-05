@@ -23,6 +23,7 @@ import disputesRouter from "./disputes";
 import reputationRouter from "./reputation";
 import avatarRouter from "./avatar";
 import capsulesRouter from "./capsules";
+import adminRouter from "./admin";
 import { requireAuth } from "../middlewares/authMiddleware";
 
 const router: IRouter = Router();
@@ -52,5 +53,6 @@ router.use(disputesRouter);
 router.use(reputationRouter);
 router.use(avatarRouter);
 router.use(capsulesRouter);
+router.use(adminRouter);
 
 export default router;

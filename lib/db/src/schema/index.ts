@@ -21,3 +21,5 @@ export * from "./disputes";
 export * from "./avatars";
 export * from "./ai_agents";
 export * from "./auth_sessions";
+export * from "./platform_settings";
+export * from "./fee_transactions";

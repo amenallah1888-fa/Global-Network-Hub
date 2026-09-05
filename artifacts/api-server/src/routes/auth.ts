@@ -125,6 +125,19 @@ router.post("/auth/login", authRateLimiter, validateBody(loginBody), async (req,
     return;
   }
 
+  if (user.accountStatus !== "active") {
+    await recordAuditEvent({
+      entityType: "auth",
+      entityId: user.id,
+      actorId: user.id,
+      action: "AUTH_LOGIN_BLOCKED",
+      metadata: { reason: "account_restricted", accountStatus: user.accountStatus },
+      req,
+    });
+    res.status(403).json({ error: "Account access is restricted", code: "ACCOUNT_RESTRICTED" });
+    return;
+  }
+
   const token = await createSession(user.id);
   setSessionCookie(res, token);
   await recordAuditEvent({

@@ -22,8 +22,9 @@ an interactive world atlas, and monetization (tips and paid circles).
 ## Artifacts
 
 - `artifacts/api-server` — Express API server (port 8080, mounted at `/api` on the
-  shared proxy). Drizzle ORM over Replit Postgres. Auto-seeds on startup if the
-  database is empty.
+  shared proxy). Drizzle ORM over Replit Postgres. On startup it ensures platform
+  settings and the secret-backed `super_admin` bootstrap account exist, then seeds
+  demo data only when the user table is empty.
 - `artifacts/mobile` — Expo React Native app (HumanVerse). Runs on the Expo dev
   domain. Uses generated React Query hooks from `@workspace/api-client-react`
   for all data — no local mock state.
@@ -52,6 +53,23 @@ an interactive world atlas, and monetization (tips and paid circles).
 - `GET /pitches`, `POST /pitches`, `POST /pitches/:id/back`
 - `GET /markers`
 - `GET /notifications`, `POST /notifications/read-all`
+- Admin operations are under `/admin` and require the server-side `admin` or
+  `super_admin` role: revenue analytics, escrow resolution, user access/KYC
+  controls, audit logs, and platform fee settings.
+
+### Monetization administration
+
+- `platform_settings` stores live fee configuration.
+- `fee_transactions` is the append-only platform fee ledger used by revenue
+  analytics.
+- Existing `audit_logs` consumers remain compatible; new nullable `user_id`,
+  sanitized `ip_address`, and JSON `details` fields support admin visibility.
+- Escrow release/refund locks the agreement and settings rows and writes the
+  agreement state, fee ledger, transaction, and audit event in one database
+  transaction. Notifications are sent only after commit.
+- The mobile `/admin` screen is a monetization console with an explicit 403
+  state for non-admin roles. It uses authenticated API requests and contains no
+  mock financial data.
 
 A pseudo-auth helper in `artifacts/api-server/src/lib/currentUser.ts`
 returns the fixed user id `u_me` for all requests. Notifications for actions

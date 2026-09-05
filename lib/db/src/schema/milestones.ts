@@ -1,4 +1,4 @@
-import { pgTable, text, integer, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, index, jsonb } from "drizzle-orm/pg-core";
 
 export const milestonesTable = pgTable("milestones", {
   id: text("id").primaryKey(),
@@ -23,6 +23,9 @@ export const auditLogsTable = pgTable("audit_logs", {
   actorId: text("actor_id").notNull(),
   action: text("action").notNull(),
   metadata: text("metadata"),
+  userId: text("user_id"),
+  ipAddress: text("ip_address"),
+  details: jsonb("details").$type<Record<string, unknown> | null>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("audit_logs_created_at_idx").on(table.createdAt),

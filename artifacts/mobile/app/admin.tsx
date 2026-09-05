@@ -1,570 +1,435 @@
 import { Feather } from "@expo/vector-icons";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Linking,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
-import { useDevMode } from "@/context/DevModeContext";
 import { useColors } from "@/hooks/useColors";
 
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : "";
 
-type PendingDoc = { id: string; projectId: string; documentUrl: string; documentType: string; status: string; reviewNote: string | null; uploadedAt: string };
-type PendingPitch = { id: string; title: string; summary: string; city: string; industry: string; stage: string; raised: number; backersCount: number };
+type Tab = "overview" | "escrows" | "users" | "audit" | "settings";
+type AdminUser = {
+  id: string;
+  handle: string;
+  email: string | null;
+  name: string;
+  role: string;
+  accountStatus: string;
+  kycStatus: string;
+  reputationScore: number;
+  createdAt: string;
+};
+type Escrow = {
+  id: string;
+  projectId: string;
+  status: string;
+  disputeStatus: string | null;
+  totalPiCommitted: number;
+  updatedAt: string;
+  buyer: { name: string; handle: string } | null;
+  seller: { name: string; handle: string } | null;
+  resolutionAvailable: boolean;
+};
+type Analytics = {
+  totalPlatformRevenue: number;
+  monthlyRevenue: number;
+  pendingEscrowFunds: number;
+  activeSubscriptions: number;
+  grossVolume: number;
+  feeTransactionCount: number;
+  breakdown: { feeType: string; total: number; count: number }[];
+  recentFees: { id: string; feeType: string; feeAmount: number; grossAmount: number; createdAt: string }[];
+};
+type AuditLog = {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  actorId: string;
+  userId: string | null;
+  ipAddress: string | null;
+  details: Record<string, unknown>;
+  createdAt: string;
+};
+type Settings = {
+  escrowFeePercent: number;
+  withdrawalFlatFee: number;
+  featuredPitchFee: number;
+  kycVerificationFee: number;
+  nftRoyaltyFeePercent: number;
+};
 
-function timeAgo(dateStr: string) { const diff = Date.now() - new Date(dateStr).getTime(); const mins = Math.floor(diff / 60000); if (mins < 60) return `${mins}m ago`; const hrs = Math.floor(mins / 60); if (hrs < 24) return `${hrs}h ago`; return `${Math.floor(hrs / 24)}d ago`; }
+class ForbiddenError extends Error {}
 
-type AdminTab = "documents" | "projects" | "reputation";
+async function apiFetch<T>(path: string, token: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...(options.headers ?? {}),
+    },
+  });
+  if (response.status === 403) throw new ForbiddenError("Admin access required");
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error ?? "The request could not be completed");
+  return payload as T;
+}
 
-const REP_EVENTS = [
-  { type: "kyc_verified", label: "KYC Verified", emoji: "🛡️", delta: 15 },
-  { type: "escrow_completed", label: "Escrow Completed", emoji: "✅", delta: 10 },
-  { type: "escrow_dispute_won", label: "Won a Dispute", emoji: "🏆", delta: 5 },
-  { type: "jury_accurate_vote", label: "Accurate Jury Vote", emoji: "⚖️", delta: 4 },
-  { type: "milestone_delivered", label: "Milestone Delivered", emoji: "🚀", delta: 3 },
-  { type: "review_received", label: "Review Received", emoji: "⭐", delta: 2 },
-  { type: "jury_inaccurate_vote", label: "Inaccurate Jury Vote", emoji: "❌", delta: -3 },
-  { type: "escrow_dispute_lost", label: "Lost a Dispute", emoji: "💸", delta: -10 },
-];
+function formatPi(value: number) {
+  return `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} π`;
+}
 
-const DISPUTE_PHASES = [
-  { icon: "⏰", title: "Timelock (24h)", desc: "After a dispute is raised, the other party has 24 hours to respond or resolve directly." },
-  { icon: "🤖", title: "AI Analysis", desc: "If unresolved, the AI analyzes the dispute reason and chat history, producing a recommendation." },
-  { icon: "👥", title: "Jury Vote (72h)", desc: "5 KYC-verified users with 10+ reputation are selected as jurors and vote within 72 hours." },
-  { icon: "⚖️", title: "Verdict & Reputation", desc: "Majority wins. Accurate jurors earn +4 rep, inaccurate lose −3. The dispute loser loses −10 rep." },
-];
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
 
-const REP_TIERS = [
-  { min: 0, max: 9, label: "Newcomer", emoji: "🌱", color: "#6B7280", nextLabel: "Builder", nextAt: 10 },
-  { min: 10, max: 24, label: "Builder", emoji: "⭐", color: "#3B82F6", nextLabel: "Trusted", nextAt: 25 },
-  { min: 25, max: 49, label: "Trusted", emoji: "🌟", color: "#22C55E", nextLabel: "Expert", nextAt: 50 },
-  { min: 50, max: 99, label: "Expert", emoji: "🏆", color: "#F59E0B", nextLabel: "Legend", nextAt: 100 },
-  { min: 100, max: Infinity, label: "Legend", emoji: "💎", color: "#8B5CF6", nextLabel: "Legend", nextAt: 100 },
-];
+function AdminCard({ children, colors, style }: { children: React.ReactNode; colors: ReturnType<typeof useColors>; style?: object }) {
+  return <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }, style]}>{children}</View>;
+}
+
+function ActionButton({
+  label,
+  icon,
+  onPress,
+  colors,
+  destructive = false,
+  disabled = false,
+}: {
+  label: string;
+  icon: React.ComponentProps<typeof Feather>["name"];
+  onPress: () => void;
+  colors: ReturnType<typeof useColors>;
+  destructive?: boolean;
+  disabled?: boolean;
+}) {
+  const color = destructive ? colors.destructive : colors.primary;
+  return (
+    <Pressable onPress={onPress} disabled={disabled} style={({ pressed }) => [styles.actionButton, { borderColor: color, backgroundColor: `${color}12`, opacity: pressed || disabled ? 0.55 : 1 }]}>
+      <Feather name={icon} size={13} color={color} />
+      <Text style={[styles.actionButtonText, { color }]}>{label}</Text>
+    </Pressable>
+  );
+}
 
 export default function AdminScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { token, user, setSession } = useAuth();
-  const { devMode } = useDevMode();
-  const qc = useQueryClient();
-  const [activeTab, setActiveTab] = useState<AdminTab>("documents");
-  const [processing, setProcessing] = useState<string | null>(null);
-  const [promotingValidator, setPromotingValidator] = useState(false);
+  const { width } = useWindowDimensions();
+  const { token, user } = useAuth();
+  const [tab, setTab] = useState<Tab>("overview");
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [escrows, setEscrows] = useState<Escrow[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [forbidden, setForbidden] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
+  const wide = width >= 760;
 
-  const isValidator = user?.role === "validator" || user?.role === "admin";
-  const repScore = user?.reputationScore ?? 0;
-  const repTier = REP_TIERS.find(t => repScore >= t.min && repScore <= t.max) ?? REP_TIERS[0];
-  const userLevel = repScore >= 100 ? 5 : repScore >= 50 ? 4 : repScore >= 25 ? 3 : repScore >= 10 ? 2 : 1;
-  const meetsValidatorCriteria = repScore >= 85 && userLevel >= 5;
-  const showLockedView = !isValidator && !meetsValidatorCriteria && !devMode;
-
-  const becomeValidator = async () => {
-    setPromotingValidator(true);
+  const load = async (showSpinner = true) => {
+    if (!token || !isAdmin) {
+      setLoading(false);
+      return;
+    }
+    if (showSpinner) setLoading(true);
+    setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/auth/promote-validator`, {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Failed");
-      const updated = await res.json();
-      setSession(token!, { ...user!, role: updated.role });
-      Alert.alert("Validator Mode Activated!", "You can now approve or reject trust blocks on any project's Verification tab.");
-    } catch { Alert.alert("Error", "Could not activate validator mode"); } finally { setPromotingValidator(false); }
+      const [nextAnalytics, nextEscrows, nextUsers, nextAudit, nextSettings] = await Promise.all([
+        apiFetch<Analytics>("/api/admin/analytics/revenue", token),
+        apiFetch<Escrow[]>("/api/admin/escrows", token),
+        apiFetch<AdminUser[]>("/api/admin/users?limit=50", token),
+        apiFetch<AuditLog[]>("/api/admin/audit-logs?limit=50", token),
+        apiFetch<Settings>("/api/admin/settings", token),
+      ]);
+      setAnalytics(nextAnalytics);
+      setEscrows(nextEscrows);
+      setUsers(nextUsers);
+      setAuditLogs(nextAudit);
+      setSettings(nextSettings);
+      setForbidden(false);
+    } catch (cause) {
+      if (cause instanceof ForbiddenError) setForbidden(true);
+      else setError(cause instanceof Error ? cause.message : "Could not load the admin dashboard");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
 
-  const { data, isLoading, refetch } = useQuery<{ documents: PendingDoc[]; pitches: PendingPitch[] }>({
-    queryKey: ["/api/admin/pending"],
-    queryFn: async () => { const res = await fetch(`${API_BASE}/api/admin/pending`, { headers: { Authorization: `Bearer ${token}` } }); if (!res.ok) throw new Error("Failed"); return res.json(); },
-    enabled: !!token,
-    staleTime: 10_000,
-  });
+  useEffect(() => {
+    void load();
+  }, [token, isAdmin]);
 
-  const [randomPitchData, setRandomPitchData] = useState<PendingPitch & { trustScore?: number; founderCollateral?: number; stage?: string } | null | "none">(null);
-  const [loadingRandom, setLoadingRandom] = useState(false);
+  const pendingEscrows = useMemo(() => escrows.filter((escrow) => escrow.resolutionAvailable), [escrows]);
 
-  const fetchRandomPitch = async () => {
-    setLoadingRandom(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/validator/random-pitch`, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.status === 404) { setRandomPitchData("none"); return; }
-      if (!res.ok) throw new Error("Failed");
-      const json = await res.json();
-      setRandomPitchData(json);
-    } catch { Alert.alert("Error", "Could not fetch assigned project"); } finally { setLoadingRandom(false); }
-  };
-
-  const approveDoc = async (docId: string) => {
-    setProcessing(docId);
-    try {
-      await fetch(`${API_BASE}/api/project-documents/${docId}`, {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "APPROVED", reviewNote: "Reviewed and approved by validator." }),
-      });
-      refetch();
-    } catch { Alert.alert("Error", "Could not approve document"); } finally { setProcessing(null); }
-  };
-
-  const rejectDoc = async (docId: string) => {
-    Alert.alert("Reject Document", "This will mark the document as rejected.", [
+  const resolveEscrow = (escrow: Escrow, decision: "release_founder" | "refund_buyer") => {
+    const label = decision === "release_founder" ? "release funds to the founder" : "refund the buyer";
+    Alert.alert("Confirm settlement", `This will ${label} for ${formatPi(escrow.totalPiCommitted)}. The decision is recorded in the audit trail.`, [
       { text: "Cancel", style: "cancel" },
-      { text: "Reject", style: "destructive", onPress: async () => {
-        setProcessing(docId);
-        try {
-          await fetch(`${API_BASE}/api/project-documents/${docId}`, {
-            method: "PATCH",
-            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ status: "REJECTED", reviewNote: "Document does not meet requirements." }),
-          });
-          refetch();
-        } catch { Alert.alert("Error", "Could not reject document"); } finally { setProcessing(null); }
-      }},
+      {
+        text: "Confirm",
+        style: decision === "refund_buyer" ? "destructive" : "default",
+        onPress: async () => {
+          setSaving(escrow.id);
+          try {
+            await apiFetch(`/api/admin/escrows/${escrow.id}/resolve`, token!, { method: "POST", body: JSON.stringify({ decision }) });
+            await load(false);
+          } catch (cause) {
+            Alert.alert("Settlement failed", cause instanceof Error ? cause.message : "The escrow could not be resolved");
+          } finally {
+            setSaving(null);
+          }
+        },
+      },
     ]);
   };
 
-  const verifyPitch = async (pitchId: string, title: string) => {
-    Alert.alert("Verify Project", `Mark "${title}" as IN_PROGRESS (verified)?`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Verify", onPress: async () => {
-        setProcessing(pitchId);
-        try {
-          await fetch(`${API_BASE}/api/pitches/${pitchId}/verify`, {
-            method: "PATCH",
-            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ status: "verified" }),
-          });
-          qc.invalidateQueries({ queryKey: ["/api/pitches"] });
-          refetch();
-        } catch { Alert.alert("Error", "Could not verify project"); } finally { setProcessing(null); }
-      }},
-    ]);
+  const updateUser = async (target: AdminUser, patch: { role?: string; accountStatus?: string }) => {
+    setSaving(target.id);
+    try {
+      await apiFetch(`/api/admin/users/${target.id}/status`, token!, { method: "PATCH", body: JSON.stringify(patch) });
+      await load(false);
+    } catch (cause) {
+      Alert.alert("User update failed", cause instanceof Error ? cause.message : "The user could not be updated");
+    } finally {
+      setSaving(null);
+    }
   };
 
-  const docs = data?.documents ?? [];
-  const pitches = data?.pitches ?? [];
+  const saveSettings = async () => {
+    if (!settings) return;
+    setSaving("settings");
+    try {
+      const updated = await apiFetch<Settings>("/api/admin/settings", token!, { method: "PATCH", body: JSON.stringify(settings) });
+      setSettings(updated);
+      Alert.alert("Saved", "Platform fee settings were updated.");
+    } catch (cause) {
+      Alert.alert("Save failed", cause instanceof Error ? cause.message : "Settings could not be saved");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  if (!isAdmin || forbidden) {
+    return (
+      <View style={[styles.root, styles.center, { backgroundColor: colors.background, padding: 30 }]}>
+        <View style={[styles.forbiddenIcon, { backgroundColor: `${colors.destructive}15`, borderColor: `${colors.destructive}40` }]}>
+          <Feather name="shield-off" size={34} color={colors.destructive} />
+        </View>
+        <Text style={[styles.forbiddenTitle, { color: colors.foreground }]}>403 · Admin access required</Text>
+        <Text style={[styles.forbiddenBody, { color: colors.mutedForeground }]}>This workspace is restricted to platform administrators. Your account has not been granted access.</Text>
+        <Pressable onPress={() => router.back()} style={[styles.primaryButton, { backgroundColor: colors.primary }]}>
+          <Text style={[styles.primaryButtonText, { color: colors.primaryForeground }]}>Return to workspace</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  const statCards = analytics ? [
+    { label: "Platform revenue", value: formatPi(analytics.totalPlatformRevenue), icon: "trending-up" as const, tone: colors.success },
+    { label: "This month", value: formatPi(analytics.monthlyRevenue), icon: "calendar" as const, tone: colors.primary },
+    { label: "Pending escrow", value: formatPi(analytics.pendingEscrowFunds), icon: "lock" as const, tone: colors.warning },
+    { label: "Paid memberships", value: analytics.activeSubscriptions.toLocaleString(), icon: "users" as const, tone: colors.accent },
+  ] : [];
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <Pressable onPress={() => router.back()} hitSlop={10} style={({ pressed }) => [styles.backBtn, { backgroundColor: colors.cardElevated, opacity: pressed ? 0.7 : 1 }]}>
+        <Pressable onPress={() => router.back()} hitSlop={10} style={[styles.iconButton, { backgroundColor: colors.cardElevated }]}>
           <Feather name="arrow-left" size={18} color={colors.foreground} />
         </Pressable>
         <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Text style={[styles.headerTitle, { color: colors.foreground }]}>Validator Panel</Text>
-            {devMode && showLockedView === false && !isValidator && !meetsValidatorCriteria && (
-              <View style={{ backgroundColor: "#8B5CF618", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 }}>
-                <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#8B5CF6" }}>DEV BYPASS</Text>
-              </View>
-            )}
+          <View style={styles.titleRow}>
+            <Text style={[styles.headerTitle, { color: colors.foreground }]}>Platform Console</Text>
+            <View style={[styles.rolePill, { backgroundColor: `${colors.primary}18`, borderColor: `${colors.primary}45` }]}>
+              <Feather name="shield" size={11} color={colors.primary} />
+              <Text style={[styles.rolePillText, { color: colors.primary }]}>{user?.role === "super_admin" ? "SUPER ADMIN" : "ADMIN"}</Text>
+            </View>
           </View>
-          <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>Review and approve submissions</Text>
+          <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>Financial controls, trust operations, and audit visibility</Text>
         </View>
-        <Pressable onPress={() => refetch()} hitSlop={10} style={({ pressed }) => [styles.refreshBtn, { backgroundColor: colors.cardElevated, opacity: pressed ? 0.7 : 1 }]}>
-          <Feather name="refresh-cw" size={15} color={colors.foreground} />
+        <Pressable onPress={() => { setRefreshing(true); void load(false); }} hitSlop={10} style={[styles.iconButton, { backgroundColor: colors.cardElevated }]}>
+          <Feather name="refresh-cw" size={16} color={colors.foreground} />
         </Pressable>
       </View>
 
-      {showLockedView && (
-        <ScrollView contentContainerStyle={{ padding: 28, paddingTop: 52, gap: 18 }} showsVerticalScrollIndicator={false}>
-          <View style={{ alignItems: "center", gap: 14 }}>
-            <View style={{ width: 84, height: 84, borderRadius: 42, backgroundColor: "#F59E0B18", borderWidth: 2, borderColor: "#F59E0B50", alignItems: "center", justifyContent: "center" }}>
-              <Feather name="lock" size={38} color="#F59E0B" />
-            </View>
-            <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: colors.foreground, textAlign: "center" }}>Validator Portal Locked</Text>
-            <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: colors.mutedForeground, textAlign: "center", lineHeight: 22 }}>
-              Meet all three requirements below to unlock the Active Dispute Room and full Validator tools.
-            </Text>
-          </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.tabs, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+        {([
+          ["overview", "Overview", "bar-chart-2"],
+          ["escrows", `Escrow${pendingEscrows.length ? ` · ${pendingEscrows.length}` : ""}`, "lock"],
+          ["users", "Users & KYC", "users"],
+          ["audit", "Audit trail", "file-text"],
+          ["settings", "Fee settings", "sliders"],
+        ] as const).map(([key, label, icon]) => (
+          <Pressable key={key} onPress={() => setTab(key)} style={[styles.tab, { borderBottomColor: tab === key ? colors.primary : "transparent" }]}>
+            <Feather name={icon} size={14} color={tab === key ? colors.primary : colors.mutedForeground} />
+            <Text style={[styles.tabText, { color: tab === key ? colors.primary : colors.mutedForeground }]}>{label}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
 
-          {[
-            { label: "Reputation Score", icon: "star" as const,       current: `${repScore} pts`, required: "≥ 85 pts",  met: repScore >= 85 },
-            { label: "Ecosystem Level",  icon: "trending-up" as const, current: `Level ${userLevel}`,  required: "≥ Level 5", met: userLevel >= 5 },
-            { label: "KYC Identity",     icon: "user-check" as const,  current: user?.kycStatus === "verified" ? "Verified" : "Pending", required: "Verified", met: user?.kycStatus === "verified" },
-          ].map(req => (
-            <View key={req.label} style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: req.met ? "#22C55E40" : colors.border, backgroundColor: req.met ? "#22C55E08" : colors.card }}>
-              <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: req.met ? "#22C55E18" : "#6B728018", alignItems: "center", justifyContent: "center" }}>
-                <Feather name={req.icon} size={18} color={req.met ? "#22C55E" : "#6B7280"} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>{req.label}</Text>
-                <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 2 }}>
-                  Now: <Text style={{ fontFamily: "Inter_700Bold", color: req.met ? "#22C55E" : colors.foreground }}>{req.current}</Text>
-                  {"  ·  "}Need: <Text style={{ fontFamily: "Inter_700Bold" }}>{req.required}</Text>
-                </Text>
-              </View>
-              <Feather name={req.met ? "check-circle" : "circle"} size={22} color={req.met ? "#22C55E" : "#4B5563"} />
-            </View>
-          ))}
-
-          <View style={{ backgroundColor: colors.primary + "10", borderRadius: 14, borderWidth: 1, borderColor: colors.primary + "30", padding: 16, gap: 8 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Feather name="info" size={14} color={colors.primary} />
-              <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: colors.primary }}>How to earn reputation</Text>
-            </View>
-            <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 20 }}>
-              Back projects · Complete escrow agreements · Deliver milestones · Receive 5-star reviews · Post Project Capsules
-            </Text>
-          </View>
-
-          <View style={{ backgroundColor: colors.primary + "10", borderRadius: 12, borderWidth: 1, borderColor: colors.primary + "30", padding: 14, flexDirection: "row", gap: 10, alignItems: "center" }}>
-            <Feather name="info" size={14} color={colors.primary} />
-            <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.primary, flex: 1, lineHeight: 18 }}>
-              Validator access is granted automatically when all three criteria are met. Keep earning reputation across the ecosystem.
-            </Text>
-          </View>
-        </ScrollView>
-      )}
-
-      {!showLockedView && (
-        <View style={[styles.tabBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-          {(["documents", "projects", "reputation"] as AdminTab[]).map(tab => (
-            <Pressable key={tab} onPress={() => setActiveTab(tab)} style={[styles.tabBtn, { borderBottomColor: activeTab === tab ? colors.primary : "transparent" }]}>
-              <Text style={[styles.tabText, { color: activeTab === tab ? colors.primary : colors.mutedForeground }]}>
-                {tab === "documents" ? `Docs${docs.length > 0 ? ` (${docs.length})` : ""}` : tab === "projects" ? `Projects${pitches.length > 0 ? ` (${pitches.length})` : ""}` : "Reputation"}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
-
-      {!showLockedView && (isLoading ? (
-        <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
+      {loading ? (
+        <View style={styles.center}><ActivityIndicator color={colors.primary} size="large" /></View>
       ) : (
-        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} showsVerticalScrollIndicator={false}>
-          <View style={[styles.validatorCard, { backgroundColor: isValidator ? "#22C55E12" : colors.card, borderColor: isValidator ? "#22C55E40" : colors.border }]}>
-            <View style={styles.validatorCardRow}>
-              <View style={[styles.validatorIcon, { backgroundColor: isValidator ? "#22C55E18" : colors.cardElevated }]}>
-                <Feather name="shield" size={20} color={isValidator ? "#22C55E" : colors.mutedForeground} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.validatorTitle, { color: colors.foreground }]}>
-                  {isValidator ? "Validator Mode Active" : "Activate Validator Mode"}
-                </Text>
-                <Text style={[styles.validatorSub, { color: colors.mutedForeground }]}>
-                  {isValidator ? "You can approve or reject trust blocks on any project's Verification tab." : "Enables block-by-block approval of projects. Each block adds +25% trust score."}
-                </Text>
-              </View>
-            </View>
-            {!isValidator && (
-              <Pressable
-                onPress={becomeValidator}
-                disabled={promotingValidator}
-                style={({ pressed }) => [styles.validatorBtn, { backgroundColor: colors.primary, opacity: pressed || promotingValidator ? 0.7 : 1 }]}
-              >
-                {promotingValidator ? <ActivityIndicator size="small" color="#fff" /> : <><Feather name="shield" size={14} color="#fff" /><Text style={styles.validatorBtnText}>Become a Validator</Text></>}
-              </Pressable>
-            )}
-            {isValidator && (
-              <View style={[styles.validatorRoleBadge, { backgroundColor: "#22C55E18", borderColor: "#22C55E40" }]}>
-                <Feather name="check-circle" size={12} color="#22C55E" />
-                <Text style={[styles.validatorRoleText, { color: "#22C55E" }]}>Role: {user?.role?.toUpperCase()}</Text>
-              </View>
-            )}
-          </View>
-          {activeTab === "documents" && (
-            docs.length === 0 ? (
-              <View style={styles.emptyBox}>
-                <Feather name="check-circle" size={40} color="#22C55E" />
-                <Text style={[styles.emptyTitle, { color: colors.foreground }]}>All Caught Up</Text>
-                <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>No pending documents to review.</Text>
-              </View>
-            ) : (
-              docs.map(doc => (
-                <View key={doc.id} style={[styles.docCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <View style={styles.docHeader}>
-                    <View style={[styles.docIcon, { backgroundColor: colors.primary + "18" }]}>
-                      <Feather name="file-text" size={16} color={colors.primary} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.docType, { color: colors.foreground }]}>{doc.documentType.toUpperCase()}</Text>
-                      <Text style={[styles.docTime, { color: colors.mutedForeground }]}>Submitted {timeAgo(doc.uploadedAt)}</Text>
-                    </View>
-                    <View style={[styles.pendingChip, { backgroundColor: "#F59E0B18", borderColor: "#F59E0B" }]}>
-                      <Text style={[styles.pendingChipText, { color: "#F59E0B" }]}>PENDING</Text>
-                    </View>
-                  </View>
+        <ScrollView
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(false); }} tintColor={colors.primary} />}
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40, maxWidth: 1180, width: "100%", alignSelf: "center" }]}
+          showsVerticalScrollIndicator={false}
+        >
+          {error && <View style={[styles.errorBanner, { backgroundColor: `${colors.destructive}12`, borderColor: `${colors.destructive}35` }]}><Feather name="alert-triangle" size={15} color={colors.destructive} /><Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text></View>}
 
-                  <Pressable onPress={() => Linking.openURL(doc.documentUrl)} style={({ pressed }) => [styles.docUrl, { backgroundColor: colors.background, borderColor: colors.border, opacity: pressed ? 0.8 : 1 }]}>
-                    <Feather name="external-link" size={12} color={colors.primary} />
-                    <Text style={[styles.docUrlText, { color: colors.primary }]} numberOfLines={1}>{doc.documentUrl}</Text>
-                  </Pressable>
-
-                  <Text style={[styles.docProjectLabel, { color: colors.mutedForeground }]}>Project: <Text style={{ color: colors.foreground }}>{doc.projectId}</Text></Text>
-
-                  <View style={styles.docActions}>
-                    <Pressable
-                      onPress={() => rejectDoc(doc.id)}
-                      disabled={processing === doc.id}
-                      style={({ pressed }) => [styles.docActionBtn, { backgroundColor: "#EF444418", borderColor: "#EF4444", opacity: pressed || processing === doc.id ? 0.7 : 1 }]}
-                    >
-                      {processing === doc.id ? <ActivityIndicator size="small" color="#EF4444" /> : <><Feather name="x-circle" size={14} color="#EF4444" /><Text style={[styles.docActionText, { color: "#EF4444" }]}>Reject</Text></>}
-                    </Pressable>
-                    <Pressable
-                      onPress={() => approveDoc(doc.id)}
-                      disabled={processing === doc.id}
-                      style={({ pressed }) => [styles.docActionBtn, { backgroundColor: "#22C55E18", borderColor: "#22C55E", opacity: pressed || processing === doc.id ? 0.7 : 1, flex: 1.5 }]}
-                    >
-                      {processing === doc.id ? <ActivityIndicator size="small" color="#22C55E" /> : <><Feather name="check-circle" size={14} color="#22C55E" /><Text style={[styles.docActionText, { color: "#22C55E" }]}>Approve Document</Text></>}
-                    </Pressable>
-                  </View>
-                </View>
-              ))
-            )
-          )}
-
-          {activeTab === "projects" && (
+          {tab === "overview" && (
             <>
-              {/* Anti-collusion random assignment header */}
-              <View style={{ backgroundColor: colors.primary + "10", borderRadius: 16, borderWidth: 1, borderColor: colors.primary + "30", padding: 16, gap: 10 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                  <View style={{ backgroundColor: colors.primary + "20", borderRadius: 10, padding: 8 }}><Feather name="shuffle" size={16} color={colors.primary} /></View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: colors.foreground }}>Random Assignment</Text>
-                    <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 1 }}>Anti-collusion · you can't be assigned your own projects</Text>
-                  </View>
-                </View>
-                <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 18 }}>
-                  The system randomly assigns you an unverified project from the network (excluding your own submissions). Press "Get Project" to receive your next assignment.
-                </Text>
-                <Pressable
-                  onPress={fetchRandomPitch}
-                  disabled={loadingRandom}
-                  style={({ pressed }) => ({ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 12, opacity: pressed || loadingRandom ? 0.7 : 1 })}
-                >
-                  {loadingRandom ? <ActivityIndicator size="small" color="#fff" /> : <><Feather name="shuffle" size={14} color="#fff" /><Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: "#fff" }}>Get Assigned Project</Text></>}
-                </Pressable>
+              <View style={styles.sectionIntro}>
+                <View><Text style={[styles.pageTitle, { color: colors.foreground }]}>Revenue overview</Text><Text style={[styles.pageSub, { color: colors.mutedForeground }]}>Live totals from the platform fee ledger. No estimated or mock values.</Text></View>
+                <View style={[styles.livePill, { backgroundColor: `${colors.success}15` }]}><View style={[styles.liveDot, { backgroundColor: colors.success }]} /><Text style={[styles.liveText, { color: colors.success }]}>LIVE DATA</Text></View>
               </View>
-
-              {randomPitchData === null && (
-                <View style={styles.emptyBox}>
-                  <Feather name="inbox" size={40} color={colors.mutedForeground} />
-                  <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No Project Yet</Text>
-                  <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>Press "Get Assigned Project" above to receive a random project to review.</Text>
-                </View>
-              )}
-
-              {randomPitchData === "none" && (
-                <View style={styles.emptyBox}>
-                  <Feather name="check-circle" size={40} color="#22C55E" />
-                  <Text style={[styles.emptyTitle, { color: colors.foreground }]}>All Caught Up</Text>
-                  <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>No unverified projects in the network right now.</Text>
-                </View>
-              )}
-
-              {randomPitchData && randomPitchData !== "none" && (() => {
-                const pitch = randomPitchData as PendingPitch & { trustScore?: number; founderCollateral?: number };
-                return (
-                  <View style={[styles.pitchCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                      <View style={{ backgroundColor: "#22C55E18", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, flexDirection: "row", alignItems: "center", gap: 4 }}>
-                        <Feather name="shuffle" size={10} color="#22C55E" />
-                        <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: "#22C55E" }}>ASSIGNED TO YOU</Text>
-                      </View>
-                      {(pitch.founderCollateral ?? 0) > 0 && (
-                        <View style={{ backgroundColor: "#F59E0B18", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, flexDirection: "row", alignItems: "center", gap: 4 }}>
-                          <Feather name="lock" size={10} color="#F59E0B" />
-                          <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: "#F59E0B" }}>COLLATERAL SECURED</Text>
-                        </View>
-                      )}
-                    </View>
-
-                    <View style={styles.pitchHeader}>
-                      <View style={[styles.pitchIcon, { backgroundColor: colors.accent + "18" }]}>
-                        <Feather name="zap" size={16} color={colors.accent} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.pitchTitle, { color: colors.foreground }]}>{pitch.title}</Text>
-                        <Text style={[styles.pitchMeta, { color: colors.mutedForeground }]}>{pitch.stage} · {pitch.industry} · {pitch.city}</Text>
-                      </View>
-                      <View style={{ alignItems: "flex-end", gap: 4 }}>
-                        {pitch.trustScore !== undefined && (
-                          <View style={{ backgroundColor: colors.primary + "18", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>
-                            <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: colors.primary }}>{pitch.trustScore}% Trust</Text>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-
-                    <Text style={[styles.pitchSummary, { color: colors.mutedForeground }]} numberOfLines={3}>{pitch.summary}</Text>
-
-                    <View style={styles.pitchStats}>
-                      <View style={styles.pitchStat}>
-                        <Feather name="users" size={12} color={colors.mutedForeground} />
-                        <Text style={[styles.pitchStatText, { color: colors.mutedForeground }]}>{pitch.backersCount} backers</Text>
-                      </View>
-                      <View style={styles.pitchStat}>
-                        <Text style={[styles.pitchStatText, { color: colors.mutedForeground }]}>{pitch.raised.toLocaleString()} π raised</Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.pitchActions}>
-                      <Pressable onPress={() => router.push(`/pitch/${pitch.id}`)} style={({ pressed }) => [styles.docActionBtn, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}>
-                        <Feather name="eye" size={13} color={colors.foreground} />
-                        <Text style={[styles.docActionText, { color: colors.foreground }]}>Full Review</Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => verifyPitch(pitch.id, pitch.title)}
-                        disabled={processing === pitch.id}
-                        style={({ pressed }) => [styles.docActionBtn, { backgroundColor: "#22C55E18", borderColor: "#22C55E", flex: 1.5, opacity: pressed || processing === pitch.id ? 0.7 : 1 }]}
-                      >
-                        {processing === pitch.id ? <ActivityIndicator size="small" color="#22C55E" /> : <><Feather name="check-circle" size={14} color="#22C55E" /><Text style={[styles.docActionText, { color: "#22C55E" }]}>Verify → IN_PROGRESS</Text></>}
-                      </Pressable>
-                    </View>
-
-                    <Pressable
-                      onPress={fetchRandomPitch}
-                      disabled={loadingRandom}
-                      style={({ pressed }) => ({ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 6, marginTop: 10, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.cardElevated, opacity: pressed || loadingRandom ? 0.7 : 1 })}
-                    >
-                      <Feather name="skip-forward" size={13} color={colors.mutedForeground} />
-                      <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: colors.mutedForeground }}>Next Project</Text>
-                    </Pressable>
-                  </View>
-                );
-              })()}
+              <View style={[styles.statsGrid, { gap: 12 }]}>
+                {statCards.map((stat) => <AdminCard key={stat.label} colors={colors} style={[styles.statCard, { width: wide ? "23.5%" : "48%" }]}><View style={[styles.statIcon, { backgroundColor: `${stat.tone}18` }]}><Feather name={stat.icon} size={17} color={stat.tone} /></View><Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{stat.label}</Text><Text style={[styles.statValue, { color: colors.foreground }]}>{stat.value}</Text></AdminCard>)}
+              </View>
+              <View style={styles.twoColumns}>
+                <AdminCard colors={colors} style={styles.flexCard}>
+                  <Text style={[styles.cardTitle, { color: colors.foreground }]}>Ledger breakdown</Text>
+                  <Text style={[styles.cardSub, { color: colors.mutedForeground }]}>{analytics?.feeTransactionCount ?? 0} recorded fee transactions · {formatPi(analytics?.grossVolume ?? 0)} gross volume</Text>
+                  {(analytics?.breakdown ?? []).length === 0 ? <EmptyState colors={colors} icon="pie-chart" text="No fee transactions have been recorded yet." /> : analytics?.breakdown.map((row) => <View key={row.feeType} style={styles.dataRow}><View style={{ flex: 1 }}><Text style={[styles.dataLabel, { color: colors.foreground }]}>{row.feeType.replaceAll("_", " ")}</Text><Text style={[styles.dataMeta, { color: colors.mutedForeground }]}>{row.count} transactions</Text></View><Text style={[styles.dataAmount, { color: colors.primary }]}>{formatPi(row.total)}</Text></View>)}
+                </AdminCard>
+                <AdminCard colors={colors} style={styles.flexCard}>
+                  <Text style={[styles.cardTitle, { color: colors.foreground }]}>Recent platform fees</Text>
+                  {(analytics?.recentFees ?? []).length === 0 ? <EmptyState colors={colors} icon="activity" text="Revenue activity will appear here after the first settlement." /> : analytics?.recentFees.slice(0, 5).map((fee) => <View key={fee.id} style={styles.dataRow}><View style={{ flex: 1 }}><Text style={[styles.dataLabel, { color: colors.foreground }]}>{fee.feeType.replaceAll("_", " ")}</Text><Text style={[styles.dataMeta, { color: colors.mutedForeground }]}>{formatDate(fee.createdAt)} · gross {formatPi(fee.grossAmount)}</Text></View><Text style={[styles.dataAmount, { color: colors.success }]}>+{formatPi(fee.feeAmount)}</Text></View>)}
+                </AdminCard>
+              </View>
             </>
           )}
 
-          {activeTab === "reputation" && (
+          {tab === "escrows" && (
             <>
-              <View style={[styles.docCard, { backgroundColor: colors.card, borderColor: colors.border, alignItems: "center", paddingVertical: 28 }]}>
-                <View style={{ width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center", backgroundColor: repTier.color + "18", borderWidth: 2, borderColor: repTier.color + "40" }}>
-                  <Text style={{ fontSize: 32 }}>{repTier.emoji}</Text>
-                </View>
-                <Text style={{ fontSize: 52, fontFamily: "Inter_700Bold", color: colors.foreground, marginTop: 12, lineHeight: 60 }}>
-                  {repScore}
-                </Text>
-                <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: repTier.color, marginBottom: 16 }}>{repTier.label}</Text>
-                {repScore < 100 && (
-                  <View style={{ width: "100%", paddingHorizontal: 4 }}>
-                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
-                      <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.mutedForeground }}>
-                        Progress to {repTier.nextLabel}
-                      </Text>
-                      <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: colors.foreground }}>
-                        {repScore} / {repTier.nextAt}
-                      </Text>
-                    </View>
-                    <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.border, overflow: "hidden" }}>
-                      <View style={{ height: "100%", borderRadius: 4, backgroundColor: repTier.color, width: `${Math.min(100, Math.round((repScore / repTier.nextAt) * 100))}%` as any }} />
-                    </View>
-                  </View>
-                )}
-              </View>
+              <View style={styles.sectionIntro}><View><Text style={[styles.pageTitle, { color: colors.foreground }]}>Escrow & disputes</Text><Text style={[styles.pageSub, { color: colors.mutedForeground }]}>Resolve locked agreements with an atomic fee and audit record.</Text></View><View style={[styles.countPill, { backgroundColor: `${colors.warning}18` }]}><Text style={[styles.countText, { color: colors.warning }]}>{pendingEscrows.length} pending</Text></View></View>
+              {escrows.length === 0 ? <EmptyState colors={colors} icon="inbox" text="There are no active or disputed escrow agreements." /> : escrows.map((escrow) => <AdminCard key={escrow.id} colors={colors}><View style={styles.rowHeader}><View style={{ flex: 1 }}><Text style={[styles.cardTitle, { color: colors.foreground }]}>{escrow.buyer?.name ?? "Unknown buyer"} → {escrow.seller?.name ?? "Unknown founder"}</Text><Text style={[styles.cardSub, { color: colors.mutedForeground }]}>{escrow.projectId} · updated {formatDate(escrow.updatedAt)}</Text></View><View style={[styles.statusPill, { backgroundColor: escrow.status === "DISPUTED" ? `${colors.destructive}15` : `${colors.warning}15` }]}><Text style={[styles.statusText, { color: escrow.status === "DISPUTED" ? colors.destructive : colors.warning }]}>{escrow.status.replaceAll("_", " ")}</Text></View></View><View style={styles.amountBand}><Text style={[styles.amountLabel, { color: colors.mutedForeground }]}>Committed in escrow</Text><Text style={[styles.amountValue, { color: colors.foreground }]}>{formatPi(escrow.totalPiCommitted)}</Text></View>{escrow.resolutionAvailable && <View style={styles.actionsRow}><ActionButton label="Refund buyer" icon="corner-up-left" colors={colors} destructive disabled={saving === escrow.id} onPress={() => resolveEscrow(escrow, "refund_buyer")} /><ActionButton label="Release to founder" icon="check-circle" colors={colors} disabled={saving === escrow.id} onPress={() => resolveEscrow(escrow, "release_founder")} /></View>}</AdminCard>)}
+            </>
+          )}
 
-              <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: colors.foreground, marginBottom: 10, marginTop: 6 }}>How Reputation is Earned</Text>
-              <View style={[styles.docCard, { backgroundColor: colors.card, borderColor: colors.border, paddingVertical: 0, paddingHorizontal: 0, overflow: "hidden" }]}>
-                {REP_EVENTS.map((ev, i) => (
-                  <View key={ev.type} style={{ flexDirection: "row", alignItems: "center", padding: 14, borderTopWidth: i === 0 ? 0 : StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
-                    <View style={{ width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: (ev.delta > 0 ? "#22C55E" : "#EF4444") + "15" }}>
-                      <Text style={{ fontSize: 16 }}>{ev.emoji}</Text>
-                    </View>
-                    <Text style={{ flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: colors.foreground, marginLeft: 12 }}>{ev.label}</Text>
-                    <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: (ev.delta > 0 ? "#22C55E" : "#EF4444") + "15" }}>
-                      <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: ev.delta > 0 ? "#22C55E" : "#EF4444" }}>
-                        {ev.delta > 0 ? "+" : ""}{ev.delta}
-                      </Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
+          {tab === "users" && (
+            <>
+              <View style={styles.sectionIntro}><View><Text style={[styles.pageTitle, { color: colors.foreground }]}>Users & KYC controls</Text><Text style={[styles.pageSub, { color: colors.mutedForeground }]}>Manage account access and role assignment from the server-authorized directory.</Text></View></View>
+              <TextInput value={search} onChangeText={setSearch} placeholder="Search by name, handle, or email" placeholderTextColor={colors.mutedForeground} style={[styles.searchInput, { color: colors.foreground, backgroundColor: colors.card, borderColor: colors.border }]} />
+              {users.filter((entry) => `${entry.name} ${entry.handle} ${entry.email ?? ""}`.toLowerCase().includes(search.toLowerCase())).map((entry) => <AdminCard key={entry.id} colors={colors}><View style={styles.rowHeader}><View style={[styles.avatar, { backgroundColor: `${colors.primary}18` }]}><Text style={[styles.avatarText, { color: colors.primary }]}>{entry.name.slice(0, 1).toUpperCase()}</Text></View><View style={{ flex: 1 }}><Text style={[styles.cardTitle, { color: colors.foreground }]}>{entry.name}</Text><Text style={[styles.cardSub, { color: colors.mutedForeground }]}>@{entry.handle} · {entry.email ?? "No email"} · rep {entry.reputationScore}</Text></View><View style={[styles.statusPill, { backgroundColor: entry.accountStatus === "active" ? `${colors.success}15` : `${colors.destructive}15` }]}><Text style={[styles.statusText, { color: entry.accountStatus === "active" ? colors.success : colors.destructive }]}>{entry.accountStatus}</Text></View></View><View style={styles.userMeta}><Text style={[styles.dataMeta, { color: colors.mutedForeground }]}>Role: <Text style={{ color: colors.foreground }}>{entry.role}</Text></Text><Text style={[styles.dataMeta, { color: colors.mutedForeground }]}>KYC: <Text style={{ color: colors.foreground }}>{entry.kycStatus}</Text></Text></View><View style={styles.actionsRow}>{entry.accountStatus === "active" ? <ActionButton label="Suspend" icon="pause-circle" colors={colors} destructive disabled={saving === entry.id} onPress={() => updateUser(entry, { accountStatus: "suspended" })} /> : <ActionButton label="Restore access" icon="check-circle" colors={colors} disabled={saving === entry.id} onPress={() => updateUser(entry, { accountStatus: "active" })} />}{entry.role !== "validator" && entry.role !== "admin" && entry.role !== "super_admin" && <ActionButton label="Make validator" icon="shield" colors={colors} disabled={saving === entry.id} onPress={() => updateUser(entry, { role: "validator" })} />}</View></AdminCard>)}
+              {users.length === 0 && <EmptyState colors={colors} icon="users" text="No users match the current directory." />}
+            </>
+          )}
 
-              <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: colors.foreground, marginBottom: 10, marginTop: 18 }}>AI Dispute Resolution</Text>
-              <View style={[styles.docCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                {DISPUTE_PHASES.map((phase, i) => (
-                  <View key={phase.title} style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: i < DISPUTE_PHASES.length - 1 ? 18 : 0 }}>
-                    <View style={{ alignItems: "center", marginRight: 14, minWidth: 32 }}>
-                      <View style={{ width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary + "18" }}>
-                        <Text style={{ fontSize: 16 }}>{phase.icon}</Text>
-                      </View>
-                      {i < DISPUTE_PHASES.length - 1 && (
-                        <View style={{ width: 2, height: 14, backgroundColor: colors.border, marginTop: 4 }} />
-                      )}
-                    </View>
-                    <View style={{ flex: 1, paddingTop: 6 }}>
-                      <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: colors.foreground }}>{phase.title}</Text>
-                      <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 18, marginTop: 2 }}>{phase.desc}</Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
+          {tab === "audit" && (
+            <>
+              <View style={styles.sectionIntro}><View><Text style={[styles.pageTitle, { color: colors.foreground }]}>Audit trail</Text><Text style={[styles.pageSub, { color: colors.mutedForeground }]}>Sanitized administrative actions and financial decisions.</Text></View></View>
+              {auditLogs.length === 0 ? <EmptyState colors={colors} icon="file-text" text="No audit events have been recorded yet." /> : auditLogs.map((log) => <AdminCard key={log.id} colors={colors}><View style={styles.rowHeader}><View style={[styles.auditIcon, { backgroundColor: `${colors.primary}18` }]}><Feather name="activity" size={15} color={colors.primary} /></View><View style={{ flex: 1 }}><Text style={[styles.dataLabel, { color: colors.foreground }]}>{log.action.replaceAll("_", " ")}</Text><Text style={[styles.dataMeta, { color: colors.mutedForeground }]}>{log.entityType} · {log.entityId} · {formatDate(log.createdAt)}</Text></View></View><Text style={[styles.auditMeta, { color: colors.mutedForeground }]}>Actor {log.actorId}{log.ipAddress ? ` · IP hash ${log.ipAddress.slice(0, 12)}…` : ""}</Text></AdminCard>)}
+            </>
+          )}
 
-              <View style={[styles.docCard, { backgroundColor: colors.primary + "08", borderColor: colors.primary + "30", flexDirection: "row", alignItems: "center", gap: 14, marginTop: 10 }]}>
-                <Text style={{ fontSize: 22 }}>⚖️</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: colors.foreground }}>Jury Eligibility</Text>
-                  <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, lineHeight: 18, marginTop: 3 }}>
-                    You need <Text style={{ fontFamily: "Inter_700Bold", color: colors.primary }}>10+ reputation</Text> and KYC-verified status to serve as a juror and earn rewards. Your score: <Text style={{ fontFamily: "Inter_700Bold", color: repScore >= 10 ? "#22C55E" : colors.foreground }}>{repScore}</Text>
-                    {repScore >= 10 ? " ✅ Eligible" : ` (need ${10 - repScore} more)`}.
-                  </Text>
-                </View>
-              </View>
+          {tab === "settings" && settings && (
+            <>
+              <View style={styles.sectionIntro}><View><Text style={[styles.pageTitle, { color: colors.foreground }]}>Platform fee settings</Text><Text style={[styles.pageSub, { color: colors.mutedForeground }]}>Changes apply to future settlement calculations and are audit logged.</Text></View></View>
+              <AdminCard colors={colors}><SettingField label="Escrow fee" suffix="%" value={settings.escrowFeePercent} onChange={(value) => setSettings({ ...settings, escrowFeePercent: value })} colors={colors} /><SettingField label="Withdrawal flat fee" suffix="π" value={settings.withdrawalFlatFee} onChange={(value) => setSettings({ ...settings, withdrawalFlatFee: value })} colors={colors} /><SettingField label="Featured pitch fee" suffix="π" value={settings.featuredPitchFee} onChange={(value) => setSettings({ ...settings, featuredPitchFee: value })} colors={colors} /><SettingField label="KYC verification fee" suffix="π" value={settings.kycVerificationFee} onChange={(value) => setSettings({ ...settings, kycVerificationFee: value })} colors={colors} /><SettingField label="NFT royalty" suffix="%" value={settings.nftRoyaltyFeePercent} onChange={(value) => setSettings({ ...settings, nftRoyaltyFeePercent: value })} colors={colors} /><Pressable onPress={saveSettings} disabled={saving === "settings"} style={[styles.primaryButton, { backgroundColor: colors.primary, marginTop: 10, opacity: saving === "settings" ? 0.6 : 1 }]}>{saving === "settings" ? <ActivityIndicator color={colors.primaryForeground} /> : <><Feather name="save" size={15} color={colors.primaryForeground} /><Text style={[styles.primaryButtonText, { color: colors.primaryForeground }]}>Save fee settings</Text></>}</Pressable></AdminCard>
+              <View style={[styles.infoBox, { backgroundColor: `${colors.primary}0C`, borderColor: `${colors.primary}30` }]}><Feather name="info" size={15} color={colors.primary} /><Text style={[styles.infoText, { color: colors.mutedForeground }]}>All values are stored as decimal amounts. Existing agreement rows are never rewritten when settings change.</Text></View>
             </>
           )}
         </ScrollView>
-      ))}
+      )}
     </View>
   );
 }
 
+function EmptyState({ colors, icon, text }: { colors: ReturnType<typeof useColors>; icon: React.ComponentProps<typeof Feather>["name"]; text: string }) {
+  return <View style={styles.empty}><Feather name={icon} size={28} color={colors.mutedForeground} /><Text style={[styles.emptyText, { color: colors.mutedForeground }]}>{text}</Text></View>;
+}
+
+function SettingField({ label, suffix, value, onChange, colors }: { label: string; suffix: string; value: number; onChange: (value: number) => void; colors: ReturnType<typeof useColors> }) {
+  return <View style={styles.settingRow}><Text style={[styles.settingLabel, { color: colors.foreground }]}>{label}</Text><View style={[styles.settingInputWrap, { backgroundColor: colors.background, borderColor: colors.border }]}><TextInput value={String(value)} keyboardType="decimal-pad" onChangeText={(next) => onChange(Number(next.replace(",", ".")) || 0)} style={[styles.settingInput, { color: colors.foreground }]} /><Text style={[styles.settingSuffix, { color: colors.mutedForeground }]}>{suffix}</Text></View></View>;
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth, gap: 12 },
-  backBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  refreshBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
-  headerSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
-  tabBar: { flexDirection: "row", borderBottomWidth: StyleSheet.hairlineWidth },
-  tabBtn: { flex: 1, paddingVertical: 12, alignItems: "center", borderBottomWidth: 2 },
-  tabText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  content: { padding: 16 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 40 },
-  emptyBox: { alignItems: "center", justifyContent: "center", padding: 60, gap: 12 },
-  emptyTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  emptyBody: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
-  docCard: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 14, gap: 12 },
-  docHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
-  docIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  docType: { fontSize: 13, fontFamily: "Inter_700Bold" },
-  docTime: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
-  pendingChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, borderWidth: 1 },
-  pendingChipText: { fontSize: 10, fontFamily: "Inter_700Bold" },
-  docUrl: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8 },
-  docUrlText: { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium" },
-  docProjectLabel: { fontSize: 11, fontFamily: "Inter_400Regular" },
-  docActions: { flexDirection: "row", gap: 8 },
-  docActionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1, borderRadius: 10, paddingVertical: 10 },
-  docActionText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  pitchCard: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 14, gap: 12 },
-  pitchHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
-  pitchIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  pitchTitle: { fontSize: 15, fontFamily: "Inter_700Bold" },
-  pitchMeta: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
-  pitchSummary: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20 },
-  pitchStats: { flexDirection: "row", gap: 14 },
-  pitchStat: { flexDirection: "row", alignItems: "center", gap: 5 },
-  pitchStatText: { fontSize: 12, fontFamily: "Inter_500Medium" },
-  pitchActions: { flexDirection: "row", gap: 8 },
-  validatorCard: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 16, gap: 12 },
-  validatorCardRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
-  validatorIcon: { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  validatorTitle: { fontSize: 15, fontFamily: "Inter_700Bold", marginBottom: 3 },
-  validatorSub: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
-  validatorBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 12, paddingVertical: 12 },
-  validatorBtnText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" },
-  validatorRoleBadge: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 20, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 6, alignSelf: "flex-start" },
-  validatorRoleText: { fontSize: 11, fontFamily: "Inter_700Bold" },
+  center: { alignItems: "center", justifyContent: "center", flex: 1 },
+  header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 18, paddingBottom: 14, borderBottomWidth: 1 },
+  iconButton: { width: 36, height: 36, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  headerTitle: { fontSize: 19, fontFamily: "Inter_700Bold" },
+  headerSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 3 },
+  rolePill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 999, borderWidth: 1 },
+  rolePillText: { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
+  tabs: { paddingHorizontal: 14, borderBottomWidth: 1, gap: 3 },
+  tab: { flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 13, paddingVertical: 13, borderBottomWidth: 2 },
+  tabText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  content: { padding: 18, gap: 16 },
+  sectionIntro: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 14 },
+  pageTitle: { fontSize: 24, fontFamily: "Inter_700Bold" },
+  pageSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 5, lineHeight: 18 },
+  livePill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 999 },
+  liveDot: { width: 6, height: 6, borderRadius: 3 },
+  liveText: { fontSize: 9, fontFamily: "Inter_700Bold", letterSpacing: 0.6 },
+  statsGrid: { flexDirection: "row", flexWrap: "wrap" },
+  statCard: { minHeight: 132, padding: 15 },
+  statIcon: { width: 32, height: 32, alignItems: "center", justifyContent: "center", borderRadius: 10, marginBottom: 12 },
+  statLabel: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  statValue: { fontSize: 20, fontFamily: "Inter_700Bold", marginTop: 4 },
+  twoColumns: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  flexCard: { flex: 1, minWidth: 300 },
+  card: { borderRadius: 16, borderWidth: 1, padding: 16 },
+  cardTitle: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  cardSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 4, lineHeight: 17 },
+  dataRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: "#0000000D" },
+  dataLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "capitalize" },
+  dataMeta: { fontSize: 10, fontFamily: "Inter_400Regular", marginTop: 3 },
+  dataAmount: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  rowHeader: { flexDirection: "row", alignItems: "center", gap: 11 },
+  statusPill: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 999 },
+  statusText: { fontSize: 9, fontFamily: "Inter_700Bold", textTransform: "uppercase" },
+  countPill: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999 },
+  countText: { fontSize: 11, fontFamily: "Inter_700Bold" },
+  amountBand: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 15, padding: 12, borderRadius: 11, backgroundColor: "#00000008" },
+  amountLabel: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  amountValue: { fontSize: 17, fontFamily: "Inter_700Bold" },
+  actionsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 13 },
+  actionButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 9 },
+  actionButtonText: { fontSize: 11, fontFamily: "Inter_700Bold" },
+  searchInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 11, fontSize: 13, fontFamily: "Inter_400Regular" },
+  avatar: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  avatarText: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  userMeta: { flexDirection: "row", gap: 18, marginTop: 14 },
+  auditIcon: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  auditMeta: { fontSize: 10, fontFamily: "Inter_400Regular", marginTop: 12 },
+  empty: { minHeight: 160, alignItems: "center", justifyContent: "center", gap: 10, padding: 24 },
+  emptyText: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 18 },
+  errorBanner: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 11, borderWidth: 1 },
+  errorText: { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium" },
+  settingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 15, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: "#0000000D" },
+  settingLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", flex: 1 },
+  settingInputWrap: { flexDirection: "row", alignItems: "center", width: 130, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10 },
+  settingInput: { flex: 1, paddingVertical: 9, textAlign: "right", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  settingSuffix: { fontSize: 12, fontFamily: "Inter_500Medium", marginLeft: 6 },
+  primaryButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 11, paddingHorizontal: 16, paddingVertical: 12 },
+  primaryButtonText: { fontSize: 12, fontFamily: "Inter_700Bold" },
+  infoBox: { flexDirection: "row", gap: 9, padding: 13, borderWidth: 1, borderRadius: 12 },
+  infoText: { flex: 1, fontSize: 11, fontFamily: "Inter_400Regular", lineHeight: 17 },
+  forbiddenIcon: { width: 76, height: 76, borderRadius: 38, borderWidth: 1, alignItems: "center", justifyContent: "center", marginBottom: 18 },
+  forbiddenTitle: { fontSize: 21, fontFamily: "Inter_700Bold", textAlign: "center" },
+  forbiddenBody: { maxWidth: 360, fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20, marginTop: 10, marginBottom: 22 },
 });
