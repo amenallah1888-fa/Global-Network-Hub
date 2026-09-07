@@ -18,7 +18,7 @@ import { createNotification } from "../lib/notify";
 import { awardXp } from "../lib/xpEngine";
 import { getPagination } from "../lib/requestSecurity";
 import { z } from "@workspace/api-zod";
-import { requireRole } from "../middlewares/authMiddleware";
+import { requireValidatorAccess } from "../middlewares/authMiddleware";
 import { publicUser } from "../lib/userView";
 import { uploadRateLimiter } from "../lib/rateLimit";
 import { auditLogValues } from "../lib/auditLog";
@@ -60,12 +60,9 @@ function decoratePitch(p: typeof pitchesTable.$inferSelect, backed: boolean) {
   };
 }
 
-router.get("/validator/random-pitch", requireRole(["validator", "admin"]), async (req, res): Promise<void> => {
+router.get("/validator/random-pitch", requireValidatorAccess, async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   const [me] = await db.select().from(usersTable).where(eq(usersTable.id, meId));
-  if (!me || (me.role !== "validator" && me.role !== "admin")) {
-    res.status(403).json({ error: "Validator or Admin role required" }); return;
-  }
   const candidates = await db.select().from(pitchesTable)
     .where(sql`${pitchesTable.founderId} != ${meId} AND ${pitchesTable.trustScore} < 100`)
     .orderBy(desc(pitchesTable.createdAt))
@@ -331,7 +328,7 @@ router.post("/pitches/:id/documents", uploadRateLimiter, async (req, res): Promi
   res.status(201).json({ ...doc, uploadedAt: doc.uploadedAt.toISOString() });
 });
 
-router.patch("/pitches/:id/verify", requireRole(["validator", "admin"]), async (req, res): Promise<void> => {
+router.patch("/pitches/:id/verify", requireValidatorAccess, async (req, res): Promise<void> => {
   currentUserId(req);
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const status = req.body?.status === "verified" ? "verified" : "pending";
@@ -344,7 +341,7 @@ router.patch("/pitches/:id/verify", requireRole(["validator", "admin"]), async (
 const VALID_BLOCKS = ["identity", "reality", "roadmap", "portfolio"] as const;
 const BLOCK_POINTS = 25;
 
-router.post("/pitches/:id/validate-block", requireRole(["validator", "admin"]), async (req, res): Promise<void> => {
+router.post("/pitches/:id/validate-block", requireValidatorAccess, async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const block = String(req.body?.block ?? "").trim();
@@ -355,9 +352,7 @@ router.post("/pitches/:id/validate-block", requireRole(["validator", "admin"]), 
   }
 
   const [me] = await db.select().from(usersTable).where(eq(usersTable.id, meId));
-  if (!me || (me.role !== "validator" && me.role !== "admin")) {
-    res.status(403).json({ error: "Validator or Admin role required to approve blocks" }); return;
-  }
+  if (!me) { res.status(401).json({ error: "Authentication required" }); return; }
 
   const [pitch] = await db.select().from(pitchesTable).where(eq(pitchesTable.id, id));
   if (!pitch) { res.status(404).json({ error: "Project not found" }); return; }

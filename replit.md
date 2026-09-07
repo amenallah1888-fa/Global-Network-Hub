@@ -53,9 +53,9 @@ an interactive world atlas, and monetization (tips and paid circles).
 - `GET /pitches`, `POST /pitches`, `POST /pitches/:id/back`
 - `GET /markers`
 - `GET /notifications`, `POST /notifications/read-all`
-- Admin operations are under `/admin` and require the server-side `admin` or
-  `super_admin` role: revenue analytics, escrow resolution, user access/KYC
-  controls, audit logs, and platform fee settings.
+- Admin operations are under `/admin` and require the server-side `admin`,
+  `super_admin`, or legacy `superadmin` role: revenue analytics, escrow
+  resolution, user access/KYC controls, audit logs, and platform fee settings.
 
 ### Monetization administration
 
@@ -68,8 +68,9 @@ an interactive world atlas, and monetization (tips and paid circles).
   agreement state, fee ledger, transaction, and audit event in one database
   transaction. Notifications are sent only after commit.
 - The mobile `/admin` screen is a monetization console with an explicit 403
-  state for non-admin roles. It uses authenticated API requests and contains no
-  mock financial data.
+  state for non-admin roles. The separate `/validator` screen is gated by
+  verified account, completed KYC, avatar Level 5+, and 85+ reputation. Both
+  screens use authenticated API requests and contain no mock financial data.
 
 A pseudo-auth helper in `artifacts/api-server/src/lib/currentUser.ts`
 returns the fixed user id `u_me` for all requests. Notifications for actions

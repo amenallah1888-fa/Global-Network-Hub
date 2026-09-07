@@ -1,6 +1,6 @@
 import type { Request, RequestHandler } from "express";
 import { eq } from "drizzle-orm";
-import { db, usersTable, type User } from "@workspace/db";
+import { db, usersTable, userAvatarsTable, type User } from "@workspace/db";
 import {
   SESSION_COOKIE,
   verifySession,
@@ -52,7 +52,7 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
   }
 };
 
-export type AppRole = "user" | "validator" | "admin" | "super_admin" | "investor" | "creator";
+export type AppRole = "user" | "validator" | "admin" | "super_admin" | "superadmin" | "investor" | "creator";
 
 export function requireRole(roles: readonly AppRole[]): RequestHandler {
   return (req, res, next) => {
@@ -68,4 +68,35 @@ export function requireRole(roles: readonly AppRole[]): RequestHandler {
   };
 }
 
-export const requireAdmin: RequestHandler = requireRole(["admin", "super_admin"]);
+export const requireAdmin: RequestHandler = requireRole(["admin", "super_admin", "superadmin"]);
+
+export const requireValidatorAccess: RequestHandler = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: "Authentication required", code: "UNAUTHENTICATED" });
+      return;
+    }
+
+    const [avatar] = await db
+      .select({ level: userAvatarsTable.level })
+      .from(userAvatarsTable)
+      .where(eq(userAvatarsTable.userId, req.user.id))
+      .limit(1);
+
+    const eligible = req.user.verified
+      && req.user.kycStatus === "verified"
+      && req.user.reputationScore >= 85
+      && (avatar?.level ?? 0) >= 5;
+
+    if (!eligible) {
+      res.status(403).json({
+        error: "Validator access requires a verified account, KYC verification, Level 5, and 85+ reputation",
+        code: "VALIDATOR_REQUIREMENTS",
+      });
+      return;
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+};

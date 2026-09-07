@@ -45,7 +45,7 @@ const resolveBody = z.object({
 }).strict();
 
 const userStatusBody = z.object({
-  role: z.enum(["user", "validator", "admin", "super_admin", "investor", "creator"]).optional(),
+  role: z.enum(["user", "validator", "admin", "super_admin", "superadmin", "investor", "creator"]).optional(),
   accountStatus: z.enum(["active", "suspended", "banned"]).optional(),
 }).strict().refine((value) => Object.keys(value).length > 0, "A role or accountStatus is required");
 
@@ -88,6 +88,10 @@ async function ensureSettings() {
 }
 
 adminRouter.use(requireAdmin);
+
+adminRouter.get("/", (req, res): void => {
+  res.json({ ok: true, role: req.user?.role ?? null });
+});
 
 adminRouter.get("/analytics/revenue", async (_req, res): Promise<void> => {
   const monthStart = new Date();

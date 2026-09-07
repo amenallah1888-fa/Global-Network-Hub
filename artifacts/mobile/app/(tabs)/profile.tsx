@@ -27,7 +27,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/context/AuthContext";
-import { useDevMode } from "@/context/DevModeContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useColors } from "@/hooks/useColors";
 import { useAvatarData } from "@/lib/useAvatarData";
@@ -42,8 +41,8 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { token, clearSession } = useAuth();
-  const { devMode } = useDevMode();
   const me = useCurrentUser();
+  const { data: avatarData } = useAvatarData(me.id);
   const role = (me as typeof me & { role?: string }).role;
   const qc = useQueryClient();
 
@@ -65,7 +64,6 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
   const [milestoneNotifs, setMilestoneNotifs] = useState(true);
   const [validatorVoting, setValidatorVoting] = useState(false);
   const [validatorLockVisible, setValidatorLockVisible] = useState(false);
-  const [kycBypassing, setKycBypassing] = useState(false);
   const [walletModalVisible, setWalletModalVisible] = useState(false);
   const [walletAddress, setWalletAddress] = useState((me as any).piWalletAddress ?? "");
   const [savingWallet, setSavingWallet] = useState(false);
@@ -73,24 +71,6 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
   const { themeMode, setThemeMode } = useTheme();
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [savingVisibility, setSavingVisibility] = useState(false);
-
-  const handleKycBypass = async () => {
-    setKycBypassing(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/auth/promote-kyc`, {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Failed");
-      qc.invalidateQueries({ queryKey: ["/api/me"] });
-      qc.invalidateQueries({ queryKey: ["/api/users"] });
-      Alert.alert("KYC Verified ✓", "Your account is now KYC Verified. All features unlocked — you can publish pitches and access the Creator Flow.");
-    } catch {
-      Alert.alert("Error", "Could not update KYC status.");
-    } finally {
-      setKycBypassing(false);
-    }
-  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -120,7 +100,16 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
         text: "Sign out",
         style: "destructive",
         onPress: async () => {
+          try {
+            await fetch(`${API_BASE}/api/auth/logout`, {
+              method: "POST",
+              headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+            });
+          } catch {
+            // Local session cleanup must still complete if the API is unavailable.
+          }
           await clearSession();
+          qc.clear();
           onClose();
           router.replace("/login");
         },
@@ -291,15 +280,6 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                   onPress={(me as any).kycStatus !== "verified" ? () => Alert.alert("KYC Verification", "Submit your government-issued ID via the secure portal. Approval typically takes 24-48 hours.") : undefined}
                   colors={colors}
                 />
-                {(me.handle === "amen" || Platform.OS === "web") && (me as any).kycStatus !== "verified" && (
-                  <Pressable
-                    onPress={handleKycBypass}
-                    disabled={kycBypassing}
-                    style={({ pressed }) => ({ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, backgroundColor: "#8B5CF618", margin: 12, marginTop: 0, borderRadius: 10, paddingVertical: 11, borderWidth: 1, borderColor: "#8B5CF640", opacity: pressed || kycBypassing ? 0.7 : 1 })}
-                  >
-                    {kycBypassing ? <ActivityIndicator size="small" color="#8B5CF6" /> : <><Feather name="cpu" size={13} color="#8B5CF6" /><Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: "#8B5CF6" }}>Developer Bypass — Set KYC Verified</Text></>}
-                  </Pressable>
-                )}
                 <SettingsRow
                   icon="edit"
                   iconBg={colors.primary}
@@ -425,10 +405,11 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                 </View>
                 {/* Validator Portal row */}
                 {(() => {
-                  const isValidator = role === "validator" || role === "admin";
                   const repScore = (me as any).reputationScore ?? 0;
                   const meetsRep = repScore >= 85;
-                  const isLocked = !isValidator && !meetsRep && !devMode;
+                  const avatarLevel = avatarData?.level ?? 0;
+                  const meetsValidatorRequirements = Boolean(me.verified) && (me as any).kycStatus === "verified" && meetsRep && avatarLevel >= 5;
+                  const isLocked = !meetsValidatorRequirements;
                   return (
                     <>
                       <SettingsRow
@@ -438,12 +419,12 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
                         sub={isLocked ? `Locked — ${repScore}/100 rep · need 85+ to unlock. Validators act as auditors reviewing project reality and boosting or lowering public Trust Scores. You cannot vote on your own projects.` : "Review projects, verify documents & earn reputation. You are strictly forbidden from voting on your own projects (conflict of interest)."}
                         trailing={
                           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                            {isValidator && <View style={{ backgroundColor: "#22C55E18", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3 }}><Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#22C55E" }}>ACTIVE</Text></View>}
+                            {meetsValidatorRequirements && <View style={{ backgroundColor: "#22C55E18", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3 }}><Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#22C55E" }}>ACTIVE</Text></View>}
                             {isLocked && <View style={{ backgroundColor: "#6B728018", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3 }}><Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: "#6B7280" }}>LOCKED</Text></View>}
                             <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
                           </View>
                         }
-                        onPress={() => { if (isLocked) { setValidatorLockVisible(true); } else { onClose(); router.push("/admin"); } }}
+                        onPress={() => { if (isLocked) { setValidatorLockVisible(true); } else { onClose(); router.push("/validator"); } }}
                         colors={colors}
                       />
                       <Modal visible={validatorLockVisible} transparent animationType="fade" onRequestClose={() => setValidatorLockVisible(false)}>
@@ -561,6 +542,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
 
               <Pressable
                 onPress={signOut}
+                disabled={!token}
                 style={({ pressed }) => ({ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 12, backgroundColor: "#EF444415", borderRadius: 16, marginTop: 8, paddingVertical: 16, borderWidth: 1, borderColor: "#EF444440", opacity: pressed ? 0.7 : 1 })}
               >
                 <Feather name="log-out" size={18} color="#EF4444" />
@@ -873,7 +855,6 @@ export default function ProfileScreen() {
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const me = useCurrentUser();
   const role = (me as typeof me & { role?: string }).role;
-  const { devMode } = useDevMode();
   const currentUserId = useCurrentUserId();
   const { data: users } = useListUsers();
   const { data: posts } = useListPosts();
@@ -1027,22 +1008,30 @@ export default function ProfileScreen() {
             onPress={onMyPitch}
           />
           <ActionTile
-            icon="shield"
-            label="Validator"
+                icon="shield"
+                label="Validator Portal"
             color="#8B5CF6"
             onPress={() => {
               const rep = (me as any).reputationScore ?? 0;
-              const isVal = role === "validator" || role === "admin";
-              if (isVal || rep >= 85 || devMode) {
-                router.push("/admin");
+              const isEligible = Boolean(me.verified) && (me as any).kycStatus === "verified" && rep >= 85 && (avatarData?.level ?? 0) >= 5;
+              if (isEligible) {
+                router.push("/validator");
               } else {
                 Alert.alert(
                   "Validator Portal Locked",
-                  `You need 85+ reputation to access the Validator Portal.\n\nYour current score: ${rep}/100.\n\nEarn rep by backing projects, delivering milestones, and completing escrow agreements.`
+                  `Validator access requires a verified account, completed KYC, Level 5, and 85+ reputation.\n\nYour current score: ${rep}/100 · Level ${avatarData?.level ?? 0}.`
                 );
               }
             }}
           />
+          {(role === "admin" || role === "super_admin" || role === "superadmin") && (
+            <ActionTile
+              icon="settings"
+              label="Admin Console"
+              color="#EF4444"
+              onPress={() => router.push("/admin")}
+            />
+          )}
           <ActionTile
             icon="package"
             label="Wardrobe"

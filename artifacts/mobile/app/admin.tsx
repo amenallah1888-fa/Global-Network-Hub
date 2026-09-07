@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
+import { useDevMode } from "@/context/DevModeContext";
 import { useColors } from "@/hooks/useColors";
 
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : "";
@@ -131,6 +132,7 @@ export default function AdminScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { token, user } = useAuth();
+  const { devMode, toggleDevMode } = useDevMode();
   const [tab, setTab] = useState<Tab>("overview");
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [escrows, setEscrows] = useState<Escrow[]>([]);
@@ -143,8 +145,28 @@ export default function AdminScreen() {
   const [saving, setSaving] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
+  const [kycBypassing, setKycBypassing] = useState(false);
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin" || user?.role === "superadmin";
   const wide = width >= 760;
+
+  const handleKycBypass = async () => {
+    if (!token) return;
+    setKycBypassing(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/promote-kyc`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not update KYC status");
+      Alert.alert("KYC verified", "The signed-in admin account is now marked KYC verified.");
+      await load(false);
+    } catch (cause) {
+      Alert.alert("Developer action failed", cause instanceof Error ? cause.message : "Could not update KYC status");
+    } finally {
+      setKycBypassing(false);
+    }
+  };
 
   const load = async (showSpinner = true) => {
     if (!token || !isAdmin) {
@@ -263,7 +285,7 @@ export default function AdminScreen() {
             <Text style={[styles.headerTitle, { color: colors.foreground }]}>Platform Console</Text>
             <View style={[styles.rolePill, { backgroundColor: `${colors.primary}18`, borderColor: `${colors.primary}45` }]}>
               <Feather name="shield" size={11} color={colors.primary} />
-              <Text style={[styles.rolePillText, { color: colors.primary }]}>{user?.role === "super_admin" ? "SUPER ADMIN" : "ADMIN"}</Text>
+              <Text style={[styles.rolePillText, { color: colors.primary }]}>{user?.role === "super_admin" || user?.role === "superadmin" ? "SUPER ADMIN" : "ADMIN"}</Text>
             </View>
           </View>
           <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>Financial controls, trust operations, and audit visibility</Text>
@@ -307,6 +329,34 @@ export default function AdminScreen() {
               <View style={[styles.statsGrid, { gap: 12 }]}>
                 {statCards.map((stat) => <AdminCard key={stat.label} colors={colors} style={[styles.statCard, { width: wide ? "23.5%" : "48%" }]}><View style={[styles.statIcon, { backgroundColor: `${stat.tone}18` }]}><Feather name={stat.icon} size={17} color={stat.tone} /></View><Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{stat.label}</Text><Text style={[styles.statValue, { color: colors.foreground }]}>{stat.value}</Text></AdminCard>)}
               </View>
+              {__DEV__ && (
+                <AdminCard colors={colors} style={{ borderColor: "#8B5CF655" }}>
+                  <View style={styles.rowHeader}>
+                    <View style={[styles.statIcon, { backgroundColor: "#8B5CF618" }]}>
+                      <Feather name="tool" size={17} color="#8B5CF6" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.cardTitle, { color: colors.foreground }]}>Developer controls</Text>
+                      <Text style={[styles.cardSub, { color: colors.mutedForeground }]}>Development-only bypasses are restricted to this admin console.</Text>
+                    </View>
+                  </View>
+                  <View style={styles.actionsRow}>
+                    <ActionButton
+                      label={devMode ? "Disable dev mode" : "Enable dev mode"}
+                      icon="terminal"
+                      colors={colors}
+                      onPress={toggleDevMode}
+                    />
+                    <ActionButton
+                      label={kycBypassing ? "Updating…" : "Set my KYC verified"}
+                      icon="check-circle"
+                      colors={colors}
+                      disabled={kycBypassing}
+                      onPress={() => void handleKycBypass()}
+                    />
+                  </View>
+                </AdminCard>
+              )}
               <View style={styles.twoColumns}>
                 <AdminCard colors={colors} style={styles.flexCard}>
                   <Text style={[styles.cardTitle, { color: colors.foreground }]}>Ledger breakdown</Text>

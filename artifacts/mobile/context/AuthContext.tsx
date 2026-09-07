@@ -85,10 +85,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const clearSession = useCallback(async () => {
-    await Promise.all([
-      AsyncStorage.removeItem(TOKEN_KEY),
-      AsyncStorage.removeItem(USER_KEY),
-    ]);
+    await AsyncStorage.clear();
+    setAuthTokenGetter(null);
     setToken(null);
     setUser(null);
   }, []);

@@ -22,7 +22,6 @@ import { DevModeProvider } from "@/context/DevModeContext";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { configureApiClient } from "@/lib/apiClient";
 import { AIAssistant } from "@/components/AIAssistant";
-import { DevModeToggle } from "@/components/DevModeToggle";
 
 SplashScreen.preventAutoHideAsync();
 configureApiClient();
@@ -63,10 +62,10 @@ function RootLayoutNav() {
         <Stack.Screen name="service/[id]" options={{ headerShown: false, animation: "slide_from_right" }} />
         <Stack.Screen name="my-campaigns" options={{ headerShown: false, animation: "slide_from_right" }} />
         <Stack.Screen name="admin" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="validator" options={{ headerShown: false, animation: "slide_from_right" }} />
         <Stack.Screen name="nft-marketplace" options={{ headerShown: false, animation: "slide_from_right" }} />
       </Stack>
       {token ? <AIAssistant /> : null}
-      {token ? <DevModeToggle /> : null}
     </View>
   );
 }

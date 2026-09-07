@@ -9,7 +9,7 @@ import {
   sessionCookieOptions,
 } from "../lib/auth";
 import { currentUserId } from "../lib/currentUser";
-import { requireAuth, requireRole } from "../middlewares/authMiddleware";
+import { requireAuth, requireAdmin } from "../middlewares/authMiddleware";
 import { publicUser } from "../lib/userView";
 import { authRateLimiter } from "../lib/rateLimit";
 import { validateBody } from "../lib/requestSecurity";
@@ -250,7 +250,7 @@ async function logout(req: Request, res: Response): Promise<void> {
 router.post("/auth/logout", logout);
 router.get("/auth/logout", logout);
 
-router.patch("/auth/promote-validator", requireAuth, requireRole(["admin"]), async (req, res): Promise<void> => {
+router.patch("/auth/promote-validator", requireAuth, requireAdmin, async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   await db.update(usersTable).set({ role: "validator" }).where(eq(usersTable.id, meId));
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, meId));
@@ -265,7 +265,7 @@ router.patch("/auth/promote-validator", requireAuth, requireRole(["admin"]), asy
   res.json(user ? publicUser(user) : {});
 });
 
-router.patch("/auth/promote-kyc", requireAuth, requireRole(["admin"]), async (req, res): Promise<void> => {
+router.patch("/auth/promote-kyc", requireAuth, requireAdmin, async (req, res): Promise<void> => {
   const meId = currentUserId(req);
   await db.update(usersTable).set({ kycStatus: "verified", kycVerifiedAt: new Date() }).where(eq(usersTable.id, meId));
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, meId));
