@@ -146,7 +146,8 @@ export default function AdminScreen() {
   const [forbidden, setForbidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [kycBypassing, setKycBypassing] = useState(false);
-  const isAdmin = user?.role === "admin" || user?.role === "super_admin" || user?.role === "superadmin";
+  const normalizedRole = String(user?.role ?? "").trim().toLowerCase().replace(/-/g, "_");
+  const isAdmin = normalizedRole === "admin" || normalizedRole === "super_admin" || normalizedRole === "superadmin";
   const wide = width >= 760;
 
   const handleKycBypass = async () => {
@@ -285,7 +286,7 @@ export default function AdminScreen() {
             <Text style={[styles.headerTitle, { color: colors.foreground }]}>Platform Console</Text>
             <View style={[styles.rolePill, { backgroundColor: `${colors.primary}18`, borderColor: `${colors.primary}45` }]}>
               <Feather name="shield" size={11} color={colors.primary} />
-              <Text style={[styles.rolePillText, { color: colors.primary }]}>{user?.role === "super_admin" || user?.role === "superadmin" ? "SUPER ADMIN" : "ADMIN"}</Text>
+              <Text style={[styles.rolePillText, { color: colors.primary }]}>{normalizedRole === "super_admin" || normalizedRole === "superadmin" ? "SUPER ADMIN" : "ADMIN"}</Text>
             </View>
           </View>
           <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>Financial controls, trust operations, and audit visibility</Text>

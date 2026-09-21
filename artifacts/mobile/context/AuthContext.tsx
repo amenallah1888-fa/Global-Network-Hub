@@ -85,6 +85,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const clearSession = useCallback(async () => {
+    // AsyncStorage is also the web localStorage adapter. Clear it before
+    // navigation so a protected screen cannot be restored from a stale token.
     await AsyncStorage.clear();
     setAuthTokenGetter(null);
     setToken(null);

@@ -43,7 +43,7 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
   const { token, clearSession } = useAuth();
   const me = useCurrentUser();
   const { data: avatarData } = useAvatarData(me.id);
-  const role = (me as typeof me & { role?: string }).role;
+  const role = String((me as typeof me & { role?: string }).role ?? "user").trim().toLowerCase().replace(/-/g, "_");
   const qc = useQueryClient();
 
   const [tab, setTab] = useState<"profile" | "account">("profile");
@@ -100,18 +100,25 @@ function SettingsModal({ visible, onClose }: { visible: boolean; onClose: () => 
         text: "Sign out",
         style: "destructive",
         onPress: async () => {
-          try {
-            await fetch(`${API_BASE}/api/auth/logout`, {
-              method: "POST",
-              headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-            });
-          } catch {
-            // Local session cleanup must still complete if the API is unavailable.
-          }
+          // Local cleanup must not wait on a network request. This also clears
+          // the web localStorage adapter used by AsyncStorage.
           await clearSession();
           qc.clear();
           onClose();
           router.replace("/login");
+
+          try {
+            await Promise.race([
+              fetch(`${API_BASE}/api/auth/logout`, {
+                method: "POST",
+                headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+              }),
+              new Promise((resolve) => setTimeout(resolve, 3000)),
+            ]);
+          } catch {
+            // The local session is already gone; the server session can expire
+            // naturally if the request cannot be completed.
+          }
         },
       },
     ]);
@@ -854,7 +861,8 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? Math.max(insets.top, 67) : insets.top;
   const me = useCurrentUser();
-  const role = (me as typeof me & { role?: string }).role;
+  const role = String((me as typeof me & { role?: string }).role ?? "user").trim().toLowerCase().replace(/-/g, "_");
+  const isAdminRole = role === "admin" || role === "super_admin" || role === "superadmin";
   const currentUserId = useCurrentUserId();
   const { data: users } = useListUsers();
   const { data: posts } = useListPosts();
@@ -1024,7 +1032,7 @@ export default function ProfileScreen() {
               }
             }}
           />
-          {(role === "admin" || role === "super_admin" || role === "superadmin") && (
+          {isAdminRole && (
             <ActionTile
               icon="settings"
               label="Admin Console"

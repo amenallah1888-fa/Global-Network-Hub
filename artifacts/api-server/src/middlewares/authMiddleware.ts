@@ -54,13 +54,24 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
 
 export type AppRole = "user" | "validator" | "admin" | "super_admin" | "superadmin" | "investor" | "creator";
 
+function canonicalRole(role: unknown): string {
+  const normalized = String(role ?? "").trim().toLowerCase().replace(/-/g, "_");
+  return normalized === "superadmin" ? "super_admin" : normalized;
+}
+
+export function isAdminRole(role: unknown): boolean {
+  const normalized = canonicalRole(role);
+  return normalized === "admin" || normalized === "super_admin";
+}
+
 export function requireRole(roles: readonly AppRole[]): RequestHandler {
   return (req, res, next) => {
     if (!req.user) {
       res.status(401).json({ error: "Authentication required", code: "UNAUTHENTICATED" });
       return;
     }
-    if (!roles.includes(req.user.role as AppRole)) {
+    const allowedRoles = new Set(roles.map(canonicalRole));
+    if (!allowedRoles.has(canonicalRole(req.user.role))) {
       res.status(403).json({ error: "Insufficient permissions", code: "FORBIDDEN" });
       return;
     }
@@ -68,7 +79,17 @@ export function requireRole(roles: readonly AppRole[]): RequestHandler {
   };
 }
 
-export const requireAdmin: RequestHandler = requireRole(["admin", "super_admin", "superadmin"]);
+export const requireAdmin: RequestHandler = (req, res, next) => {
+  if (!req.user) {
+    res.status(401).json({ error: "Authentication required", code: "UNAUTHENTICATED" });
+    return;
+  }
+  if (!isAdminRole(req.user.role)) {
+    res.status(403).json({ error: "Insufficient permissions", code: "FORBIDDEN" });
+    return;
+  }
+  next();
+};
 
 export const requireValidatorAccess: RequestHandler = async (req, res, next) => {
   try {

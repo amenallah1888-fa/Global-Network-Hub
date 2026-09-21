@@ -318,9 +318,19 @@ async function ensureSuperAdmin(): Promise<void> {
     .from(usersTable)
     .where(eq(usersTable.email, "admin@humanverse.app"))
     .limit(1);
-  if (existing) return;
-
   const passwordHash = await bcrypt.hash(password, 12);
+  if (existing) {
+    await db.update(usersTable).set({
+      passwordHash,
+      role: "super_admin",
+      accountStatus: "active",
+      verified: true,
+      reputationScore: 100,
+    }).where(eq(usersTable.id, existing.id));
+    logger.info("Seed: super-admin credentials synchronized");
+    return;
+  }
+
   await db.insert(usersTable).values({
     id: "u_super_admin",
     handle: "superadmin",
