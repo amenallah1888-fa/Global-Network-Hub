@@ -1,12 +1,13 @@
 import { setBaseUrl } from "@workspace/api-client-react";
+import { getApiBase } from "./apiBase";
 
 let configured = false;
 
 export function configureApiClient(): void {
   if (configured) return;
-  const domain = process.env.EXPO_PUBLIC_DOMAIN;
-  if (domain) {
-    setBaseUrl(`https://${domain}`);
+  const apiBase = getApiBase();
+  if (apiBase) {
+    setBaseUrl(apiBase);
   } else {
     setBaseUrl(null);
   }

@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { getApiBase } from "@/lib/apiBase";
 
 const TOKEN_KEY = "oasis_auth_token";
 const USER_KEY = "oasis_auth_user";
@@ -52,8 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // server-side). Re-fetch the live record from the API so the app
           // always trusts the DB, not the last-cached copy.
           try {
-            const API_BASE = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : "";
-            const res = await fetch(`${API_BASE}/api/me`, {
+            const res = await fetch(`${getApiBase()}/api/me`, {
               headers: { Authorization: `Bearer ${storedToken}` },
             });
             if (res.ok) {

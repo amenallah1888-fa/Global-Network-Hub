@@ -17,12 +17,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth, type AuthUser } from "@/context/AuthContext";
+import { getApiBase } from "@/lib/apiBase";
 import { useColors } from "@/hooks/useColors";
-
-function getApiBase(): string {
-  const domain = process.env.EXPO_PUBLIC_DOMAIN;
-  return domain ? `https://${domain}` : "";
-}
 
 async function apiPost(path: string, body: Record<string, string>) {
   const res = await fetch(`${getApiBase()}/api${path}`, {
