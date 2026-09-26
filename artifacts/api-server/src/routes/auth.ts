@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { db, usersTable } from "@workspace/db";
 import {
@@ -23,7 +23,7 @@ const registerBody = z.object({
   password: z.string().min(6).max(256),
 }).strict();
 const loginBody = z.object({
-  handle: z.string().trim().min(2).max(24),
+  handle: z.string().trim().min(2).max(320),
   password: z.string().min(1).max(256),
 }).strict();
 const piBody = z.object({
@@ -89,14 +89,15 @@ router.post("/auth/register", authRateLimiter, validateBody(registerBody), async
 router.post("/auth/login", authRateLimiter, validateBody(loginBody), async (req, res): Promise<void> => {
   const { handle, password } = req.body ?? {};
   if (!handle || !password) {
-    res.status(400).json({ error: "handle and password required" });
+    res.status(400).json({ error: "handle or email and password required" });
     return;
   }
 
+  const identifier = String(handle).trim().toLowerCase();
   const [user] = await db
     .select()
     .from(usersTable)
-    .where(eq(usersTable.handle, String(handle).toLowerCase()));
+    .where(or(eq(usersTable.handle, identifier), eq(usersTable.email, identifier)));
 
   if (!user || !user.passwordHash) {
     await recordAuditEvent({

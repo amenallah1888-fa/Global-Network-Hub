@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  type TextInputProps,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -40,16 +41,16 @@ export default function LoginScreen() {
   const { setSession } = useAuth();
 
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [handle, setHandle] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async () => {
-    const h = handle.trim().toLowerCase();
-    const p = password.trim();
-    if (!h || !p) {
+    const value = identifier.trim().toLowerCase();
+    const p = password;
+    if (!value || !p) {
       Alert.alert("Missing fields", "Please fill in all required fields.");
       return;
     }
@@ -62,10 +63,15 @@ export default function LoginScreen() {
           setLoading(false);
           return;
         }
-        const { token, user } = await apiPost("/auth/register", { handle: h, name: n, password: p });
+        if (!/^[a-z0-9_]{2,24}$/.test(value)) {
+          Alert.alert("Invalid handle", "Use 2–24 lowercase letters, numbers, or underscores.");
+          setLoading(false);
+          return;
+        }
+        const { token, user } = await apiPost("/auth/register", { handle: value, name: n, password: p });
         await setSession(token, user);
       } else {
-        const { token, user } = await apiPost("/auth/login", { handle: h, password: p });
+        const { token, user } = await apiPost("/auth/login", { handle: value, password: p });
         await setSession(token, user);
       }
       router.replace("/(tabs)");
@@ -157,13 +163,14 @@ export default function LoginScreen() {
           </View>
 
           <Field
-            label="Handle"
-            value={handle}
-            onChangeText={(v) => setHandle(v.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
-            placeholder="yourhandle"
+            label={mode === "login" ? "Handle or email" : "Handle"}
+            value={identifier}
+            onChangeText={(v) => setIdentifier(mode === "login" ? v : v.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+            placeholder={mode === "login" ? "yourhandle or email" : "yourhandle"}
             autoCapitalize="none"
             colors={colors}
-            prefix="@"
+            keyboardType={mode === "login" ? "email-address" : "default"}
+            prefix={mode === "register" ? "@" : undefined}
           />
 
           {mode === "register" && (
@@ -238,6 +245,7 @@ function Field({
   onChangeText,
   placeholder,
   autoCapitalize,
+  keyboardType,
   colors,
   prefix,
 }: {
@@ -246,6 +254,7 @@ function Field({
   onChangeText: (v: string) => void;
   placeholder: string;
   autoCapitalize?: "none" | "sentences" | "words" | "characters";
+  keyboardType?: TextInputProps["keyboardType"];
   colors: any;
   prefix?: string;
 }) {
@@ -267,6 +276,7 @@ function Field({
           placeholder={placeholder}
           placeholderTextColor={colors.mutedForeground}
           autoCapitalize={autoCapitalize ?? "sentences"}
+          keyboardType={keyboardType}
           style={[styles.input, { color: colors.foreground, flex: 1 }]}
         />
       </View>
