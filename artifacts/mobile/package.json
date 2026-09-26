@@ -24,10 +24,10 @@
     "@ungap/structured-clone": "^1.3.0",
     "@workspace/api-client-react": "workspace:*",
     "babel-plugin-react-compiler": "^19.0.0-beta-e993439-20250117",
-    "expo": "~54.0.27",
+    "expo": "~54.0.37",
     "expo-blur": "~15.0.8",
-    "expo-constants": "~18.0.11",
-    "expo-font": "~14.0.10",
+    "expo-constants": "~18.0.14",
+    "expo-font": "~14.0.12",
     "expo-glass-effect": "~0.1.4",
     "expo-haptics": "~15.0.8",
     "expo-image": "~3.0.11",
@@ -35,7 +35,7 @@
     "expo-linear-gradient": "~15.0.8",
     "expo-linking": "~8.0.10",
     "expo-location": "~19.0.8",
-    "expo-router": "~6.0.17",
+    "expo-router": "~6.0.24",
     "expo-splash-screen": "~31.0.12",
     "expo-status-bar": "~3.0.9",
     "expo-symbols": "~1.0.8",
@@ -57,7 +57,7 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
-    "expo-clipboard": "^55.0.13",
+    "expo-clipboard": "^8.0.8",
     "leaflet": "^1.9.4",
     "react-leaflet": "^5.0.0"
   }
