@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -43,6 +43,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const submittingRef = useRef(false);
 
   const handleSubmit = async () => {
     const value = identifier.trim().toLowerCase();
@@ -51,6 +52,8 @@ export default function LoginScreen() {
       Alert.alert("Missing fields", "Please fill in all required fields.");
       return;
     }
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setLoading(true);
     try {
       if (mode === "register") {
@@ -75,13 +78,8 @@ export default function LoginScreen() {
     } catch (err: any) {
       Alert.alert("Error", err.message ?? "Something went wrong");
     } finally {
+      submittingRef.current = false;
       setLoading(false);
-    }
-  };
-
-  const submitForm = () => {
-    if (!loading) {
-      void handleSubmit();
     }
   };
 
@@ -203,7 +201,7 @@ export default function LoginScreen() {
                 style={[styles.input, { color: colors.foreground, flex: 1 }]}
                 autoCapitalize="none"
                 returnKeyType="go"
-                onSubmitEditing={submitForm}
+                onSubmitEditing={() => void handleSubmit()}
               />
               <Pressable onPress={() => setShowPassword((v) => !v)} hitSlop={6} style={{ padding: 8 }}>
                 <Feather
@@ -218,8 +216,7 @@ export default function LoginScreen() {
           <Pressable
             testID="auth-submit"
             accessibilityRole="button"
-            onPress={submitForm}
-            disabled={loading}
+            onPress={() => void handleSubmit()}
             style={({ pressed }) => [
               styles.submitBtn,
               { backgroundColor: colors.primary, opacity: pressed || loading ? 0.8 : 1 },
