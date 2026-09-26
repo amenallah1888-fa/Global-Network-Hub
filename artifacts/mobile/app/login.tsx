@@ -28,6 +28,7 @@ async function apiPost(path: string, body: Record<string, string>) {
   const res = await fetch(`${getApiBase()}/api${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify(body),
   });
   const data = await res.json();
@@ -79,6 +80,12 @@ export default function LoginScreen() {
       Alert.alert("Error", err.message ?? "Something went wrong");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const submitForm = () => {
+    if (!loading) {
+      void handleSubmit();
     }
   };
 
@@ -199,6 +206,8 @@ export default function LoginScreen() {
                 placeholderTextColor={colors.mutedForeground}
                 style={[styles.input, { color: colors.foreground, flex: 1 }]}
                 autoCapitalize="none"
+                returnKeyType="go"
+                onSubmitEditing={submitForm}
               />
               <Pressable onPress={() => setShowPassword((v) => !v)} hitSlop={6} style={{ padding: 8 }}>
                 <Feather
@@ -211,7 +220,9 @@ export default function LoginScreen() {
           </View>
 
           <Pressable
-            onPress={handleSubmit}
+            testID="auth-submit"
+            accessibilityRole="button"
+            onPress={submitForm}
             disabled={loading}
             style={({ pressed }) => [
               styles.submitBtn,
